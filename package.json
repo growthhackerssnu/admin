@@ -17,10 +17,11 @@
     "prisma:migrate": "dotenv -e .env.local -- prisma migrate dev",
     "prisma:deploy": "dotenv -e .env.local -- prisma migrate deploy",
     "prisma:studio": "dotenv -e .env.local -- prisma studio",
-    "dev:seed": "dotenv -e .env.local -- tsx src/dev/runSeedCli.ts"
+    "dev:seed": "dotenv -e .env.local -- tsx src/dev/runSeedCli.ts",
+    "seed:sources": "dotenv -e .env.local -- tsx src/dev/seedSourceFeeds.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
+    "@anthropic-ai/sdk": "^0.125.0",
     "@notionhq/client": "^2.2.15",
     "@prisma/client": "^5.22.0",
     "@slack/bolt": "^4.1.0",
@@ -31,6 +32,7 @@
     "next": "^14.2.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "rss-parser": "^3.13.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

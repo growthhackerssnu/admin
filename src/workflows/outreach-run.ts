@@ -1,15 +1,15 @@
 import { inngest } from "../inngest/client";
 import { prisma } from "../lib/prisma";
 import { postCompanyApprovalCards } from "../slack/blocks/companyApprovalCard";
+import { runSourcingPipeline } from "../modules/sourcing/pipeline";
 
 /**
- * Phase 1 스켈레톤: 이 프로젝트에서 가장 리스크가 큰 인프라 가정 —
- * "Slack 승인을 최대 며칠간 기다리는 동안 정지했다가, 인간이 버튼을 누르면
- * 정확히 그 지점부터 재개된다" — 를 실제 소싱/리서치 로직 없이 먼저 검증한다.
- *
- * 흐름: RUN_COMPANY 후보를 불러와 Slack에 승인 카드 게시 → 최대 3일간 대기 →
+ * 흐름: (후보가 아직 없다면) 실제 소싱 파이프라인으로 RUN_COMPANY 후보를 채움 →
+ * Slack에 승인 카드 게시 → 최대 3일간 대기(Phase 1에서 검증한 정지/재개 지점) →
  * "제출 완료" 버튼으로 발행되는 배치 이벤트가 오면 재개 → 다음 단계로 상태만 전환.
- * 실제 소싱 파이프라인(규칙기반 필터+LLM 평가)은 Phase 2에서 이 함수 앞단에 연결한다.
+ *
+ * `/dhbot-run-test`처럼 RUN_COMPANY를 미리 심어둔 더미 실행은 소싱 단계를 건너뛴다
+ * (더미 데이터 위에 실제 소싱 결과가 중복으로 얹히는 것을 방지).
  */
 export const outreachRun = inngest.createFunction(
   { id: "outreach-run", name: "Outreach Run" },
@@ -23,6 +23,14 @@ export const outreachRun = inngest.createFunction(
         data: { status: "SOURCING" },
       });
     });
+
+    const existingCandidateCount = await step.run("count-existing-run-companies", () =>
+      prisma.runCompany.count({ where: { runId } }),
+    );
+
+    if (existingCandidateCount === 0) {
+      await runSourcingPipeline(runId, step);
+    }
 
     const candidates = await step.run("load-run-companies", async () => {
       return prisma.runCompany.findMany({

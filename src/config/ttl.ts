@@ -23,3 +23,10 @@ export function isEvidenceStale(factKey: string, verifiedAt: Date, now: Date = n
   const ageMs = now.getTime() - verifiedAt.getTime();
   return ageMs > ttlDays * 24 * 60 * 60 * 1000;
 }
+
+/**
+ * 거절 사유를 사람이 직접 분류하는 모달이 아직 없어(TODO), 기업 승인 거절은 일단
+ * 전부 "타이밍 문제로 재조사 가능"으로 취급해 이 기간 뒤 재표면화를 허용한다.
+ * 영구 제외(PERMANENT_DISQUALIFY)는 모달이 생기기 전까지는 사람이 수동으로만 지정한다.
+ */
+export const DEFAULT_REJECTION_COOLDOWN_DAYS = 30;

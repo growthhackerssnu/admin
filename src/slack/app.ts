@@ -4,6 +4,8 @@ import { prisma } from "../lib/prisma";
 import { inngest } from "../inngest/client";
 import { COMPANY_DECISION_ACTION_PREFIX } from "./blocks/companyApprovalCard";
 import { seedDummyWorkflowRun } from "../dev/seedDummyRun";
+import { ensureDefaultWorkflowConfig } from "../modules/sourcing/defaultConfig";
+import { DEFAULT_REJECTION_COOLDOWN_DAYS } from "../config/ttl";
 
 // 일반 HTTPReceiver는 Vercel 서버리스 환경에서 ack() 이후 코드가 응답과 함께
 // 잘려나가는 문제가 있어(processBeforeResponse로도 완전히 해결되지 않음),
@@ -33,6 +35,9 @@ slackApp.action(
     const approved = decision === "approve";
     const decidedBy = body.user.id;
 
+    const cooldownUntil = new Date();
+    cooldownUntil.setDate(cooldownUntil.getDate() + DEFAULT_REJECTION_COOLDOWN_DAYS);
+
     await prisma.$transaction([
       prisma.runCompany.update({
         where: { id: runCompanyId },
@@ -43,6 +48,9 @@ slackApp.action(
           runCompanyId,
           action: approved ? "APPROVE" : "REJECT",
           decidedBy,
+          // 거절 사유 분류 모달이 생기기 전까지는 기본값으로 재조사 가능한 쿨다운만 적용한다.
+          cooldownClass: approved ? undefined : "COOLDOWN_ELIGIBLE",
+          cooldownUntil: approved ? undefined : cooldownUntil,
         },
       }),
     ]);
@@ -95,5 +103,40 @@ slackApp.command("/dhbot-run-test", async ({ ack, respond }) => {
   await respond({
     response_type: "ephemeral",
     text: `더미 실행을 시작했습니다 (runId: ${runId}). 잠시 후 승인 카드가 게시됩니다.`,
+  });
+});
+
+/**
+ * 실제 소싱 파이프라인을 태우는 프로덕션 트리거. RUN_COMPANY를 미리 채우지 않고
+ * 빈 WorkflowRun만 만들어 이벤트를 발행하면, durable workflow가 실제 뉴스 피드 수집 →
+ * 규칙 기반 필터 → Claude(web_search) 평가 → 중복/쿨다운 게이팅을 거쳐 후보를 채운다.
+ * 실제 웹 검색·LLM 호출이 여러 번 일어나므로 몇 분 정도 걸릴 수 있다.
+ */
+slackApp.command("/dhbot-run", async ({ ack, respond }) => {
+  await ack();
+
+  const config = await ensureDefaultWorkflowConfig();
+
+  const run = await prisma.workflowRun.create({
+    data: {
+      configId: config.id,
+      criteriaSnapshot: {
+        industry: config.industry,
+        fundingStage: config.fundingStage,
+        headcountMin: config.headcountMin,
+        headcountMax: config.headcountMax,
+      },
+      status: "PENDING",
+    },
+  });
+
+  await inngest.send({
+    name: "dhbot/run.sourcing.requested",
+    data: { runId: run.id },
+  });
+
+  await respond({
+    response_type: "ephemeral",
+    text: `실제 소싱을 시작했습니다 (runId: ${run.id}). 뉴스 피드 수집과 기업 리서치에 몇 분 정도 걸릴 수 있어요 — 끝나면 승인 카드가 게시됩니다.`,
   });
 });
