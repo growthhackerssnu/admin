@@ -1,0 +1,351 @@
+// dhbot 데이터 모델
+// 기반: PRD의 ERD를 그대로 구현. 아래 추가만 반영 (계획서 "임의로 결정한 사항" 참조):
+//   - Company.aliases / Company.status: 리브랜딩 추적, 폐업 감지
+//   - CompanyDecision.cooldownClass / cooldownUntil: 재표면화 게이팅 (잊혀진 기업 재추천의 기반)
+//   - ExceptionQueue: "사람이 직접 판단"하는 예외 큐를 조회 가능한 실체로 관리
+//   - SourceFeed: 소싱 출처(뉴스레터/채용공고/VC 포트폴리오)를 코드 하드코딩 없이 운영
+// TTL 캐싱은 컬럼이 아니라 src/config/ttl.ts의 코드 상수로 관리한다 (fact_key별 정책 조정이 쉬움).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum WorkflowRunStatus {
+  PENDING
+  SOURCING
+  AWAITING_COMPANY_APPROVAL
+  RESEARCHING_CONTACTS
+  AWAITING_CONTACT_APPROVAL
+  DRAFTING
+  COMPLETED
+  FAILED
+}
+
+enum RunCompanyStatus {
+  CANDIDATE
+  APPROVED
+  REJECTED
+  RESEARCHING
+  CONTACTS_READY
+  EXCEPTION
+}
+
+enum DecisionAction {
+  APPROVE
+  REJECT
+}
+
+enum CompanyStatus {
+  ACTIVE
+  DORMANT
+  SHUT_DOWN
+  UNKNOWN
+}
+
+enum CooldownClass {
+  PERMANENT_DISQUALIFY
+  COOLDOWN_ELIGIBLE
+}
+
+enum ResearchStage {
+  COMPANY_SOURCING
+  COMPANY_DETAIL
+  CONTACT_DISCOVERY
+  CONTACT_PRERESEARCH
+}
+
+enum ResearchAttemptStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum SubjectType {
+  COMPANY
+  CONTACT
+}
+
+enum RoleType {
+  DECISION_MAKER
+  PRACTITIONER
+  CHAMPION
+}
+
+enum ContactCandidateStatus {
+  PROPOSED
+  SELECTED
+  REJECTED
+}
+
+enum ContactMethodType {
+  EMAIL
+  PHONE
+  LINKEDIN
+  OTHER
+}
+
+enum MessageDraftStatus {
+  SKELETON
+  AWAITING_PROPOSAL
+  IN_REVIEW
+  FINALIZED
+  SENT
+}
+
+enum ExceptionQueueStatus {
+  OPEN
+  RESOLVED
+}
+
+enum SourceFeedType {
+  RSS
+  NEWS_API
+  JOB_BOARD
+  VC_PORTFOLIO
+}
+
+// ---------- Core config / run ----------
+
+model WorkflowConfig {
+  id                  String   @id @default(uuid()) @db.Uuid
+  name                String
+  industry            String
+  fundingStage        String   @map("funding_stage")
+  headcountMin        Int      @map("headcount_min")
+  headcountMax        Int      @map("headcount_max")
+  targetCompanyCount  Int      @map("target_company_count")
+  companyRetryLimit   Int      @map("company_retry_limit")
+  contactRetryLimit   Int      @map("contact_retry_limit")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  runs WorkflowRun[]
+
+  @@map("workflow_config")
+}
+
+model WorkflowRun {
+  id             String            @id @default(uuid()) @db.Uuid
+  configId       String            @map("config_id") @db.Uuid
+  criteriaSnapshot Json            @map("criteria_snapshot")
+  status         WorkflowRunStatus @default(PENDING)
+  triggeredAt    DateTime          @default(now()) @map("triggered_at")
+  completedAt    DateTime?         @map("completed_at")
+
+  config       WorkflowConfig @relation(fields: [configId], references: [id])
+  runCompanies RunCompany[]
+
+  @@map("workflow_run")
+}
+
+// ---------- Company ----------
+
+model Company {
+  id             String        @id @default(uuid()) @db.Uuid
+  name           String
+  aliases        String[]      @default([])
+  domain         String        @unique
+  industry       String?
+  fundingStage   String?       @map("funding_stage")
+  employeeCount  Int?          @map("employee_count")
+  status         CompanyStatus @default(UNKNOWN)
+  checkedAt      DateTime?     @map("checked_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  runCompanies RunCompany[]
+  contacts     Contact[]
+
+  @@map("company")
+}
+
+model RunCompany {
+  id                    String           @id @default(uuid()) @db.Uuid
+  runId                 String           @map("run_id") @db.Uuid
+  companyId             String           @map("company_id") @db.Uuid
+  fitScore              Float?           @map("fit_score")
+  recommendationReason  String?          @map("recommendation_reason")
+  uncertainty           String?
+  status                RunCompanyStatus @default(CANDIDATE)
+  createdAt             DateTime         @default(now()) @map("created_at")
+
+  run               WorkflowRun        @relation(fields: [runId], references: [id])
+  company           Company            @relation(fields: [companyId], references: [id])
+  decisions         CompanyDecision[]
+  researchAttempts  ResearchAttempt[]
+  messageDrafts     MessageDraft[]
+  exceptionQueue    ExceptionQueue[]
+
+  @@map("run_company")
+}
+
+model CompanyDecision {
+  id                String          @id @default(uuid()) @db.Uuid
+  runCompanyId      String          @map("run_company_id") @db.Uuid
+  action            DecisionAction
+  rejectionReason   String?         @map("rejection_reason")
+  cooldownClass     CooldownClass?  @map("cooldown_class")
+  cooldownUntil     DateTime?       @map("cooldown_until")
+  decidedBy         String          @map("decided_by")
+  decidedAt         DateTime        @default(now()) @map("decided_at")
+
+  runCompany RunCompany @relation(fields: [runCompanyId], references: [id])
+
+  @@map("company_decision")
+}
+
+// ---------- Research / evidence ----------
+
+model ResearchAttempt {
+  id             String                 @id @default(uuid()) @db.Uuid
+  runCompanyId   String                 @map("run_company_id") @db.Uuid
+  stage          ResearchStage
+  attemptNo      Int                    @map("attempt_no")
+  searchStrategy String?                @map("search_strategy")
+  status         ResearchAttemptStatus  @default(PENDING)
+  startedAt      DateTime               @default(now()) @map("started_at")
+
+  runCompany         RunCompany         @relation(fields: [runCompanyId], references: [id])
+  evidence           Evidence[]
+  contactCandidates  ContactCandidate[]
+
+  @@map("research_attempt")
+}
+
+model Evidence {
+  id                 String      @id @default(uuid()) @db.Uuid
+  researchAttemptId  String      @map("research_attempt_id") @db.Uuid
+  subjectType        SubjectType @map("subject_type")
+  subjectId          String      @map("subject_id") @db.Uuid
+  factKey            String      @map("fact_key")
+  factValue          String      @map("fact_value")
+  sourceUrl          String      @map("source_url")
+  confidence         Float
+  verifiedAt         DateTime    @default(now()) @map("verified_at")
+
+  researchAttempt ResearchAttempt @relation(fields: [researchAttemptId], references: [id])
+
+  @@index([subjectType, subjectId, factKey])
+  @@map("evidence")
+}
+
+// ---------- Contacts ----------
+
+model Contact {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String    @map("company_id") @db.Uuid
+  name       String
+  jobTitle   String?   @map("job_title")
+  profileUrl String?   @map("profile_url")
+  checkedAt  DateTime? @map("checked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  candidacies       ContactCandidate[]
+  contactMethods     ContactMethod[]
+
+  @@map("contact")
+}
+
+model ContactCandidate {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  researchAttemptId     String                  @map("research_attempt_id") @db.Uuid
+  contactId             String                  @map("contact_id") @db.Uuid
+  roleType              RoleType                @map("role_type")
+  roleFitScore          Float?                  @map("role_fit_score")
+  contactabilityScore   Float?                  @map("contactability_score")
+  recommendationReason  String?                 @map("recommendation_reason")
+  status                ContactCandidateStatus  @default(PROPOSED)
+  createdAt             DateTime                @default(now()) @map("created_at")
+
+  researchAttempt ResearchAttempt    @relation(fields: [researchAttemptId], references: [id])
+  contact         Contact            @relation(fields: [contactId], references: [id])
+  decisions       ContactDecision[]
+  messageDrafts   MessageDraft[]
+  exceptionQueue  ExceptionQueue[]
+
+  @@map("contact_candidate")
+}
+
+model ContactMethod {
+  id         String    @id @default(uuid()) @db.Uuid
+  contactId  String    @map("contact_id") @db.Uuid
+  type       ContactMethodType
+  value      String
+  confidence Float
+  sourceUrl  String    @map("source_url")
+  verifiedAt DateTime  @default(now()) @map("verified_at")
+
+  contact Contact @relation(fields: [contactId], references: [id])
+
+  @@map("contact_method")
+}
+
+model ContactDecision {
+  id                  String          @id @default(uuid()) @db.Uuid
+  contactCandidateId  String          @map("contact_candidate_id") @db.Uuid
+  action              DecisionAction
+  rejectionReason     String?         @map("rejection_reason")
+  decidedBy           String          @map("decided_by")
+  decidedAt           DateTime        @default(now()) @map("decided_at")
+
+  contactCandidate ContactCandidate @relation(fields: [contactCandidateId], references: [id])
+
+  @@map("contact_decision")
+}
+
+// ---------- Message drafting ----------
+
+model MessageDraft {
+  id                  String              @id @default(uuid()) @db.Uuid
+  runCompanyId        String              @map("run_company_id") @db.Uuid
+  contactCandidateId  String              @map("contact_candidate_id") @db.Uuid
+  version             Int                 @default(1)
+  researchSummary     String?             @map("research_summary")
+  problemHypothesis   String?             @map("problem_hypothesis")
+  proposalInput        String?            @map("proposal_input")
+  body                String?
+  status              MessageDraftStatus  @default(SKELETON)
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  runCompany       RunCompany       @relation(fields: [runCompanyId], references: [id])
+  contactCandidate ContactCandidate @relation(fields: [contactCandidateId], references: [id])
+
+  @@map("message_draft")
+}
+
+// ---------- Ops / exceptions ----------
+
+model ExceptionQueue {
+  id                  String                @id @default(uuid()) @db.Uuid
+  runCompanyId        String?               @map("run_company_id") @db.Uuid
+  contactCandidateId  String?               @map("contact_candidate_id") @db.Uuid
+  reason              String
+  status              ExceptionQueueStatus  @default(OPEN)
+  createdAt           DateTime              @default(now()) @map("created_at")
+  resolvedAt          DateTime?             @map("resolved_at")
+  resolvedBy          String?               @map("resolved_by")
+  resolutionNote       String?              @map("resolution_note")
+
+  runCompany       RunCompany?       @relation(fields: [runCompanyId], references: [id])
+  contactCandidate ContactCandidate? @relation(fields: [contactCandidateId], references: [id])
+
+  @@map("exception_queue")
+}
+
+model SourceFeed {
+  id        String          @id @default(uuid()) @db.Uuid
+  name      String
+  url       String
+  type      SourceFeedType
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@map("source_feed")
+}
