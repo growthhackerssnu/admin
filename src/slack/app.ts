@@ -1,16 +1,24 @@
-import { App, HTTPReceiver } from "@slack/bolt";
+import { App } from "@slack/bolt";
+import { VercelReceiver } from "@vercel/slack-bolt";
 import { prisma } from "../lib/prisma";
 import { inngest } from "../inngest/client";
 import { COMPANY_DECISION_ACTION_PREFIX } from "./blocks/companyApprovalCard";
 import { seedDummyWorkflowRun } from "../dev/seedDummyRun";
 
-export const receiver = new HTTPReceiver({
-  signingSecret: process.env.SLACK_SIGNING_SECRET ?? "",
-});
+// 일반 HTTPReceiver는 Vercel 서버리스 환경에서 ack() 이후 코드가 응답과 함께
+// 잘려나가는 문제가 있어(processBeforeResponse로도 완전히 해결되지 않음),
+// Vercel이 자체 배포한 어댑터를 쓴다. waitUntil로 리스너가 끝까지 실행되도록 보장한다.
+export const receiver = new VercelReceiver();
 
 export const slackApp = new App({
   token: process.env.SLACK_BOT_TOKEN,
+  signingSecret: process.env.SLACK_SIGNING_SECRET,
   receiver,
+  deferInitialization: true,
+});
+
+slackApp.error(async (error) => {
+  console.error("[bolt] unhandled error", error);
 });
 
 /** 승인/거절 버튼: 클릭 즉시 COMPANY_DECISION에 기록하고, RUN_COMPANY 상태를 갱신한다. */

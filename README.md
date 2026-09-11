@@ -14,8 +14,7 @@ Growth Hackers 산학협력 대외협력 봇 — 산학협력(프로젝트 수�
 - Slack Bolt (`@slack/bolt`) — Block Kit 승인 카드, 슬래시 커맨드
 - Inngest — 승인 대기 등 수시간~수일 정지/재개가 필요한 durable workflow
 - Prisma + Supabase(Postgres)
-- Anthropic Claude API — 기업 적합도 평가, 담당자 발굴, 메시지 초안 생성
-- Google Custom Search API — LinkedIn 우회 검색(스니펫만 사용, 직접 스크래핑 금지)
+- Anthropic Claude API — 기업 적합도 평가, 담당자 발굴, 메시지 초안 생성, 내장 web_search 도구로 LinkedIn 우회 검색(스니펫만 사용, 직접 스크래핑 금지)
 - Notion API — 프로젝트 목록 참조, 미팅/수주 관리
 - Google Sheets API — 주기적 이력 백업
 
@@ -58,7 +57,7 @@ Slack 승인 채널에 카드가 게시된다. 버튼을 누르지 않고 며칠
 | Anthropic (Claude API) | LLM 리서치/초안 생성 |
 | Slack App | 승인/선택/초안 검토 인터페이스 |
 | Notion Integration | 프로젝트 목록 참조, 미팅/수주 관리 |
-| Google Cloud (Sheets API + Custom Search API) | 이력 백업, LinkedIn 우회 검색 |
+| Google Cloud (Sheets API) | 이력 백업 |
 
 ## 디렉토리 구조
 
