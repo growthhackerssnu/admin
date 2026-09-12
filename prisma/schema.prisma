@@ -112,6 +112,15 @@ enum SourceFeedType {
   VC_PORTFOLIO
 }
 
+enum ReplyIntent {
+  INTERESTED
+  NEEDS_INFO
+  DECLINED
+  OUT_OF_OFFICE
+  WRONG_PERSON
+  OTHER
+}
+
 // ---------- Core config / run ----------
 
 model WorkflowConfig {
@@ -272,6 +281,7 @@ model ContactCandidate {
   decisions       ContactDecision[]
   messageDrafts   MessageDraft[]
   exceptionQueue  ExceptionQueue[]
+  replyDrafts     ReplyDraft[]
 
   @@map("contact_candidate")
 }
@@ -321,6 +331,24 @@ model MessageDraft {
   contactCandidate ContactCandidate @relation(fields: [contactCandidateId], references: [id])
 
   @@map("message_draft")
+}
+
+// 이메일함 연동 없이, 받은 답장 원문을 사람이 그대로 붙여넣으면 의도를 분류하고
+// 의도별 답신 초안을 만들어준다(Phase 5-1). ContactCandidate에 붙이는 이유:
+// MessageDraft는 버전마다 새 row가 생기지만, "이 담당자와의 대화"는 버전과 무관하게
+// 하나로 이어지는 개념이라서다.
+model ReplyDraft {
+  id                 String      @id @default(uuid()) @db.Uuid
+  contactCandidateId String      @map("contact_candidate_id") @db.Uuid
+  incomingText       String      @map("incoming_text")
+  classifiedIntent   ReplyIntent @map("classified_intent")
+  draftBody          String      @map("draft_body")
+  createdBy          String      @map("created_by")
+  createdAt          DateTime    @default(now()) @map("created_at")
+
+  contactCandidate ContactCandidate @relation(fields: [contactCandidateId], references: [id])
+
+  @@map("reply_draft")
 }
 
 // ---------- Ops / exceptions ----------

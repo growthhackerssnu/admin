@@ -5,8 +5,10 @@ import { inngest } from "../inngest/client";
 import { COMPANY_DECISION_ACTION_PREFIX } from "./blocks/companyApprovalCard";
 import { CONTACT_DECISION_ACTION_PREFIX } from "./blocks/contactApprovalCard";
 import { DRAFT_ACTION_PREFIX, DRAFT_PROPOSAL_MODAL_CALLBACK_ID } from "./blocks/messageDraftCard";
+import { REPLY_MODAL_CALLBACK_ID, REPLY_INTENT_LABEL, buildReplyModal } from "./blocks/replyModal";
 import { SLACK_APPROVAL_CHANNEL_ID } from "./client";
 import { PROPOSAL_PLACEHOLDER } from "../modules/drafting/generateDraft";
+import { createReplyDraft, listRecentOutreachTargets } from "../modules/reply/persistReply";
 import { getProjectListReference } from "../lib/notion";
 import { seedDummyWorkflowRun } from "../dev/seedDummyRun";
 import { ensureDefaultWorkflowConfig } from "../modules/sourcing/defaultConfig";
@@ -283,5 +285,66 @@ slackApp.command("/dhbot-run", async ({ ack, respond }) => {
   await respond({
     response_type: "ephemeral",
     text: `실제 소싱을 시작했습니다 (runId: ${run.id}). 뉴스 피드 수집과 기업 리서치에 몇 분 정도 걸릴 수 있어요 — 끝나면 승인 카드가 게시됩니다.`,
+  });
+});
+
+/**
+ * Phase 5-1: 담당자로부터 받은 답장 원문을 사람이 그대로 붙여넣으면, 의도를 분류하고
+ * 그에 맞는 답신 초안을 만들어준다. 이메일함 연동 없이 가장 단순한 방식으로 시작한다 —
+ * 사람이 답장을 어디서 받았든(메일, 문자 등) 원문만 복사해 오면 된다.
+ */
+slackApp.command("/dhbot-reply", async ({ ack, body, client, respond }) => {
+  await ack();
+
+  const targets = await listRecentOutreachTargets();
+  if (targets.length === 0) {
+    await respond({ response_type: "ephemeral", text: "아직 발송 확정된 메시지 초안이 없어서 답장을 연결할 대상이 없습니다." });
+    return;
+  }
+
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: buildReplyModal(targets),
+  });
+});
+
+/** 답장 초안 모달 제출: 의도 분류 + 답신 초안을 생성해 채널에 게시한다. */
+slackApp.view(REPLY_MODAL_CALLBACK_ID, async ({ ack, view, body, client }) => {
+  await ack();
+
+  const contactCandidateId = view.state.values.target_block?.target_select?.selected_option?.value;
+  const incomingText = view.state.values.reply_text_block?.reply_text_input?.value;
+  if (!contactCandidateId || !incomingText) return;
+
+  const decidedBy = body.user.id;
+  const result = await createReplyDraft({ contactCandidateId, incomingText, createdBy: decidedBy });
+
+  if (!result) {
+    await client.chat.postMessage({
+      channel: SLACK_APPROVAL_CHANNEL_ID,
+      text: `⚠️ ${decidedBy}님이 요청한 답장 초안 생성에 실패했습니다. 다시 시도해주세요.`,
+    });
+    return;
+  }
+
+  await client.chat.postMessage({
+    channel: SLACK_APPROVAL_CHANNEL_ID,
+    text: `${decidedBy}님이 답장 초안을 요청했습니다.`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text:
+            `*답장 분류*: ${REPLY_INTENT_LABEL[result.intent] ?? result.intent}\n\n` +
+            `*받은 원문*\n>${incomingText.replace(/\n/g, "\n>")}`,
+        },
+      },
+      { type: "divider" },
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*답신 초안 (검토 후 직접 발송하세요)*\n\`\`\`\n${result.draftBody}\n\`\`\`` },
+      },
+    ],
   });
 });
