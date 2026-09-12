@@ -16,6 +16,9 @@ type Events = {
   "dhbot/forgotten.rescan.requested": {
     data: Record<string, never>;
   };
+  "dhbot/history.backup.requested": {
+    data: Record<string, never>;
+  };
 };
 
 export const inngest = new Inngest({

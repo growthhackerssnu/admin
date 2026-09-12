@@ -3,6 +3,7 @@ import { VercelReceiver } from "@vercel/slack-bolt";
 import { prisma } from "../lib/prisma";
 import { inngest } from "../inngest/client";
 import { COMPANY_DECISION_ACTION_PREFIX } from "./blocks/companyApprovalCard";
+import { COMPANY_REJECT_MODAL_CALLBACK_ID, buildCompanyRejectModal } from "./blocks/companyRejectModal";
 import { CONTACT_DECISION_ACTION_PREFIX } from "./blocks/contactApprovalCard";
 import { DRAFT_ACTION_PREFIX, DRAFT_PROPOSAL_MODAL_CALLBACK_ID } from "./blocks/messageDraftCard";
 import { REPLY_MODAL_CALLBACK_ID, REPLY_INTENT_LABEL, buildReplyModal } from "./blocks/replyModal";
@@ -30,44 +31,73 @@ slackApp.error(async (error) => {
   console.error("[bolt] unhandled error", error);
 });
 
-/** 승인/거절 버튼: 클릭 즉시 COMPANY_DECISION에 기록하고, RUN_COMPANY 상태를 갱신한다. */
+/**
+ * 승인 버튼: 클릭 즉시 COMPANY_DECISION에 기록한다.
+ * 거절 버튼: 사유를 물어보는 모달을 연다(company_reject_modal 핸들러에서 실제 기록).
+ * trigger_id는 3초 안에 써야 하므로, 거절 시 DB 작업 없이 곧바로 모달만 연다.
+ */
 slackApp.action(
   new RegExp(`^${COMPANY_DECISION_ACTION_PREFIX}:(approve|reject):.+$`),
-  async ({ ack, action, body, respond }) => {
+  async ({ ack, action, body, respond, client }) => {
     await ack();
     if (action.type !== "button" || !("action_id" in action)) return;
 
     const [, decision, runCompanyId] = action.action_id.split(":");
     if (!runCompanyId) return;
-    const approved = decision === "approve";
+
+    if (decision === "reject") {
+      if (!("trigger_id" in body)) return;
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: buildCompanyRejectModal(runCompanyId),
+      });
+      return;
+    }
+
     const decidedBy = body.user.id;
-
-    const cooldownUntil = new Date();
-    cooldownUntil.setDate(cooldownUntil.getDate() + DEFAULT_REJECTION_COOLDOWN_DAYS);
-
     await prisma.$transaction([
-      prisma.runCompany.update({
-        where: { id: runCompanyId },
-        data: { status: approved ? "APPROVED" : "REJECTED" },
-      }),
-      prisma.companyDecision.create({
-        data: {
-          runCompanyId,
-          action: approved ? "APPROVE" : "REJECT",
-          decidedBy,
-          // 거절 사유 분류 모달이 생기기 전까지는 기본값으로 재조사 가능한 쿨다운만 적용한다.
-          cooldownClass: approved ? undefined : "COOLDOWN_ELIGIBLE",
-          cooldownUntil: approved ? undefined : cooldownUntil,
-        },
-      }),
+      prisma.runCompany.update({ where: { id: runCompanyId }, data: { status: "APPROVED" } }),
+      prisma.companyDecision.create({ data: { runCompanyId, action: "APPROVE", decidedBy } }),
     ]);
 
-    await respond({
-      response_type: "ephemeral",
-      text: approved ? "✅ 승인으로 기록했습니다." : "❌ 거절로 기록했습니다. (거절 사유는 추후 모달로 수집)",
-    });
+    await respond({ response_type: "ephemeral", text: "✅ 승인으로 기록했습니다." });
   },
 );
+
+/** 거절 사유 모달 제출: 분류(영구제외/쿨다운)와 상세 사유를 반영해 기록한다. */
+slackApp.view(COMPANY_REJECT_MODAL_CALLBACK_ID, async ({ ack, view, body, client }) => {
+  await ack();
+
+  const runCompanyId = view.private_metadata;
+  const category = view.state.values.category_block?.category_select?.selected_option?.value as
+    | "PERMANENT_DISQUALIFY"
+    | "COOLDOWN_ELIGIBLE"
+    | undefined;
+  const rejectionReason = view.state.values.reason_block?.reason_input?.value || null;
+  const decidedBy = body.user.id;
+
+  const cooldownClass = category ?? "COOLDOWN_ELIGIBLE";
+  let cooldownUntil: Date | null = null;
+  if (cooldownClass === "COOLDOWN_ELIGIBLE") {
+    cooldownUntil = new Date();
+    cooldownUntil.setDate(cooldownUntil.getDate() + DEFAULT_REJECTION_COOLDOWN_DAYS);
+  }
+
+  await prisma.$transaction([
+    prisma.runCompany.update({ where: { id: runCompanyId }, data: { status: "REJECTED" } }),
+    prisma.companyDecision.create({
+      data: { runCompanyId, action: "REJECT", decidedBy, rejectionReason, cooldownClass, cooldownUntil },
+    }),
+  ]);
+
+  const categoryLabel = cooldownClass === "PERMANENT_DISQUALIFY" ? "영구 제외" : "재조사 가능(쿨다운 후)";
+  await client.chat.postMessage({
+    channel: SLACK_APPROVAL_CHANNEL_ID,
+    text:
+      `❌ ${decidedBy}님이 거절 사유를 기록했습니다 — *${categoryLabel}*` +
+      (rejectionReason ? `\n> ${rejectionReason}` : ""),
+  });
+});
 
 /** "검토 완료" 버튼: 이 런의 모든 결정을 확정하고 durable workflow를 재개시키는 배치 이벤트를 발행한다. */
 slackApp.action(
@@ -388,5 +418,19 @@ slackApp.command("/dhbot-rescan", async ({ ack, respond }) => {
   await respond({
     response_type: "ephemeral",
     text: "쿨다운이 끝난 기업 재조사를 시작했습니다. 재조사를 통과한 후보가 있으면 잠시 후 승인 카드가 게시됩니다.",
+  });
+});
+
+/**
+ * 매일 새벽 자동 실행되는 Google Sheets 이력 백업을 수동으로도 즉시 트리거한다.
+ */
+slackApp.command("/dhbot-backup", async ({ ack, respond }) => {
+  await ack();
+
+  await inngest.send({ name: "dhbot/history.backup.requested", data: {} });
+
+  await respond({
+    response_type: "ephemeral",
+    text: "Google Sheets 이력 백업을 시작했습니다.",
   });
 });
