@@ -8,7 +8,7 @@ import { DRAFT_ACTION_PREFIX, DRAFT_PROPOSAL_MODAL_CALLBACK_ID } from "./blocks/
 import { REPLY_MODAL_CALLBACK_ID, REPLY_INTENT_LABEL, buildReplyModal } from "./blocks/replyModal";
 import { SLACK_APPROVAL_CHANNEL_ID } from "./client";
 import { PROPOSAL_PLACEHOLDER } from "../modules/drafting/generateDraft";
-import { createReplyDraft, listRecentOutreachTargets } from "../modules/reply/persistReply";
+import { createReplyDraft, findOutreachTargetsByQuery } from "../modules/reply/persistReply";
 import { getProjectListReference } from "../lib/notion";
 import { seedDummyWorkflowRun } from "../dev/seedDummyRun";
 import { ensureDefaultWorkflowConfig } from "../modules/sourcing/defaultConfig";
@@ -293,31 +293,45 @@ slackApp.command("/dhbot-run", async ({ ack, respond }) => {
  * 그에 맞는 답신 초안을 만들어준다. 이메일함 연동 없이 가장 단순한 방식으로 시작한다 —
  * 사람이 답장을 어디서 받았든(메일, 문자 등) 원문만 복사해 오면 된다.
  */
-slackApp.command("/dhbot-reply", async ({ ack, body, client, respond }) => {
+slackApp.command("/dhbot-reply", async ({ ack, body, client }) => {
   await ack();
 
-  const targets = await listRecentOutreachTargets();
-  if (targets.length === 0) {
-    await respond({ response_type: "ephemeral", text: "아직 발송 확정된 메시지 초안이 없어서 답장을 연결할 대상이 없습니다." });
-    return;
-  }
-
+  // trigger_id는 3초 안에 views.open을 호출해야 유효하다 — DB 조회 없이 즉시 연다.
   await client.views.open({
     trigger_id: body.trigger_id,
-    view: buildReplyModal(targets),
+    view: buildReplyModal(),
   });
 });
 
-/** 답장 초안 모달 제출: 의도 분류 + 답신 초안을 생성해 채널에 게시한다. */
+/** 답장 초안 모달 제출: 회사/담당자 텍스트로 대상을 찾고, 의도 분류 + 답신 초안을 생성해 채널에 게시한다. */
 slackApp.view(REPLY_MODAL_CALLBACK_ID, async ({ ack, view, body, client }) => {
   await ack();
 
-  const contactCandidateId = view.state.values.target_block?.target_select?.selected_option?.value;
+  const targetQuery = view.state.values.target_search_block?.target_search_input?.value;
   const incomingText = view.state.values.reply_text_block?.reply_text_input?.value;
-  if (!contactCandidateId || !incomingText) return;
-
   const decidedBy = body.user.id;
-  const result = await createReplyDraft({ contactCandidateId, incomingText, createdBy: decidedBy });
+  if (!targetQuery || !incomingText) return;
+
+  const matches = await findOutreachTargetsByQuery(targetQuery);
+  const [target] = matches;
+  if (!target) {
+    await client.chat.postEphemeral({
+      channel: SLACK_APPROVAL_CHANNEL_ID,
+      user: decidedBy,
+      text: `"${targetQuery}"와 일치하는 발송 확정된 대상을 찾지 못했습니다. 회사명이나 담당자명을 다시 확인해주세요.`,
+    });
+    return;
+  }
+  const ambiguityNote =
+    matches.length > 1
+      ? `\n⚠️ "${targetQuery}"로 ${matches.length}건이 매칭되어 가장 최근 것(${target.label})을 사용했습니다.`
+      : "";
+
+  const result = await createReplyDraft({
+    contactCandidateId: target.contactCandidateId,
+    incomingText,
+    createdBy: decidedBy,
+  });
 
   if (!result) {
     await client.chat.postMessage({
@@ -329,13 +343,14 @@ slackApp.view(REPLY_MODAL_CALLBACK_ID, async ({ ack, view, body, client }) => {
 
   await client.chat.postMessage({
     channel: SLACK_APPROVAL_CHANNEL_ID,
-    text: `${decidedBy}님이 답장 초안을 요청했습니다.`,
+    text: `${decidedBy}님이 ${target.label} 답장 초안을 요청했습니다.`,
     blocks: [
       {
         type: "section",
         text: {
           type: "mrkdwn",
           text:
+            `*대상*: ${target.label}${ambiguityNote}\n` +
             `*답장 분류*: ${REPLY_INTENT_LABEL[result.intent] ?? result.intent}\n\n` +
             `*받은 원문*\n>${incomingText.replace(/\n/g, "\n>")}`,
         },
