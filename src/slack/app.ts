@@ -86,10 +86,15 @@ slackApp.action(
       data: { runId, decidedBy },
     });
 
-    await respond({
-      response_type: "in_channel",
-      text: `제출 완료 — ${decidedBy}님이 기업 후보 검토를 마쳤습니다. 다음 단계로 진행합니다.`,
-    });
+    // "다음 단계로 진행합니다"는 승인된 기업이 있을 때만 사실이다 — 전부 거절이면
+    // 워크플로우가 여기서 그대로 종료되므로, 실제 결과에 맞는 메시지를 보여준다.
+    const approvedCount = await prisma.runCompany.count({ where: { runId, status: "APPROVED" } });
+    const text =
+      approvedCount > 0
+        ? `제출 완료 — ${decidedBy}님이 기업 후보 검토를 마쳤습니다. 승인된 ${approvedCount}곳에 대해 담당자 발굴을 시작합니다.`
+        : `제출 완료 — ${decidedBy}님이 기업 후보 검토를 마쳤습니다. 승인된 기업이 없어 이번 실행은 여기서 종료됩니다.`;
+
+    await respond({ response_type: "in_channel", text });
   },
 );
 
@@ -143,10 +148,17 @@ slackApp.action(
       data: { runId, decidedBy },
     });
 
-    await respond({
-      response_type: "in_channel",
-      text: `제출 완료 — ${decidedBy}님이 담당자 후보 검토를 마쳤습니다. 다음 단계로 진행합니다.`,
+    // 선택된 담당자가 한 명도 없으면 전부 예외 큐로 빠지고 초안 생성 없이 종료된다 —
+    // 그 경우엔 "다음 단계로 진행"이 아니라 종료된다고 정확히 알려준다.
+    const selectedCount = await prisma.contactCandidate.count({
+      where: { researchAttempt: { runCompany: { runId } }, status: "SELECTED" },
     });
+    const text =
+      selectedCount > 0
+        ? `제출 완료 — ${decidedBy}님이 담당자 후보 검토를 마쳤습니다. 선택된 담당자 ${selectedCount}명에 대해 메시지 초안을 생성합니다.`
+        : `제출 완료 — ${decidedBy}님이 담당자 후보 검토를 마쳤습니다. 선택된 담당자가 없어 이번 실행은 여기서 종료됩니다.`;
+
+    await respond({ response_type: "in_channel", text });
   },
 );
 
