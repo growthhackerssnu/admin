@@ -84,10 +84,15 @@ export async function discoverContacts(params: {
   companyName: string;
   domain: string;
   industry: string | null;
+  excludeNames?: string[];
 }): Promise<DiscoveredContact[]> {
   const userPrompt = `회사명: ${params.companyName}
 공식 도메인: ${params.domain}
-업종: ${params.industry ?? "미확인"}`;
+업종: ${params.industry ?? "미확인"}${
+    params.excludeNames && params.excludeNames.length > 0
+      ? `\n\n이미 제안했다가 담당자로 선택되지 않은 사람들(다시 추천하지 말 것): ${params.excludeNames.join(", ")}`
+      : ""
+  }`;
 
   try {
     const response = await anthropic.messages.create({

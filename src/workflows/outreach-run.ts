@@ -105,77 +105,97 @@ export const outreachRun = inngest.createFunction(
       }),
     );
 
-    // 담당자 발굴은 회사마다 Claude+web_search 호출(최대 6회)이 들어가 시간이 걸리므로,
-    // 소싱과 마찬가지로 회사별로 별도 step으로 쪼갠다(Vercel 함수 1회 호출 제한 회피).
-    for (const rc of approvedCompanies) {
-      await step.run(`discover-contacts-${rc.id}`, () => researchAndPersistContacts(rc.id));
-    }
+    const contactRetryLimit = (await step.run("load-contact-retry-limit", async () => {
+      const run = await prisma.workflowRun.findUniqueOrThrow({ where: { id: runId }, include: { config: true } });
+      return run.config.contactRetryLimit;
+    })) as number;
 
-    const runCompaniesWithCandidates = await step.run("load-contact-candidates", () =>
-      prisma.runCompany.findMany({
-        where: { id: { in: approvedCompanies.map((rc) => rc.id) } },
-        include: {
-          company: true,
-          researchAttempts: {
-            where: { stage: "CONTACT_DISCOVERY" },
-            orderBy: { attemptNo: "desc" },
-            take: 1,
-            include: { contactCandidates: { include: { contact: { include: { contactMethods: true } } } } },
+    // 담당자 후보를 전부 거절당한 회사는, 한도(contact_retry_limit) 안에서는 그 회사만
+    // 다시 조사해 새 후보를 올린다 — 매 라운드 pendingIds만 좁혀가며 반복한다.
+    let pendingIds = approvedCompanies.map((rc) => rc.id);
+    const readyIds: string[] = [];
+    let round = 0;
+
+    while (pendingIds.length > 0) {
+      round += 1;
+      const roundCompanies = approvedCompanies.filter((rc) => pendingIds.includes(rc.id));
+
+      // 담당자 발굴은 회사마다 Claude+web_search 호출(최대 4회)이 들어가 시간이 걸리므로,
+      // 소싱과 마찬가지로 회사별로 별도 step으로 쪼갠다(Vercel 함수 1회 호출 제한 회피).
+      for (const rc of roundCompanies) {
+        await step.run(`discover-contacts-${rc.id}-r${round}`, () => researchAndPersistContacts(rc.id, round));
+      }
+
+      const runCompaniesWithCandidates = await step.run(`load-contact-candidates-r${round}`, () =>
+        prisma.runCompany.findMany({
+          where: { id: { in: pendingIds } },
+          include: {
+            company: true,
+            researchAttempts: {
+              where: { stage: "CONTACT_DISCOVERY", attemptNo: round },
+              include: { contactCandidates: { include: { contact: { include: { contactMethods: true } } } } },
+            },
           },
-        },
-      }),
-    );
+        }),
+      );
 
-    await step.run("post-contact-approval-cards", async () => {
-      const cards = runCompaniesWithCandidates.map((rc) => ({
-        id: rc.id,
-        company: rc.company,
-        contactCandidates: rc.researchAttempts[0]?.contactCandidates ?? [],
-      }));
-      await postContactApprovalCards(runId, cards);
-      await prisma.workflowRun.update({
-        where: { id: runId },
-        data: { status: "AWAITING_CONTACT_APPROVAL" },
-      });
-    });
-
-    const contactDecisionEvent = await step.waitForEvent("wait-for-contact-decisions", {
-      event: "dhbot/contact.decision.batch",
-      timeout: "3d",
-      match: "data.runId",
-    });
-
-    if (!contactDecisionEvent) {
-      await step.run("mark-contact-timed-out", async () => {
+      await step.run(`post-contact-approval-cards-r${round}`, async () => {
+        const cards = runCompaniesWithCandidates.map((rc) => ({
+          id: rc.id,
+          company: rc.company,
+          contactCandidates: rc.researchAttempts[0]?.contactCandidates ?? [],
+        }));
+        await postContactApprovalCards(runId, cards, round > 1 ? round : undefined);
         await prisma.workflowRun.update({
           where: { id: runId },
-          data: { status: "FAILED", completedAt: new Date() },
+          data: { status: "AWAITING_CONTACT_APPROVAL" },
         });
       });
-      return { status: "timed_out_contacts" };
+
+      const contactDecisionEvent = await step.waitForEvent(`wait-for-contact-decisions-r${round}`, {
+        event: "dhbot/contact.decision.batch",
+        timeout: "3d",
+        match: "data.runId",
+      });
+
+      if (!contactDecisionEvent) {
+        await step.run(`mark-contact-timed-out-r${round}`, async () => {
+          await prisma.workflowRun.update({
+            where: { id: runId },
+            data: { status: "FAILED", completedAt: new Date() },
+          });
+        });
+        return { status: "timed_out_contacts", round };
+      }
+
+      const resolution = (await step.run(`resolve-contact-decisions-r${round}`, async () => {
+        const readyThisRound: string[] = [];
+        const stillPendingThisRound: string[] = [];
+        for (const id of pendingIds) {
+          const selectedCount = await prisma.contactCandidate.count({
+            where: { researchAttempt: { runCompanyId: id }, status: "SELECTED" },
+          });
+
+          if (selectedCount > 0) {
+            await prisma.runCompany.update({ where: { id }, data: { status: "CONTACTS_READY" } });
+            readyThisRound.push(id);
+          } else if (round < contactRetryLimit) {
+            stillPendingThisRound.push(id);
+          } else {
+            await prisma.runCompany.update({ where: { id }, data: { status: "EXCEPTION" } });
+            await prisma.exceptionQueue.create({
+              data: { runCompanyId: id, reason: `담당자 후보를 ${round}회 재조사했지만 선택된 인원이 없음` },
+            });
+          }
+        }
+        return { readyThisRound, stillPendingThisRound };
+      })) as { readyThisRound: string[]; stillPendingThisRound: string[] };
+
+      readyIds.push(...resolution.readyThisRound);
+      pendingIds = resolution.stillPendingThisRound;
     }
 
-    const readyCount = await step.run("resolve-contact-decisions", async () => {
-      let ready = 0;
-      for (const rc of approvedCompanies) {
-        const selectedCount = await prisma.contactCandidate.count({
-          where: { researchAttempt: { runCompanyId: rc.id }, status: "SELECTED" },
-        });
-
-        if (selectedCount > 0) {
-          await prisma.runCompany.update({ where: { id: rc.id }, data: { status: "CONTACTS_READY" } });
-          ready += 1;
-        } else {
-          // TODO(Phase 3.x): contact_retry_limit 이내면 담당자 재조사로 돌아가는 루프를
-          // 아직 구현하지 않았다 — 지금은 바로 예외 큐로 보낸다.
-          await prisma.runCompany.update({ where: { id: rc.id }, data: { status: "EXCEPTION" } });
-          await prisma.exceptionQueue.create({
-            data: { runCompanyId: rc.id, reason: "제안된 담당자 후보가 모두 제외됨" },
-          });
-        }
-      }
-      return ready;
-    });
+    const readyCount = readyIds.length;
 
     await step.run("mark-drafting-or-completed", async () => {
       await prisma.workflowRun.update({

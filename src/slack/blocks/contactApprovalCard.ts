@@ -70,24 +70,29 @@ function buildCandidateBlocks(rc: { id: string; company: { name: string; domain:
   ];
 }
 
-/** 승인 게이트 2: 회사별 담당자 후보를 Slack 카드로 게시한다. */
+/**
+ * 승인 게이트 2: 회사별 담당자 후보를 Slack 카드로 게시한다.
+ * round가 2 이상이면(이전 라운드에서 전원 거절돼 재조사된 경우) 그 사실을 눈에 띄게 알려준다.
+ */
 export async function postContactApprovalCards(
   runId: string,
   runCompanies: { id: string; company: { name: string; domain: string }; contactCandidates: ContactCandidateWithDetails[] }[],
+  round?: number,
 ) {
   if (!SLACK_APPROVAL_CHANNEL_ID) {
     throw new Error("SLACK_APPROVAL_CHANNEL_ID 환경변수가 설정되지 않았습니다.");
   }
 
   const totalCandidates = runCompanies.reduce((sum, rc) => sum + rc.contactCandidates.length, 0);
+  const roundNote = round ? ` (${round}차 재조사 — 이전 후보는 전부 제외됨)` : "";
 
   await slackClient.chat.postMessage({
     channel: SLACK_APPROVAL_CHANNEL_ID,
-    text: `담당자 후보 ${totalCandidates}건이 승인 대기 중입니다.`,
+    text: `담당자 후보 ${totalCandidates}건이 승인 대기 중입니다.${roundNote}`,
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: `담당자 후보 검토 (기업 ${runCompanies.length}곳)` },
+        text: { type: "plain_text", text: `담당자 후보 검토 (기업 ${runCompanies.length}곳)${roundNote}` },
       },
     ],
   });
