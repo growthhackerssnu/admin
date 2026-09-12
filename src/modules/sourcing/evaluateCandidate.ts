@@ -10,6 +10,7 @@ export type CriteriaSnapshot = {
 
 export type CandidateEvaluation = {
   isCompany: boolean;
+  companyName: string | null;
   domain: string | null;
   industry: string | null;
   fundingStage: string | null;
@@ -20,12 +21,15 @@ export type CandidateEvaluation = {
 };
 
 const SYSTEM_PROMPT = `당신은 스타트업 산학협력 대상 기업을 평가하는 리서치 보조원입니다.
-주어진 회사명 후보에 대해 web_search 도구로 공개된 정보를 찾아 아래를 확인하세요:
-1. 실제로 존재하는 회사가 맞는지 (사람 이름, 행사명, 일반 명사 등은 회사가 아님)
-2. 공식 홈페이지 도메인
-3. 업종
-4. 투자 단계(예: Seed, Series A, Series B 등 — 공개된 보도자료 기준)
-5. 대략적인 임직원 수 (채용공고, 회사 소개 페이지, 뉴스 등에서 추정 가능한 범위)
+입력으로 주어지는 "회사명 후보"는 뉴스 헤드라인에서 규칙 기반으로 기계적으로 뽑아낸 것이라
+실제 회사명이 아니라 기사 제목의 일부 설명 문구일 수 있습니다(예: "OO가 선정한 △△ 스타트업").
+web_search 도구로 출처 기사와 회사명 후보를 함께 조사해 아래를 확인하세요:
+1. 이 후보가 가리키는 실제 회사가 무엇인지, 그 회사의 정확한(정식) 이름
+2. 실제로 존재하는 회사가 맞는지 (사람 이름, 행사명, 일반 명사 등은 회사가 아님)
+3. 공식 홈페이지 도메인
+4. 업종
+5. 투자 단계(예: Seed, Series A, Series B 등 — 공개된 보도자료 기준)
+6. 대략적인 임직원 수 (채용공고, 회사 소개 페이지, 뉴스 등에서 추정 가능한 범위)
 
 확인한 사실을 주어진 채용 조건과 비교해 fitScore(0.0~1.0)를 매기세요.
 정보를 찾지 못했거나 출처가 불확실하면 절대 추측하지 말고 uncertainty에 명시하며 fitScore를 낮추세요.
@@ -33,6 +37,7 @@ const SYSTEM_PROMPT = `당신은 스타트업 산학협력 대상 기업을 평�
 검색이 끝나면 다른 설명 없이 아래 JSON 스키마 그대로 최종 답변으로만 출력하세요(마크다운 코드블록 금지):
 {
   "isCompany": boolean,
+  "companyName": string | null,  // 확인된 정확한 회사명. isCompany가 true면 반드시 채울 것
   "domain": string | null,
   "industry": string | null,
   "fundingStage": string | null,
@@ -58,6 +63,7 @@ function isValidEvaluation(value: unknown): value is CandidateEvaluation {
   const v = value as Record<string, unknown>;
   return (
     typeof v.isCompany === "boolean" &&
+    (v.companyName === null || typeof v.companyName === "string") &&
     (v.domain === null || typeof v.domain === "string") &&
     (v.industry === null || typeof v.industry === "string") &&
     (v.fundingStage === null || typeof v.fundingStage === "string") &&

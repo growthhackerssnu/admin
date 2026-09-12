@@ -65,7 +65,7 @@ export async function runSourcingPipeline(
       if (!gate.eligible) return null;
 
       return { ...evaluation, domain };
-    })) as { domain: string; industry: string | null; fundingStage: string | null; employeeCount: number | null; fitScore: number; recommendationReason: string; uncertainty: string | null } | null;
+    })) as { companyName: string | null; domain: string; industry: string | null; fundingStage: string | null; employeeCount: number | null; fitScore: number; recommendationReason: string; uncertainty: string | null } | null;
     if (!result) continue;
 
     // 이번 실행 안에서 같은 도메인이 여러 기사로 중복 등장하면 먼저(=더 최신) 것만 남긴다.
@@ -73,7 +73,9 @@ export async function runSourcingPipeline(
 
     passed.push({
       domain: result.domain,
-      name: raw.name,
+      // 규칙 기반 추출(raw.name)은 기사 제목의 설명 문구를 잘못 뽑을 수 있으므로,
+      // Claude가 web_search로 확인한 정확한 회사명을 우선한다.
+      name: result.companyName ?? raw.name,
       industry: result.industry,
       fundingStage: result.fundingStage,
       employeeCount: result.employeeCount,
