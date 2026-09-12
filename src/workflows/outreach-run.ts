@@ -4,6 +4,8 @@ import { postCompanyApprovalCards } from "../slack/blocks/companyApprovalCard";
 import { postContactApprovalCards } from "../slack/blocks/contactApprovalCard";
 import { runSourcingPipeline } from "../modules/sourcing/pipeline";
 import { researchAndPersistContacts } from "../modules/contacts/persistContacts";
+import { createDraftForContactCandidate } from "../modules/drafting/persistDraft";
+import { postDraftSkeletonCard } from "../slack/blocks/messageDraftCard";
 
 /**
  * 흐름: (후보가 아직 없다면) 실제 소싱 파이프라인으로 RUN_COMPANY 후보를 채움 →
@@ -185,7 +187,41 @@ export const outreachRun = inngest.createFunction(
       });
     });
 
-    // Phase 4에서 여기에 사전조사+메시지 초안 생성을 연결한다.
-    return { status: "contacts_decided", readyCount };
+    if (readyCount === 0) {
+      return { status: "contacts_decided", readyCount };
+    }
+
+    // 선택된 담당자 각각에 대해 사전조사+초안 스켈레톤을 만든다. proposal_input은 항상
+    // 공란으로 남기고, 실제 제안 작성/최종 발송은 Slack 모달을 통해 사람이 직접 한다
+    // (draft_action:open_modal 핸들러, app.ts) — 이 durable workflow는 여기서 끝난다.
+    const selectedCandidates = await step.run("load-selected-contact-candidates", () =>
+      prisma.contactCandidate.findMany({
+        where: { researchAttempt: { runCompanyId: { in: approvedCompanies.map((rc) => rc.id) } }, status: "SELECTED" },
+        include: {
+          contact: true,
+          researchAttempt: { include: { runCompany: { include: { company: true } } } },
+        },
+      }),
+    );
+
+    for (const candidate of selectedCandidates) {
+      await step.run(`generate-draft-${candidate.id}`, async () => {
+        const result = await createDraftForContactCandidate(candidate.id);
+        if (!result) return;
+
+        const draft = await prisma.messageDraft.findUniqueOrThrow({ where: { id: result.draftId } });
+        await postDraftSkeletonCard({
+          id: draft.id,
+          companyName: candidate.researchAttempt.runCompany.company.name,
+          contactName: candidate.contact.name,
+          contactJobTitle: candidate.contact.jobTitle,
+          researchSummary: draft.researchSummary ?? "",
+          problemHypothesis: draft.problemHypothesis ?? "",
+          body: draft.body ?? "",
+        });
+      });
+    }
+
+    return { status: "drafts_ready", readyCount, draftCount: selectedCandidates.length };
   },
 );

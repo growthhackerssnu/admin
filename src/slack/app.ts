@@ -4,6 +4,10 @@ import { prisma } from "../lib/prisma";
 import { inngest } from "../inngest/client";
 import { COMPANY_DECISION_ACTION_PREFIX } from "./blocks/companyApprovalCard";
 import { CONTACT_DECISION_ACTION_PREFIX } from "./blocks/contactApprovalCard";
+import { DRAFT_ACTION_PREFIX, DRAFT_PROPOSAL_MODAL_CALLBACK_ID } from "./blocks/messageDraftCard";
+import { SLACK_APPROVAL_CHANNEL_ID } from "./client";
+import { PROPOSAL_PLACEHOLDER } from "../modules/drafting/generateDraft";
+import { getProjectListReference } from "../lib/notion";
 import { seedDummyWorkflowRun } from "../dev/seedDummyRun";
 import { ensureDefaultWorkflowConfig } from "../modules/sourcing/defaultConfig";
 import { DEFAULT_REJECTION_COOLDOWN_DAYS } from "../config/ttl";
@@ -143,6 +147,89 @@ slackApp.action(
     });
   },
 );
+
+/** "프로젝트 제안 작성/수정" 버튼: 제안 내용을 입력받을 모달을 연다. */
+slackApp.action(
+  new RegExp(`^${DRAFT_ACTION_PREFIX}:open_modal:.+$`),
+  async ({ ack, action, body, client }) => {
+    await ack();
+    if (action.type !== "button" || !("action_id" in action)) return;
+
+    const [, , draftId] = action.action_id.split(":");
+    if (!draftId || !("trigger_id" in body)) return;
+
+    const draft = await prisma.messageDraft.findUniqueOrThrow({ where: { id: draftId } });
+    const { url: projectListUrl } = await getProjectListReference();
+
+    await client.views.open({
+      trigger_id: body.trigger_id,
+      view: {
+        type: "modal",
+        callback_id: DRAFT_PROPOSAL_MODAL_CALLBACK_ID,
+        private_metadata: draftId,
+        title: { type: "plain_text", text: "프로젝트 제안 작성" },
+        submit: { type: "plain_text", text: "저장" },
+        close: { type: "plain_text", text: "취소" },
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `참고할 학회 프로젝트 목록: <${projectListUrl}|Notion에서 보기>`,
+            },
+          },
+          {
+            type: "input",
+            block_id: "proposal_block",
+            label: { type: "plain_text", text: "프로젝트 제안 내용" },
+            element: {
+              type: "plain_text_input",
+              action_id: "proposal_input",
+              multiline: true,
+              initial_value: draft.proposalInput ?? "",
+            },
+          },
+        ],
+      },
+    });
+  },
+);
+
+/** 모달 제출: 제안 내용을 반영한 최종본을 새 버전으로 저장하고, 복사해서 보낼 수 있게 채널에 올린다. */
+slackApp.view(DRAFT_PROPOSAL_MODAL_CALLBACK_ID, async ({ ack, view, body, client }) => {
+  await ack();
+
+  const draftId = view.private_metadata;
+  const proposalInput = view.state.values.proposal_block?.proposal_input?.value ?? "";
+  const decidedBy = body.user.id;
+
+  const previous = await prisma.messageDraft.findUniqueOrThrow({ where: { id: draftId } });
+  const finalBody = previous.body ? previous.body.replace(PROPOSAL_PLACEHOLDER, proposalInput) : proposalInput;
+
+  const newDraft = await prisma.messageDraft.create({
+    data: {
+      runCompanyId: previous.runCompanyId,
+      contactCandidateId: previous.contactCandidateId,
+      version: previous.version + 1,
+      researchSummary: previous.researchSummary,
+      problemHypothesis: previous.problemHypothesis,
+      proposalInput,
+      body: finalBody,
+      status: "FINALIZED",
+    },
+  });
+
+  await client.chat.postMessage({
+    channel: SLACK_APPROVAL_CHANNEL_ID,
+    text: `✅ ${decidedBy}님이 제안을 작성했습니다 — 아래 메시지를 복사해서 직접 전송하세요.`,
+    blocks: [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: `*최종 메시지 (v${newDraft.version})*\n\`\`\`\n${finalBody}\n\`\`\`` },
+      },
+    ],
+  });
+});
 
 /**
  * Phase 1 테스트용 슬래시 커맨드: 더미 WorkflowConfig/WorkflowRun/RunCompany를 만들고
