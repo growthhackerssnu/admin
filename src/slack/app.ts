@@ -363,3 +363,18 @@ slackApp.view(REPLY_MODAL_CALLBACK_ID, async ({ ack, view, body, client }) => {
     ],
   });
 });
+
+/**
+ * Phase 5-2: 매달 1일 자동 실행되는 잊혀진 기업 재조사를 수동으로도 즉시 트리거한다
+ * (매달 기다리지 않고 테스트/필요 시 바로 돌려볼 수 있도록).
+ */
+slackApp.command("/dhbot-rescan", async ({ ack, respond }) => {
+  await ack();
+
+  await inngest.send({ name: "dhbot/forgotten.rescan.requested", data: {} });
+
+  await respond({
+    response_type: "ephemeral",
+    text: "쿨다운이 끝난 기업 재조사를 시작했습니다. 재조사를 통과한 후보가 있으면 잠시 후 승인 카드가 게시됩니다.",
+  });
+});

@@ -13,6 +13,9 @@ type Events = {
   "dhbot/contact.decision.batch": {
     data: { runId: string; decidedBy: string };
   };
+  "dhbot/forgotten.rescan.requested": {
+    data: Record<string, never>;
+  };
 };
 
 export const inngest = new Inngest({
