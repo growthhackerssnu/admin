@@ -8,6 +8,8 @@ Growth Hackers 산학협력 대외협력 봇 — 산학협력(프로젝트 수�
 
 전체 아키텍처/설계 결정/비용 추정은 프로젝트 계획서를 참고할 것 (Growth Hackers 산학협력 대외협력 봇 구현 계획).
 
+각 기능이 실제로 어떤 로직으로 동작하는지는 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)에 정리되어 있다.
+
 ## 기술 스택
 
 - Next.js (App Router API + Pages API, UI 페이지 없음 — Slack 인터랙션이 유일한 인터페이스)
