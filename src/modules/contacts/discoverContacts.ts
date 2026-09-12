@@ -95,7 +95,8 @@ export async function discoverContacts(params: {
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
+      // max_uses를 너무 크게 두면 Vercel 함수 실행 시간 제한(60초)에 걸릴 위험이 커진다.
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
     });
 
     const combinedText = response.content

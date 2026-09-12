@@ -109,8 +109,12 @@ export async function runSourcingPipeline(
         },
       });
 
-      await prisma.runCompany.create({
-        data: {
+      // 소싱 단계가 타임아웃 후 재시도되어 이 스텝이 다시 실행되더라도 중복 생성되지
+      // 않도록 upsert를 쓴다(runId+companyId 유니크 제약 전제).
+      await prisma.runCompany.upsert({
+        where: { runId_companyId: { runId, companyId: company.id } },
+        update: {},
+        create: {
           runId,
           companyId: company.id,
           fitScore: candidate.fitScore,

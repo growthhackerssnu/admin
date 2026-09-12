@@ -182,6 +182,9 @@ model RunCompany {
   messageDrafts     MessageDraft[]
   exceptionQueue    ExceptionQueue[]
 
+  // 같은 실행 안에서 같은 회사가 중복 등록되지 않도록 강제한다(소싱 단계가 타임아웃 후
+  // 재시도될 때 upsert로 안전하게 처리하기 위한 전제 조건이기도 하다).
+  @@unique([runId, companyId])
   @@map("run_company")
 }
 
