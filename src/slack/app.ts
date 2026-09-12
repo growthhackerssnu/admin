@@ -3,6 +3,7 @@ import { VercelReceiver } from "@vercel/slack-bolt";
 import { prisma } from "../lib/prisma";
 import { inngest } from "../inngest/client";
 import { COMPANY_DECISION_ACTION_PREFIX } from "./blocks/companyApprovalCard";
+import { CONTACT_DECISION_ACTION_PREFIX } from "./blocks/contactApprovalCard";
 import { seedDummyWorkflowRun } from "../dev/seedDummyRun";
 import { ensureDefaultWorkflowConfig } from "../modules/sourcing/defaultConfig";
 import { DEFAULT_REJECTION_COOLDOWN_DAYS } from "../config/ttl";
@@ -82,6 +83,63 @@ slackApp.action(
     await respond({
       response_type: "in_channel",
       text: `제출 완료 — ${decidedBy}님이 기업 후보 검토를 마쳤습니다. 다음 단계로 진행합니다.`,
+    });
+  },
+);
+
+/** 담당자 선택/제외 버튼: 클릭 즉시 CONTACT_DECISION에 기록하고, CONTACT_CANDIDATE 상태를 갱신한다. */
+slackApp.action(
+  new RegExp(`^${CONTACT_DECISION_ACTION_PREFIX}:(select|reject):.+$`),
+  async ({ ack, action, body, respond }) => {
+    await ack();
+    if (action.type !== "button" || !("action_id" in action)) return;
+
+    const [, decision, contactCandidateId] = action.action_id.split(":");
+    if (!contactCandidateId) return;
+    const selected = decision === "select";
+    const decidedBy = body.user.id;
+
+    await prisma.$transaction([
+      prisma.contactCandidate.update({
+        where: { id: contactCandidateId },
+        data: { status: selected ? "SELECTED" : "REJECTED" },
+      }),
+      prisma.contactDecision.create({
+        data: {
+          contactCandidateId,
+          action: selected ? "APPROVE" : "REJECT",
+          decidedBy,
+        },
+      }),
+    ]);
+
+    await respond({
+      response_type: "ephemeral",
+      text: selected ? "✅ 선택으로 기록했습니다." : "❌ 제외로 기록했습니다.",
+    });
+  },
+);
+
+/** "검토 완료" 버튼: 담당자 결정을 확정하고 durable workflow를 재개시키는 배치 이벤트를 발행한다. */
+slackApp.action(
+  new RegExp(`^${CONTACT_DECISION_ACTION_PREFIX}:submit:.+$`),
+  async ({ ack, action, body, respond }) => {
+    await ack();
+    if (action.type !== "button" || !("action_id" in action)) return;
+
+    const runId = action.value;
+    if (!runId) return;
+
+    const decidedBy = body.user.id;
+
+    await inngest.send({
+      name: "dhbot/contact.decision.batch",
+      data: { runId, decidedBy },
+    });
+
+    await respond({
+      response_type: "in_channel",
+      text: `제출 완료 — ${decidedBy}님이 담당자 후보 검토를 마쳤습니다. 다음 단계로 진행합니다.`,
     });
   },
 );
