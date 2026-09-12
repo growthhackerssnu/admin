@@ -1,5 +1,6 @@
 import { inngest } from "../inngest/client";
 import { runForgottenCompanyRescan } from "../modules/rescan/pipeline";
+import { slackClient, SLACK_APPROVAL_CHANNEL_ID } from "../slack/client";
 
 /**
  * Phase 5-2: 매달 1일 자정(KST)에 쿨다운이 끝난 과거 후보를 재조사한다. 테스트/수동
@@ -13,6 +14,12 @@ export const forgottenCompanyRescan = inngest.createFunction(
     const { runId, count } = await runForgottenCompanyRescan(step);
 
     if (!runId) {
+      await step.run("notify-no-candidates", () =>
+        slackClient.chat.postMessage({
+          channel: SLACK_APPROVAL_CHANNEL_ID,
+          text: "🔁 잊혀진 기업 재조사를 실행했지만, 쿨다운이 끝난 후보가 없었거나 재평가를 통과한 기업이 없었습니다.",
+        }),
+      );
       return { status: "no_candidates_resurfaced", count };
     }
 

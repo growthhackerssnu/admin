@@ -6,6 +6,7 @@ import { runSourcingPipeline } from "../modules/sourcing/pipeline";
 import { researchAndPersistContacts } from "../modules/contacts/persistContacts";
 import { createDraftForContactCandidate } from "../modules/drafting/persistDraft";
 import { postDraftSkeletonCard } from "../slack/blocks/messageDraftCard";
+import { slackClient, SLACK_APPROVAL_CHANNEL_ID } from "../slack/client";
 
 /**
  * 흐름: (후보가 아직 없다면) 실제 소싱 파이프라인으로 RUN_COMPANY 후보를 채움 →
@@ -49,6 +50,11 @@ export const outreachRun = inngest.createFunction(
           where: { id: runId },
           data: { status: "FAILED", completedAt: new Date() },
         });
+        // 사람이 계속 기다리지 않도록, 빈손으로 끝났다는 것도 명시적으로 알려준다.
+        await slackClient.chat.postMessage({
+          channel: SLACK_APPROVAL_CHANNEL_ID,
+          text: `⚠️ 이번 소싱 실행에서는 조건에 맞는 기업 후보를 찾지 못했습니다 (runId: ${runId}). 뉴스 피드에 마침 관련 기사가 없었을 수 있어요 — 나중에 다시 시도해보세요.`,
+        });
       });
       return { status: "failed", reason: "no_candidates" };
     }
@@ -72,6 +78,10 @@ export const outreachRun = inngest.createFunction(
         await prisma.workflowRun.update({
           where: { id: runId },
           data: { status: "FAILED", completedAt: new Date() },
+        });
+        await slackClient.chat.postMessage({
+          channel: SLACK_APPROVAL_CHANNEL_ID,
+          text: `⚠️ 기업 후보 승인이 3일 안에 제출되지 않아 이번 실행을 종료합니다 (runId: ${runId}). 필요하면 다시 트리거해주세요.`,
         });
       });
       return { status: "timed_out" };
@@ -163,6 +173,10 @@ export const outreachRun = inngest.createFunction(
           await prisma.workflowRun.update({
             where: { id: runId },
             data: { status: "FAILED", completedAt: new Date() },
+          });
+          await slackClient.chat.postMessage({
+            channel: SLACK_APPROVAL_CHANNEL_ID,
+            text: `⚠️ 담당자 후보 승인이 3일 안에 제출되지 않아 이번 실행을 종료합니다 (runId: ${runId}, ${round}차 라운드).`,
           });
         });
         return { status: "timed_out_contacts", round };
