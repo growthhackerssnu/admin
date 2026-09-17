@@ -18,7 +18,8 @@
     "prisma:deploy": "dotenv -e .env.local -- prisma migrate deploy",
     "prisma:studio": "dotenv -e .env.local -- prisma studio",
     "dev:seed": "dotenv -e .env.local -- tsx src/dev/runSeedCli.ts",
-    "seed:sources": "dotenv -e .env.local -- tsx src/dev/seedSourceFeeds.ts"
+    "seed:sources": "dotenv -e .env.local -- tsx src/dev/seedSourceFeeds.ts",
+    "dev:invest": "tsx src/dev/dumpInvestRounds.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
