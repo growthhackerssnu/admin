@@ -1,13 +1,15 @@
-# 기존 코드와 연결할 지점
+# 과거 코드와 연결할 지점 — 역사적 참고 자료
+
+PR #3 이후 기존 구현을 제거하고 새 기반에서 개발하기로 했다. 아래는 제거 전 검토 기록이며 현재 저장소에 해당 모델·워크플로우는 없다. 재사용이나 기존 프레임워크 유지 요구사항이 아니다.
 
 검토 기준: main `3444fec26576cad0852ca906a74dd291879e4883` (2026-09-22 확인). 이후 백엔드 변경이 있으면 재확인한다. 아래 내용은 연결 제안이며 스키마 변경 요청이나 구현 완료 명세가 아니다.
 
 ## 기존 구조
 
-- [Prisma 모델](../../prisma/schema.prisma): Company, RunCompany, Contact, ContactMethod, Evidence, MessageDraft 등.
-- [Slack 처리](../../src/slack/app.ts): 사용자의 기업·관계자 결정 수신.
-- [수집 워크플로우](../../src/workflows/outreach-run.ts): 조사, 승인 대기, 관계자 조사, 초안 작성.
-- [구현 설명](../IMPLEMENTATION.md): 모듈별 실제 동작과 남은 작업.
+- [Prisma 모델](https://github.com/growthhackerssnu/dhbot/blob/3444fec26576cad0852ca906a74dd291879e4883/prisma/schema.prisma): Company, RunCompany, Contact, ContactMethod, Evidence, MessageDraft 등.
+- [Slack 처리](https://github.com/growthhackerssnu/dhbot/blob/3444fec26576cad0852ca906a74dd291879e4883/src/slack/app.ts): 사용자의 기업·관계자 결정 수신.
+- [수집 워크플로우](https://github.com/growthhackerssnu/dhbot/blob/3444fec26576cad0852ca906a74dd291879e4883/src/workflows/outreach-run.ts): 조사, 승인 대기, 관계자 조사, 초안 작성.
+- [구현 설명](https://github.com/growthhackerssnu/dhbot/blob/3444fec26576cad0852ca906a74dd291879e4883/docs/IMPLEMENTATION.md): 모듈별 실제 동작과 남은 작업.
 
 ## 재사용 후보와 차이
 
@@ -38,4 +40,4 @@
 4. 탐색·생성 작업의 웹 상태 조회.
 5. 발송 범위 및 수주 결과 관리는 별도 결정 후 구현.
 
-실제 웹 화면은 기존 Next.js App Router에 `app/admin/` 등의 경로로 구현하는 안을 권장한다. 이번 PR은 해당 경로·의존성·스키마를 추가하지 않는다. 연동 문서의 어댑터 함수 이름은 기존 API가 아니며 HTTP/서버 함수 등 전송 방식도 미확정이다.
+위 순서는 기존 코드 재사용을 전제로 했던 과거 제안이다. 새 구현은 프레임워크·경로·작업 엔진을 독립적으로 결정한다. 연동 문서의 어댑터 함수 이름은 실제 API가 아니며 HTTP/서버 함수 등 전송 방식도 미확정이다.

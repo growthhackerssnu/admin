@@ -10,7 +10,7 @@ Python 3가 있는 환경에서 저장소 루트를 기준으로 실행한다.
 python -m http.server 8765 --bind 127.0.0.1 --directory prototypes/admin
 ```
 
-브라우저에서 http://127.0.0.1:8765/ 를 연다. 이미 사용 중인 포트면 8766 등 다른 포트를 지정하고 같은 주소로 접속한다. 종료는 서버 터미널에서 Ctrl+C. Python이 없으면 이 폴더를 제공하는 정적 서버를 사용한다. 루트의 `npm run dev`로 이 목업이 열리지는 않는다.
+브라우저에서 http://127.0.0.1:8765/ 를 연다. 이미 사용 중인 포트면 8766 등 다른 포트를 지정하고 같은 주소로 접속한다. 종료는 서버 터미널에서 Ctrl+C. Python이 없으면 이 폴더를 제공하는 정적 서버를 사용한다. 현재 저장소에는 package.json이나 npm 실행 스크립트가 없다.
 
 React 18.3.1, ReactDOM, Ant Design 5.27.6, dayjs를 CDN에서 불러오므로 인터넷 연결이 필요하다. 현재 목업은 shadcn/ui가 아니다. API 키·DB·Slack 설정은 필요하지 않다.
 
