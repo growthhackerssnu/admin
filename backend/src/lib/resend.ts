@@ -20,17 +20,19 @@ const DEFAULT_FROM = "onboarding@resend.dev";
 export async function sendOtpEmail(opts: { to: string; name: string; otp: string; desiredEmail: string }) {
   const from = process.env.RESEND_FROM_ADDRESS || DEFAULT_FROM;
   const { error } = await getResendClient().emails.send({
-    from: `대협봇 <${from}>`,
+    from: `Growth Hackers Admin <${from}>`,
     to: opts.to,
-    subject: "[대협봇] 가입 인증 코드",
+    subject: "[Growth Hackers] Admin 페이지 가입 인증 코드",
     text: [
       `${opts.name}님, 안녕하세요.`,
       "",
-      `${opts.desiredEmail} 계정으로 대협봇 가입을 신청하셨습니다.`,
+      `${opts.desiredEmail} 계정으로 Growth Hackers Admin 페이지 가입을 신청하셨습니다.`,
       "",
       `인증 코드: ${opts.otp}`,
       "",
       "이 코드는 10분간 유효합니다. 본인이 신청하지 않았다면 이 메일을 무시하세요.",
+      "",
+      "Growth Hackers"
     ].join("\n"),
   });
 

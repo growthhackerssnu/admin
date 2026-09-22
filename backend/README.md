@@ -68,10 +68,12 @@ npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남
 ## 구현 범위
 
 - **완료(Phase 1)**: 조회 11종(`GET /me, /cycles, /search-options, /companies, /companies/{id}, /outreaches/{id}, /outreaches/{id}/contacts, /companies/{id}/history, /sends/{id}, /template-bindings, /members`)
-- **다음(Phase 2)**: 검토/수신자/초안/응답 쓰기 9종
+- **완료(Phase 2)**: 검토·수신자·초안·응답 쓰기 9종 — `POST /outreaches/{id}/approval`, `/skip`, `POST /companies/{id}/exclusion`, `PUT /outreaches/{id}/recipient`, `POST /outreaches/{id}/recipient-review`, `GET·PATCH /drafts/{outreachId}`, `POST /drafts/{outreachId}/approval`, `POST /outreaches/{id}/draft-review`, `POST /outreaches/{id}/response-checks`. 전부 `Idempotency-Key` 필수 + 낙관적 락(`expectedVersion`/`expectedRevision`) 적용
 - **다음(Phase 3)**: 차수 시작·탐색, 관계자 탐색, 초안 생성 — Inngest 비동기 작업
 - **다음(Phase 4)**: 발송은 수동 기록(`manual-send-records`)만. 시스템이 직접 이메일을 보내는 기능은 범위 밖이다.
 - **범위 밖**: 소싱·수집 파이프라인(뉴스레터 → 기업 후보), 수주 확정, Notion 동기화 — `docs/admin/integration/05_데이터 모델 제안.md`와 `docs/admin/api-contract.md` §12 참고.
+
+`api-contract.md`와 다르게 구현한 지점: **draftId는 별도 엔티티가 아니라 outreachId를 그대로 쓴다** — 우리 스키마는 outreach당 초안 스레드가 하나뿐이고(`message_draft_revisions`는 리비전 이력일 뿐), 계약 문서의 "draftId + revision" 중 draftId에 대응하는 안정적인 식별자가 outreachId다.
 
 ## 참고 문서
 

@@ -1,12 +1,18 @@
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { computeOutreachState, type OutreachAction } from "../stateMachine";
+
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 // outreach 상세 조회(#06)와, 쓰기 엔드포인트(#16~29)가 변경 후 돌려주는 "갱신된
 // outreach" 응답이 공유하는 직렬화 지점. responseStatus는 컬럼이 아니라 이
 // outreach의 최신 Response.result에서 계산한다 (없으면 "unchecked") — 05 문서의
 // response_result 축과 api-contract.md의 responseStatus 필드를 잇는 지점.
-export async function serializeOutreachDetail(outreachId: string) {
-  const outreach = await prisma.outreach.findUnique({
+//
+// 쓰기 엔드포인트는 db에 트랜잭션 클라이언트(tx)를 넘겨서, 방금 커밋 전인
+// 변경사항을 같은 트랜잭션 안에서 그대로 읽어 응답을 만든다.
+export async function serializeOutreachDetail(outreachId: string, db: DbClient = prisma) {
+  const outreach = await db.outreach.findUnique({
     where: { id: outreachId },
     include: {
       company: true,
@@ -22,7 +28,7 @@ export async function serializeOutreachDetail(outreachId: string) {
   const latestDraft = outreach.draftRevisions[0] ?? null;
 
   const templateBound = Boolean(
-    await prisma.template.findFirst({
+    await db.template.findFirst({
       where: { route: outreach.route, active: true },
       select: { id: true },
     }),
