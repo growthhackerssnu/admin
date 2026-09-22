@@ -16,7 +16,7 @@
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "members:add": "dotenv -e .env.local -- tsx prisma/addMember.ts",
     "members:remove": "dotenv -e .env.local -- tsx prisma/removeMember.ts",
-    "alumni:import": "dotenv -e .env.local -- tsx prisma/importAlumniDirectory.ts"
+    "people:import": "dotenv -e .env.local -- tsx prisma/importPeopleDirectory.ts"
   },
   "dependencies": {
     "@notionhq/client": "^2.3.0",

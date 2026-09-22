@@ -24,6 +24,19 @@ export function normalizeName(raw: string): string {
   return raw.replace(/\s+/g, "").trim();
 }
 
+// 노션의 구분 컬럼 값(예: "액팅", "알럼나이", "졸업", "active")을 acting/alumni로
+// 매핑한다. 알 수 없는 값은 null — 잘못 추측해서 과한 권한을 주는 것보다,
+// import 스크립트가 건너뛰고 사람이 확인하게 하는 편이 안전하다.
+const ACTING_ALIASES = new Set(["액팅", "액팅기수", "acting", "active", "재학", "재적"]);
+const ALUMNI_ALIASES = new Set(["알럼나이", "알럼", "alumni", "졸업", "동문"]);
+
+export function normalizeCohortStatus(raw: string): "acting" | "alumni" | null {
+  const key = raw.replace(/\s+/g, "").toLowerCase();
+  if (ACTING_ALIASES.has(key)) return "acting";
+  if (ALUMNI_ALIASES.has(key)) return "alumni";
+  return null;
+}
+
 type NotionPageProperty = Record<string, unknown>;
 
 // Notion 속성 타입(title/rich_text/email/select/number)이 뭐든 사람이 읽는

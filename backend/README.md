@@ -11,33 +11,43 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 1. `npm install`
 2. `.env.example`을 `.env.local`로 복사하고 값 채우기:
    - Supabase 프로젝트의 `DATABASE_URL`(Transaction pooler, 6543)/`DIRECT_URL`(**Session pooler**, 5432 — 대시보드의 "Direct connection" 탭 값이 아니다. 그건 IPv6 전용이라 일반 네트워크에서 `prisma migrate`가 "Can't reach database server"로 막힌다), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `NOTION_API_KEY`/`NOTION_ALUMNI_DATABASE_ID` — 알럼나이 가입 흐름(아래 참고)에 필요. 지금 당장은 비워둬도 나머지 개발엔 지장 없음
+   - `NOTION_API_KEY`/`NOTION_PEOPLE_DATABASE_ID` — 가입 흐름(아래 참고)에 필요. 지금 당장은 비워둬도 나머지 개발엔 지장 없음
    - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
 3. `npm run db:migrate` — 스키마 마이그레이션 생성·적용
 4. `npm run db:seed` — `frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩
 5. `npm run dev` — `http://localhost:3000`에서 API 실행
 
-`db:migrate`/`db:seed`/`members:*`/`alumni:import`는 전부 `dotenv-cli`로 `.env.local`을 로드한다(`prisma` CLI와 `tsx` 둘 다 `.env.local`을 자동으로 읽지 않기 때문 — `npm run dev`의 `next dev`만 자동으로 읽는다). 새 스크립트를 추가할 때도 이 패턴을 따른다.
+`db:migrate`/`db:seed`/`members:*`/`people:import`는 전부 `dotenv-cli`로 `.env.local`을 로드한다(`prisma` CLI와 `tsx` 둘 다 `.env.local`을 자동으로 읽지 않기 때문 — `npm run dev`의 `next dev`만 자동으로 읽는다). 새 스크립트를 추가할 때도 이 패턴을 따른다.
 
-## 알럼나이 가입 (Notion 연동)
+## 역할(Role)
 
-학회원 확인은 "기수+이름+원하는 구글 이메일로 가입 신청 → 노션에 기록된 신뢰 이메일로 OTP 발송 → 인증 성공 시 그 구글 이메일 등록" 흐름이다. 노션 명단을 우리 DB(`alumni_directory`)로 동기화:
+`admin.ghsnu.com` 전체(대협봇 dh + hr)에 걸친 권한이며, 이 저장소는 그중 `/dh`(대협봇)만 담당한다.
+
+| role | 범위 |
+|---|---|
+| `admin` | `admin@ghsnu.com` 고정 하나. 전 영역 접근·편집, 회원 승인/삭제 |
+| `acting` | 현재 액팅 회원. dh+hr 업무 권한 전부 동일(PM 서브권한 없음 — 차수 시작도 누구나) |
+| `alumni` | 가입한 알럼나이. **`/dh`(이 백엔드) 접근 자체가 막힌다** — `getAuthenticatedMember`가 곧바로 403. hr은 보기 전용(이 저장소 범위 밖) |
+
+## 가입 (Notion People DB 연동)
+
+학회원 확인은 "기수+이름+원하는 구글 이메일로 가입 신청 → 노션에 기록된 신뢰 이메일로 OTP 발송 → 인증 성공 시 그 구글 이메일 등록, role은 노션의 구분(액팅/알럼나이)을 따름" 흐름이다. 노션 People DB(액팅+알럼나이 전체)를 우리 DB(`people_directory`)로 동기화:
 
 ```sh
-npm run alumni:import
+npm run people:import
 ```
 
-노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/이름/이메일)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`로 실제 컬럼명을 지정한다 — 안 맞으면 스크립트가 조용히 건너뛰지 않고 실제 컬럼 목록을 보여주며 바로 실패한다. 가입 신청/OTP 검증 API 엔드포인트 자체는 아직 구현 전이다.
+노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/이름/이메일/구분)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`/`NOTION_STATUS_PROPERTY`로 실제 컬럼명을 지정한다. "구분" 컬럼 값이 액팅/알럼나이 계열로 안 읽히면(`src/lib/notion.ts`의 `ACTING_ALIASES`/`ALUMNI_ALIASES` 참고) 조용히 건너뛰지 않고 그 값을 그대로 보여주며 알려준다 — 잘못 추측해서 과한 권한을 주는 것보다 안전한 쪽. 가입 신청/OTP 검증 API 엔드포인트 자체는 아직 구현 전이다.
 
 ## 인증·접근 권한
 
 모든 `/api/v1/*` 요청은 `Authorization: Bearer <Supabase access token>` 헤더가 필요하다. 토큰은 Supabase Auth(Google OAuth)로 로그인한 뒤 발급받는다 — 이 백엔드 자체는 로그인 화면을 제공하지 않는다(프론트가 Supabase 클라이언트로 로그인 플로우를 처리한다).
 
-**접근은 화이트리스트 방식이다.** 학회원 계정 도메인이 `ghsnu.com`/`gmail.com`/`snu.ac.kr` 등으로 섞여 있어 도메인 검사로는 거를 수 없다. Google OAuth 동의 화면은 **External**로 설정한다(Internal은 단일 Workspace 조직 소속 계정만 로그인 자체가 가능해서, 도메인이 섞인 이 상황과 맞지 않는다). 로그인 자체는 어떤 Google 계정이든 시도할 수 있지만, 관리자가 미리 `members` 테이블(대협봇 자체 DB 테이블, Supabase Auth의 사용자 목록과는 별개다)에 이메일을 등록해두지 않으면 접근이 403으로 막힌다. 접근 권한 부여·회수:
+**접근은 화이트리스트 방식이다.** 학회원 계정 도메인이 `ghsnu.com`/`gmail.com`/`snu.ac.kr` 등으로 섞여 있어 도메인 검사로는 거를 수 없다. Google OAuth 동의 화면은 **External**로 설정한다(Internal은 단일 Workspace 도메인 소속 계정만 로그인 자체가 가능해서, 도메인이 섞인 이 상황과 맞지 않는다). 로그인 자체는 어떤 Google 계정이든 시도할 수 있지만, `members` 테이블(대협봇 자체 DB 테이블, Supabase Auth의 사용자 목록과는 별개다)에 이메일이 등록돼 있지 않으면 접근이 403으로 막힌다. 보통은 위 가입 흐름으로 자동 등록되고, admin이나 예외 케이스만 수동으로:
 
 ```sh
-npm run members:add -- person@ghsnu.com "표시 이름" pm      # 등록 (role 생략 시 member)
+npm run members:add -- person@ghsnu.com "표시 이름" admin   # 등록 (role 생략 시 acting)
 npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남기고 비활성화만)
 ```
 

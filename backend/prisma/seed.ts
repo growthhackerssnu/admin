@@ -26,10 +26,10 @@ async function main() {
   ]);
 
   const jaewook = await prisma.member.create({
-    data: { supabaseUserId: "seed-jaewook", email: "jaewook@ghsnu.com", displayName: "재욱", role: "pm" },
+    data: { supabaseUserId: "seed-jaewook", email: "jaewook@ghsnu.com", displayName: "재욱", role: "acting" },
   });
   const minjun = await prisma.member.create({
-    data: { supabaseUserId: "seed-minjun", email: "minjun@ghsnu.com", displayName: "민준", role: "member" },
+    data: { supabaseUserId: "seed-minjun", email: "minjun@ghsnu.com", displayName: "민준", role: "acting" },
   });
 
   const previousCycle = await prisma.cycle.create({

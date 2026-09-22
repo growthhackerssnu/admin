@@ -6,9 +6,14 @@ import { ApiError } from "./errors";
 
 export type Capability = "view" | "review" | "send" | "start_cycle" | "manage_settings";
 
+// alumni는 대협봇(dh) 자체에 접근할 수 없다 — getAuthenticatedMember에서 이미
+// 막히므로 여기 capability는 의미상 도달하지 않지만, 빈 배열로 명시해둔다.
+// acting은 PM 서브권한 없이 업무 전체(차수 시작 포함) 동일. manage_settings만
+// admin 전용(템플릿 연결 등 운영 설정).
 const CAPABILITIES_BY_ROLE: Record<Role, Capability[]> = {
-  member: ["view", "review", "send"],
-  pm: ["view", "review", "send", "start_cycle", "manage_settings"],
+  admin: ["view", "review", "send", "start_cycle", "manage_settings"],
+  acting: ["view", "review", "send", "start_cycle"],
+  alumni: [],
 };
 
 export function capabilitiesFor(role: Role): Capability[] {
@@ -50,6 +55,11 @@ export async function getAuthenticatedMember(req: NextRequest): Promise<Member> 
   }
   if (!member.active) {
     throw new ApiError("FORBIDDEN", "비활성화된 계정입니다.");
+  }
+  // alumni는 admin.ghsnu.com/hr만 볼 수 있고 /dh(대협봇)는 접근 자체가 안 된다 —
+  // 이 백엔드는 /dh 전용이므로 여기서 완전히 막는다.
+  if (member.role === "alumni") {
+    throw new ApiError("FORBIDDEN", "알럼나이 계정은 대협봇에 접근할 수 없습니다. admin.ghsnu.com/hr을 이용하세요.");
   }
 
   // 이 이메일의 첫 로그인이면 Supabase user id를 연결한다 — 관리자가 행을 만들
