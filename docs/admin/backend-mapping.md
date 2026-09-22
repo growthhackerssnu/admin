@@ -2,6 +2,8 @@
 
 검토 기준: main `3444fec26576cad0852ca906a74dd291879e4883` (2026-09-22 확인). 이후 백엔드 변경이 있으면 재확인한다. 아래 내용은 연결 제안이며 스키마 변경 요청이나 구현 완료 명세가 아니다.
 
+이 문서는 어드민 전환 이전(Slack 봇 시절) `prisma/schema.prisma` 기준으로 작성됐다. 지금 어드민 화면 기준의 테이블 설계는 [integration/05_데이터 모델 제안.md](integration/05_데이터%20모델%20제안.md)을 참고한다. 이 문서는 옛 스키마와의 재사용 가능성을 검토할 때만 참고한다.
+
 ## 기존 구조
 
 - [Prisma 모델](../../prisma/schema.prisma): Company, RunCompany, Contact, ContactMethod, Evidence, MessageDraft 등.
