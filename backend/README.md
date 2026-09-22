@@ -42,6 +42,7 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 | `GET /api/v1/admin/members` | 전체 명단 — id, displayName, cohort(가입 시 매칭된 경우만), email, role, active, createdAt, lastLoginAt |
 | `PATCH /api/v1/admin/members/role` | `{memberIds: string[], role: "acting"\|"alumni"}` — 일괄 role 변경. admin 대상 포함 시 전체 거부 |
 | `POST /api/v1/admin/members/deactivate` | `{memberIds: string[]}` — 일괄 비활성화("삭제"). 실제 행은 안 지움(업무 기록 FK 때문) — `active=false`만, `members:remove`와 동일 의미. admin 대상·본인 계정은 거부 |
+| `POST /api/v1/admin/members/reactivate` | `{memberIds: string[]}` — 비활성화를 되돌림(`active=true`). 대상 제한 없음 |
 
 삭제 확인 다이얼로그는 프론트 책임이다. `lastLoginAt`은 `/api/v1/*` 요청이 성공적으로 인증을 통과할 때마다(alumni가 403당하는 요청 포함, 권한 체크보다 먼저) 갱신된다 — dh 백엔드가 아는 범위 안에서의 최근 접속이며, hr 쪽 접속은 이 값에 안 잡힌다.
 
