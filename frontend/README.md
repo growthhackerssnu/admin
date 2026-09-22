@@ -80,3 +80,5 @@ UI → repository 인터페이스 → 샘플 또는 실제 어댑터 순서다. 
 - 전체 라우팅의 브라우저 회귀 검사는 아직 미완료. 목록의 이전/다음 기업 단축 이동, 버전 복원은 원본과 완전 동등하게 옮기지 않았다.
 - Ant Design을 포함한 초기 JS 번들이 약 995 kB(압축 약 313 kB)로, 빌드에 크기 경고가 있다. 운영 배포 전 분할 로딩 검토 대상이다.
 - 설치 중 registry metadata 불일치를 피하려고 nanoid를 확인된 3.3.11로 override했다. package-lock.json으로 버전을 고정하며 재설치는 npm ci를 사용한다.
+
+API 협의는 [전체 API 연결 명세](../docs/admin/api-contract.md)를 참고한다. 현재 샘플 repository와 운영 API 제안의 차이를 포함한다.

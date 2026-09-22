@@ -6,6 +6,8 @@
 
 `frontend/`에 화면·타입·샘플 데이터 어댑터·디자인 토큰을 분리한 개발 환경을 추가했다. [실행 및 구현 범위](../../frontend/README.md)를 먼저 확인한다. 아래 integration 문서는 초기 계약 제안이며, 현재 실행 가능한 계약은 frontend/src/services/outreachRepository.ts다. 실제 서버 연결은 아직 하지 않았다.
 
+현재 프론트 기준 [API 연결 명세 초안](api-contract.md)에 전체 endpoint 제안, 요청·응답, 업무 명령 대응, 미정 사항을 정리했다. 이전 integration 문서보다 구체적인 연결 협의 자료이며 배포된 API는 아니다.
+
 ## 읽는 순서
 
 1. [업무 흐름과 화면](workflow.md)
