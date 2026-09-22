@@ -2,6 +2,10 @@
 
 기준일: 2026-09-22. 이 문서는 웹 어드민의 업무 정책과 클릭 목업을 인계한다. PR #3 이후 기존 서비스 구현을 제거하고 새 구현을 시작하기로 했다. [과거 구현 문서](https://github.com/growthhackerssnu/dhbot/blob/3444fec26576cad0852ca906a74dd291879e4883/docs/IMPLEMENTATION.md)는 역사적 참고 자료다.
 
+## 프론트 기반 구현 후 업데이트
+
+`frontend/`에 화면·타입·샘플 데이터 어댑터·디자인 토큰을 분리한 개발 환경을 추가했다. [실행 및 구현 범위](../../frontend/README.md)를 먼저 확인한다. 아래 integration 문서는 초기 계약 제안이며, 현재 실행 가능한 계약은 frontend/src/services/outreachRepository.ts다. 실제 서버 연결은 아직 하지 않았다.
+
 ## 읽는 순서
 
 1. [업무 흐름과 화면](workflow.md)

@@ -1,0 +1,168 @@
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-body);
+}
+* {
+  box-sizing: border-box;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+h1 {
+  font-size: var(--font-title);
+  margin: 0 0 var(--space-sm);
+}
+h2 {
+  font-size: 18px;
+  margin: 0 0 var(--space-md);
+}
+p {
+  line-height: 1.8;
+}
+header {
+  min-height: 64px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-xl);
+}
+main {
+  max-width: var(--content-width);
+  margin: auto;
+  padding: var(--space-xl);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.brand {
+  font-size: 18px;
+  font-weight: 650;
+}
+.muted {
+  color: var(--color-muted);
+}
+.meta {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: var(--space-sm);
+}
+.surface {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-lg);
+}
+.block {
+  margin-top: var(--space-lg);
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.section-gap {
+  margin-bottom: var(--space-lg);
+}
+.filters {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-lg);
+}
+.filters .ant-input-search {
+  width: 280px;
+}
+.filters .ant-select {
+  min-width: 160px;
+}
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+.hint {
+  padding: var(--space-md);
+  background: var(--color-canvas);
+  border-radius: var(--radius);
+}
+.contact {
+  border: 1px solid var(--color-border);
+  padding: var(--space-md);
+  border-radius: var(--radius);
+}
+.editor {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+.field {
+  display: block;
+  margin-bottom: var(--space-md);
+}
+.field > span {
+  display: block;
+  font-weight: 500;
+  margin-bottom: var(--space-sm);
+}
+.field .ant-select {
+  width: 100%;
+}
+.message-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow: auto;
+}
+.ant-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.ant-descriptions-item-content {
+  overflow-wrap: anywhere;
+}
+.feedback {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-bottom: var(--space-md);
+}
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+fieldset:disabled {
+  opacity: 0.8;
+}
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 16px;
+  top: 8px;
+  background: white;
+  z-index: 100;
+  padding: 8px;
+}
+@media (max-width: 1000px) {
+  .editor {
+    grid-template-columns: 1fr;
+  }
+  main {
+    padding: var(--space-md);
+  }
+}
