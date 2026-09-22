@@ -106,6 +106,7 @@ model Member {
   role           Role     @default(acting)
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")
+  lastLoginAt    DateTime? @map("last_login_at")
 
   startedCycles       Cycle[]              @relation("CycleStartedBy")
   ownedOutreaches     Outreach[]           @relation("OutreachOwner")

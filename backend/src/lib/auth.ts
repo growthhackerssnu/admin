@@ -56,19 +56,19 @@ export async function getAuthenticatedMember(req: NextRequest): Promise<Member> 
   if (!member.active) {
     throw new ApiError("FORBIDDEN", "비활성화된 계정입니다.");
   }
+
+  // 토큰이 유효하고 활성 계정이면 — dh 업무 권한이 없는 alumni라도 — "이 사람이
+  // 방금 접근을 시도했다"는 사실 자체는 남긴다. 관리자 명단 화면의 "최근 접속일"이
+  // alumni에게도 의미 있으려면 이 시점(권한 체크보다 먼저)에 갱신해야 한다.
+  member = await prisma.member.update({
+    where: { id: member.id },
+    data: { supabaseUserId, lastLoginAt: new Date() },
+  });
+
   // alumni는 admin.ghsnu.com/hr만 볼 수 있고 /dh(대협봇)는 접근 자체가 안 된다 —
   // 이 백엔드는 /dh 전용이므로 여기서 완전히 막는다.
   if (member.role === "alumni") {
     throw new ApiError("FORBIDDEN", "알럼나이 계정은 대협봇에 접근할 수 없습니다. admin.ghsnu.com/hr을 이용하세요.");
-  }
-
-  // 이 이메일의 첫 로그인이면 Supabase user id를 연결한다 — 관리자가 행을 만들
-  // 때는 이 사람이 아직 로그인한 적이 없어서 이 값을 알 수 없다.
-  if (member.supabaseUserId !== supabaseUserId) {
-    member = await prisma.member.update({
-      where: { id: member.id },
-      data: { supabaseUserId },
-    });
   }
 
   return member;
@@ -77,5 +77,15 @@ export async function getAuthenticatedMember(req: NextRequest): Promise<Member> 
 export function requireCapability(member: Member, capability: Capability) {
   if (!capabilitiesFor(member.role).includes(capability)) {
     throw new ApiError("FORBIDDEN", `이 작업에는 ${capability} 권한이 필요합니다.`);
+  }
+}
+
+// 회원 명단 조회·role 변경·비활성화(admin.ghsnu.com/admin이 호출할 API)는
+// capabilitiesFor 체계(view/review/send 같은 dh 업무 권한)와 별개로, admin
+// role인지만 직접 확인한다 — acting에게도 열어줄 이유가 없는 완전히 다른 종류의
+// 권한이라 CAPABILITIES_BY_ROLE에 억지로 끼워 넣지 않는다.
+export function requireAdmin(member: Member) {
+  if (member.role !== "admin") {
+    throw new ApiError("FORBIDDEN", "관리자만 접근할 수 있습니다.");
   }
 }

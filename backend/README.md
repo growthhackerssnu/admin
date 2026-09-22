@@ -31,7 +31,19 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 | `acting` | 현재 액팅 회원. dh+hr 업무 권한 전부 동일(PM 서브권한 없음 — 차수 시작도 누구나) |
 | `alumni` | 가입한 알럼나이. **`/dh`(이 백엔드) 접근 자체가 막힌다** — `getAuthenticatedMember`가 곧바로 403. hr은 보기 전용(이 저장소 범위 밖) |
 
-가입 직후에는 **무조건 `alumni`로 등록된다.** `people_directory`(아래)는 "이 사람이 진짜 명단에 있는 사람인지"만 확인하는 용도이고, 거기엔 액팅/알럼나이 구분이 없다 — admin이 `admin.ghsnu.com/admin`(이 저장소 범위 밖, 별도 관리자 페이지)에서 개별로 `acting`으로 승격시킨다. `admin`으로의 승격은 그 화면에서도 불가 — 수동으로만.
+가입 직후에는 **무조건 `alumni`로 등록된다.** `people_directory`(아래)는 "이 사람이 진짜 명단에 있는 사람인지"만 확인하는 용도이고, 거기엔 액팅/알럼나이 구분이 없다 — admin이 아래 관리자 API로 개별/일괄로 `acting`으로 승격시킨다. `admin`으로의 승격은 이 API로 불가 — 수동(CLI)으로만.
+
+### 관리자 API (`/api/v1/admin/members/*`, admin 전용)
+
+`admin.ghsnu.com/admin` 화면(이 저장소 범위 밖)이 호출할 API. `requireAdmin`으로 admin role만 통과한다.
+
+| API | 설명 |
+|---|---|
+| `GET /api/v1/admin/members` | 전체 명단 — id, displayName, cohort(가입 시 매칭된 경우만), email, role, active, createdAt, lastLoginAt |
+| `PATCH /api/v1/admin/members/role` | `{memberIds: string[], role: "acting"\|"alumni"}` — 일괄 role 변경. admin 대상 포함 시 전체 거부 |
+| `POST /api/v1/admin/members/deactivate` | `{memberIds: string[]}` — 일괄 비활성화("삭제"). 실제 행은 안 지움(업무 기록 FK 때문) — `active=false`만, `members:remove`와 동일 의미. admin 대상·본인 계정은 거부 |
+
+삭제 확인 다이얼로그는 프론트 책임이다. `lastLoginAt`은 `/api/v1/*` 요청이 성공적으로 인증을 통과할 때마다(alumni가 403당하는 요청 포함, 권한 체크보다 먼저) 갱신된다 — dh 백엔드가 아는 범위 안에서의 최근 접속이며, hr 쪽 접속은 이 값에 안 잡힌다.
 
 ## 가입 (Notion People DB 연동)
 
@@ -73,6 +85,7 @@ npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남
 
 - **완료(Phase 1)**: 조회 11종(`GET /me, /cycles, /search-options, /companies, /companies/{id}, /outreaches/{id}, /outreaches/{id}/contacts, /companies/{id}/history, /sends/{id}, /template-bindings, /members`)
 - **완료(Phase 2)**: 검토·수신자·초안·응답 쓰기 9종 — `POST /outreaches/{id}/approval`, `/skip`, `POST /companies/{id}/exclusion`, `PUT /outreaches/{id}/recipient`, `POST /outreaches/{id}/recipient-review`, `GET·PATCH /drafts/{outreachId}`, `POST /drafts/{outreachId}/approval`, `POST /outreaches/{id}/draft-review`, `POST /outreaches/{id}/response-checks`. 전부 `Idempotency-Key` 필수 + 낙관적 락(`expectedVersion`/`expectedRevision`) 적용
+- **완료**: 관리자 회원 관리 API(`/api/v1/admin/members/*`) — 명단 조회, 일괄 role 변경, 일괄 비활성화
 - **다음(Phase 3)**: 차수 시작·탐색, 관계자 탐색, 초안 생성 — Inngest 비동기 작업
 - **다음(Phase 4)**: 발송은 수동 기록(`manual-send-records`)만. 시스템이 직접 이메일을 보내는 기능은 범위 밖이다.
 - **범위 밖**: 소싱·수집 파이프라인(뉴스레터 → 기업 후보), 수주 확정, Notion 동기화 — `docs/admin/integration/05_데이터 모델 제안.md`와 `docs/admin/api-contract.md` §12 참고.
