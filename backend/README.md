@@ -12,6 +12,7 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 2. `.env.example`을 `.env.local`로 복사하고 값 채우기:
    - Supabase 프로젝트의 `DATABASE_URL`(Transaction pooler, 6543)/`DIRECT_URL`(**Session pooler**, 5432 — 대시보드의 "Direct connection" 탭 값이 아니다. 그건 IPv6 전용이라 일반 네트워크에서 `prisma migrate`가 "Can't reach database server"로 막힌다), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
    - `NOTION_API_KEY`/`NOTION_PEOPLE_DATABASE_ID` — 가입 흐름(아래 참고)에 필요. 지금 당장은 비워둬도 나머지 개발엔 지장 없음
+   - `RESEND_API_KEY` — 가입 OTP 메일 발송에 필요. 도메인 인증 전엔 `RESEND_FROM_ADDRESS`를 비워두면 resend.dev 테스트 주소로 발송됨
    - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
 3. `npm run db:migrate` — 스키마 마이그레이션 생성·적용
@@ -38,7 +39,16 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 npm run people:import
 ```
 
-노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/이름/이메일/구분)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`/`NOTION_STATUS_PROPERTY`로 실제 컬럼명을 지정한다. "구분" 컬럼 값이 액팅/알럼나이 계열로 안 읽히면(`src/lib/notion.ts`의 `ACTING_ALIASES`/`ALUMNI_ALIASES` 참고) 조용히 건너뛰지 않고 그 값을 그대로 보여주며 알려준다 — 잘못 추측해서 과한 권한을 주는 것보다 안전한 쪽. 가입 신청/OTP 검증 API 엔드포인트 자체는 아직 구현 전이다.
+노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/이름/이메일/구분)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`/`NOTION_STATUS_PROPERTY`로 실제 컬럼명을 지정한다. "구분" 컬럼 값이 액팅/알럼나이 계열로 안 읽히면(`src/lib/notion.ts`의 `ACTING_ALIASES`/`ALUMNI_ALIASES` 참고) 조용히 건너뛰지 않고 그 값을 그대로 보여주며 알려준다 — 잘못 추측해서 과한 권한을 주는 것보다 안전한 쪽.
+
+가입 신청/인증 엔드포인트(인증 불필요, 로그인 전 흐름):
+
+| API | 설명 |
+|---|---|
+| `POST /api/auth/signup-requests` | `{cohort, name, desiredEmail}` → `people_directory` 대조 → 매칭되면 그 사람의 노션 신뢰 이메일로 OTP 발송(Resend). 응답에 `signupRequestId`와 마스킹된 발신 주소(`sentTo`)를 준다 |
+| `POST /api/auth/signup-requests/{id}/verify` | `{otp}` → 일치하면 `desiredEmail`로 `members` 행 생성(role은 `people_directory.status`를 따름), `people_directory.claimedByMemberId` 기록. 이후 그 이메일로 Google 로그인하면 접근 가능 |
+
+OTP는 10분 유효, 5회 틀리면 그 신청은 만료 처리(다시 신청해야 함), 60초 안에 재신청하면 막는다(`src/lib/otp.ts`). 이미 가입 완료된 사람, 이미 쓰이는 이메일, 기수+이름이 명단에 없거나 중복인 경우는 각각 명확한 오류 메시지로 막는다.
 
 ## 인증·접근 권한
 

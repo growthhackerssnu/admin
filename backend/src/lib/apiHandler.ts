@@ -33,3 +33,25 @@ export function withApiHandler<P = Record<string, string>>(handler: RouteHandler
     }
   };
 }
+
+type PublicContext<P> = { requestId: string; params: P };
+type PublicRouteHandler<P> = (req: NextRequest, ctx: PublicContext<P>) => Promise<RouteResult>;
+
+// 로그인 전(가입 신청/OTP 검증) 엔드포인트용 — 인증을 요구하지 않는다는 점만
+// withApiHandler와 다르고, requestId·에러 봉투 처리는 동일하다.
+export function withPublicApiHandler<P = Record<string, string>>(handler: PublicRouteHandler<P>) {
+  return async (req: NextRequest, routeCtx: { params: P }) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const result = await handler(req, { requestId, params: routeCtx.params });
+      return NextResponse.json(result.body, { status: result.status ?? 200 });
+    } catch (err) {
+      if (err instanceof ApiError) {
+        return NextResponse.json(errorBody(err, requestId), { status: err.status });
+      }
+      console.error(`[${requestId}]`, err);
+      const fallback = new ApiError("INTERNAL_ERROR", "예기치 못한 오류가 발생했습니다.");
+      return NextResponse.json(errorBody(fallback, requestId), { status: fallback.status });
+    }
+  };
+}
