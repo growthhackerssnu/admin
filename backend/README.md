@@ -18,9 +18,18 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 4. `npm run db:seed` — `frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩
 5. `npm run dev` — `http://localhost:3000`에서 API 실행
 
-## 인증
+## 인증·접근 권한
 
 모든 `/api/v1/*` 요청은 `Authorization: Bearer <Supabase access token>` 헤더가 필요하다. 토큰은 Supabase Auth(Google OAuth)로 로그인한 뒤 발급받는다 — 이 백엔드 자체는 로그인 화면을 제공하지 않는다(프론트가 Supabase 클라이언트로 로그인 플로우를 처리한다).
+
+**접근은 화이트리스트 방식이다.** `ghsnu.com` 도메인 계정이어도, 관리자가 미리 `members` 테이블에 이메일을 등록해두지 않으면 로그인이 완성되지 않고 403이 반환된다(Google OAuth Internal 설정은 "도메인 제한"까지만 하고, "그 중 누가 실제로 쓸 수 있는지"는 이 화이트리스트가 결정한다). 접근 권한 부여·회수:
+
+```sh
+npm run members:add -- person@ghsnu.com "표시 이름" pm      # 등록 (role 생략 시 member)
+npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남기고 비활성화만)
+```
+
+이 사람이 처음 로그인하는 순간 Supabase user id가 자동으로 연결된다.
 
 ## 구현 범위
 

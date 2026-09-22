@@ -46,20 +46,26 @@ export async function getAuthenticatedMember(req: NextRequest): Promise<Member> 
     throw new ApiError("FORBIDDEN", "학회 이메일 계정으로만 접근할 수 있습니다.");
   }
 
-  const member = await prisma.member.upsert({
-    where: { supabaseUserId },
-    update: { email },
-    create: {
-      supabaseUserId,
-      email,
-      displayName: email.split("@")[0] ?? email,
-      role: "member",
-      active: true,
-    },
-  });
+  // 접근은 화이트리스트 방식이다. Google 인증 + 도메인 검사를 통과해도, 관리자가
+  // 미리 이메일로 만들어둔 members 행이 없으면 자동으로 계정을 만들어주지 않는다
+  // ("admin@ghsnu.com + 일부 학회원만" 요구사항 — 도메인 전체가 아니라 지정된
+  // 사람만 접근 가능해야 한다).
+  let member = await prisma.member.findUnique({ where: { email } });
 
+  if (!member) {
+    throw new ApiError("FORBIDDEN", "이 계정은 대협봇 접근 권한이 없습니다. 관리자에게 문의하세요.");
+  }
   if (!member.active) {
     throw new ApiError("FORBIDDEN", "비활성화된 계정입니다.");
+  }
+
+  // 이 이메일의 첫 로그인이면 Supabase user id를 연결한다 — 관리자가 행을 만들
+  // 때는 이 사람이 아직 로그인한 적이 없어서 이 값을 알 수 없다.
+  if (member.supabaseUserId !== supabaseUserId) {
+    member = await prisma.member.update({
+      where: { id: member.id },
+      data: { supabaseUserId },
+    });
   }
 
   return member;

@@ -13,7 +13,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "members:add": "tsx prisma/addMember.ts",
+    "members:remove": "tsx prisma/removeMember.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

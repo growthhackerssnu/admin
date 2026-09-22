@@ -91,9 +91,12 @@ enum DraftOrigin {
 
 // ---------- 사용자 ----------
 
+// 접근은 화이트리스트 방식이다. 관리자가 이메일로 행을 미리 만들어야 로그인이
+// 완성된다(Google 인증 + 도메인 통과만으로는 접근이 열리지 않는다). 미리 만들
+// 때는 supabaseUserId를 모르므로 nullable — 첫 로그인 때 연결한다.
 model Member {
   id             String   @id @default(cuid())
-  supabaseUserId String   @unique @map("supabase_user_id")
+  supabaseUserId String?  @unique @map("supabase_user_id")
   email          String   @unique
   displayName    String   @map("display_name")
   role           Role     @default(member)
