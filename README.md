@@ -10,6 +10,9 @@ Growth Hackers 산학협력 대외협력 봇 — 산학협력(프로젝트 수�
 
 각 기능이 실제로 어떤 로직으로 동작하는지는 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)에 정리되어 있다.
 
+웹 어드민의 [설계·정책·연동 제안](docs/admin/README.md)과 [독립 클릭 목업](prototypes/admin/README.md)을 별도로 제공한다.
+목업은 가상 데이터를 사용하는 검토용 자료이며, 현재 Slack 서비스의 UI·DB·외부 발송 동작을 변경하지 않는다.
+
 ## 기술 스택
 
 - Next.js (App Router API + Pages API, UI 페이지 없음 — Slack 인터랙션이 유일한 인터페이스)
