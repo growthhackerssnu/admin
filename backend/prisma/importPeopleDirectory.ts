@@ -1,27 +1,22 @@
 // 노션 People DB(액팅 기수 + 알럼나이 전체) -> people_directory 동기화.
 // 재실행해도 안전하다(notionPageId 기준 upsert). 노션 쪽 명단이 바뀌면 다시 돌리면 됨.
 //
+// 이 테이블은 "가입 신청한 사람이 진짜 명단에 있는 사람인지" 확인하는 용도뿐이다.
+// acting/alumni 같은 role은 여기서 판단하지 않는다 — 가입 직후엔 무조건 alumni로
+// 등록되고, admin이 나중에 개별로 acting으로 승격한다.
+//
 // 사용법: npm run people:import
 // 필요한 환경변수: NOTION_API_KEY, NOTION_PEOPLE_DATABASE_ID
-// 컬럼명이 기본값(기수/이름/이메일/구분)과 다르면 NOTION_COHORT_PROPERTY /
-// NOTION_NAME_PROPERTY / NOTION_EMAIL_PROPERTY / NOTION_STATUS_PROPERTY로 지정한다.
-// 구분 컬럼 값이 "액팅"/"알럼나이" 계열이 아니면(예: 다른 표현을 쓰는 경우) 건너뛰고
-// 알려준다 — src/lib/notion.ts의 ACTING_ALIASES/ALUMNI_ALIASES에 표현을 추가하면 된다.
+// 컬럼명이 기본값(기수/Name/이메일)과 다르면 NOTION_COHORT_PROPERTY /
+// NOTION_NAME_PROPERTY / NOTION_EMAIL_PROPERTY로 지정한다.
 import { PrismaClient } from "@prisma/client";
-import {
-  extractPropertyText,
-  getNotionClient,
-  normalizeCohort,
-  normalizeCohortStatus,
-  normalizeName,
-} from "../src/lib/notion";
+import { extractPropertyText, getNotionClient, normalizeCohort, normalizeName } from "../src/lib/notion";
 
 const prisma = new PrismaClient();
 
 const COHORT_PROPERTY = process.env.NOTION_COHORT_PROPERTY ?? "기수";
-const NAME_PROPERTY = process.env.NOTION_NAME_PROPERTY ?? "이름";
+const NAME_PROPERTY = process.env.NOTION_NAME_PROPERTY ?? "Name";
 const EMAIL_PROPERTY = process.env.NOTION_EMAIL_PROPERTY ?? "이메일";
-const STATUS_PROPERTY = process.env.NOTION_STATUS_PROPERTY ?? "구분";
 
 async function main() {
   const databaseId = process.env.NOTION_PEOPLE_DATABASE_ID;
@@ -36,11 +31,11 @@ async function main() {
     properties: Record<string, unknown>;
   };
   const availableProps = Object.keys(db.properties ?? {});
-  for (const required of [COHORT_PROPERTY, NAME_PROPERTY, EMAIL_PROPERTY, STATUS_PROPERTY]) {
+  for (const required of [COHORT_PROPERTY, NAME_PROPERTY, EMAIL_PROPERTY]) {
     if (!availableProps.includes(required)) {
       console.error(
         `"${required}" 속성을 찾을 수 없습니다. 실제 속성: ${availableProps.join(", ")}\n` +
-          "NOTION_COHORT_PROPERTY / NOTION_NAME_PROPERTY / NOTION_EMAIL_PROPERTY / NOTION_STATUS_PROPERTY로 실제 컬럼명을 지정하세요.",
+          "NOTION_COHORT_PROPERTY / NOTION_NAME_PROPERTY / NOTION_EMAIL_PROPERTY로 실제 컬럼명을 지정하세요.",
       );
       process.exit(1);
     }
@@ -66,15 +61,9 @@ async function main() {
       const cohort = extractPropertyText(props[COHORT_PROPERTY] as Record<string, unknown>);
       const name = extractPropertyText(props[NAME_PROPERTY] as Record<string, unknown>);
       const email = extractPropertyText(props[EMAIL_PROPERTY] as Record<string, unknown>);
-      const statusText = extractPropertyText(props[STATUS_PROPERTY] as Record<string, unknown>);
-      const status = statusText ? normalizeCohortStatus(statusText) : null;
 
-      if (!cohort || !name || !email || !status) {
-        skipped.push(
-          `${rowUrl} (기수=${cohort ?? "?"}, 이름=${name ?? "?"}, 이메일=${email ?? "?"}, 구분="${statusText ?? "?"}"${
-            statusText && !status ? " <- 액팅/알럼나이로 인식 못 함" : ""
-          })`,
-        );
+      if (!cohort || !name || !email) {
+        skipped.push(`${rowUrl} (기수=${cohort ?? "?"}, 이름=${name ?? "?"}, 이메일=${email ?? "?"})`);
         continue;
       }
 
@@ -88,8 +77,6 @@ async function main() {
           name,
           nameNormalized: normalizeName(name),
           knownEmail: email,
-          status,
-          statusRaw: statusText!,
         },
         create: {
           notionPageId: row.id,
@@ -98,8 +85,6 @@ async function main() {
           name,
           nameNormalized: normalizeName(name),
           knownEmail: email,
-          status,
-          statusRaw: statusText!,
         },
       });
 
@@ -112,7 +97,7 @@ async function main() {
 
   console.log(`가져오기 완료: 신규 ${imported}건, 갱신 ${updated}건, 건너뜀 ${skipped.length}건`);
   if (skipped.length > 0) {
-    console.log("건너뛴 행(필수 항목 누락 또는 구분 값 미인식):");
+    console.log("건너뛴 행(기수/이름/이메일 중 하나가 비어있음):");
     skipped.forEach((s) => console.log(`  - ${s}`));
   }
 }

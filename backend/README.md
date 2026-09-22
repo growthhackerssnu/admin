@@ -27,26 +27,28 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 
 | role | 범위 |
 |---|---|
-| `admin` | `admin@ghsnu.com` 고정 하나. 전 영역 접근·편집, 회원 승인/삭제 |
+| `admin` | `admin@ghsnu.com` 고정 하나. 전 영역 접근·편집, 회원 role 변경/삭제 |
 | `acting` | 현재 액팅 회원. dh+hr 업무 권한 전부 동일(PM 서브권한 없음 — 차수 시작도 누구나) |
 | `alumni` | 가입한 알럼나이. **`/dh`(이 백엔드) 접근 자체가 막힌다** — `getAuthenticatedMember`가 곧바로 403. hr은 보기 전용(이 저장소 범위 밖) |
 
+가입 직후에는 **무조건 `alumni`로 등록된다.** `people_directory`(아래)는 "이 사람이 진짜 명단에 있는 사람인지"만 확인하는 용도이고, 거기엔 액팅/알럼나이 구분이 없다 — admin이 `admin.ghsnu.com/admin`(이 저장소 범위 밖, 별도 관리자 페이지)에서 개별로 `acting`으로 승격시킨다. `admin`으로의 승격은 그 화면에서도 불가 — 수동으로만.
+
 ## 가입 (Notion People DB 연동)
 
-학회원 확인은 "기수+이름+원하는 구글 이메일로 가입 신청 → 노션에 기록된 신뢰 이메일로 OTP 발송 → 인증 성공 시 그 구글 이메일 등록, role은 노션의 구분(액팅/알럼나이)을 따름" 흐름이다. 노션 People DB(액팅+알럼나이 전체)를 우리 DB(`people_directory`)로 동기화:
+학회원 확인은 "기수+이름+원하는 구글 이메일로 가입 신청 → 노션에 기록된 신뢰 이메일로 OTP 발송 → 인증 성공 시 그 구글 이메일로 `alumni` role 등록" 흐름이다. 노션 People DB를 우리 DB(`people_directory`)로 동기화(본인 확인용 사본일 뿐, role 판단에는 안 씀):
 
 ```sh
 npm run people:import
 ```
 
-노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/이름/이메일/구분)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`/`NOTION_STATUS_PROPERTY`로 실제 컬럼명을 지정한다. "구분" 컬럼 값이 액팅/알럼나이 계열로 안 읽히면(`src/lib/notion.ts`의 `ACTING_ALIASES`/`ALUMNI_ALIASES` 참고) 조용히 건너뛰지 않고 그 값을 그대로 보여주며 알려준다 — 잘못 추측해서 과한 권한을 주는 것보다 안전한 쪽.
+노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/Name/이메일)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`로 실제 컬럼명을 지정한다.
 
 가입 신청/인증 엔드포인트(인증 불필요, 로그인 전 흐름):
 
 | API | 설명 |
 |---|---|
 | `POST /api/auth/signup-requests` | `{cohort, name, desiredEmail}` → `people_directory` 대조 → 매칭되면 그 사람의 노션 신뢰 이메일로 OTP 발송(Resend). 응답에 `signupRequestId`와 마스킹된 발신 주소(`sentTo`)를 준다 |
-| `POST /api/auth/signup-requests/{id}/verify` | `{otp}` → 일치하면 `desiredEmail`로 `members` 행 생성(role은 `people_directory.status`를 따름), `people_directory.claimedByMemberId` 기록. 이후 그 이메일로 Google 로그인하면 접근 가능 |
+| `POST /api/auth/signup-requests/{id}/verify` | `{otp}` → 일치하면 `desiredEmail`로 `members` 행을 `role: alumni`로 생성, `people_directory.claimedByMemberId` 기록. 이후 그 이메일로 Google 로그인하면 접근 가능(alumni 권한 범위 내) |
 
 OTP는 10분 유효, 5회 틀리면 그 신청은 만료 처리(다시 신청해야 함), 60초 안에 재신청하면 막는다(`src/lib/otp.ts`). 이미 가입 완료된 사람, 이미 쓰이는 이메일, 기수+이름이 명단에 없거나 중복인 경우는 각각 명확한 오류 메시지로 막는다.
 

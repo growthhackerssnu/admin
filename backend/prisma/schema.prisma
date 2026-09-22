@@ -119,33 +119,26 @@ model Member {
   @@map("members")
 }
 
-// acting(액팅 기수)인지 alumni(알럼나이)인지 — 노션 People DB의 구분 컬럼에서 옴.
-// admin은 여기 포함 안 됨(고정 계정, Notion 명단과 무관).
-enum CohortStatus {
-  acting
-  alumni
-}
-
 // 노션 People DB(액팅+알럼나이 전체)에서 가져온 "신뢰 이메일" 원장
-// (npm run people:import로 동기화). 가입 신청 시 기수+이름으로 이 테이블을 찾아
-// knownEmail로 OTP를 보내고, 인증 성공 시 이 행의 status를 보고 members.role을
-// acting/alumni로 정한다. claimedByMemberId가 채워지면 이미 가입이 끝난 것 —
-// 같은 항목으로 두 번 가입하는 걸 막는다.
+// (npm run people:import로 동기화). 딱 하나만 한다: 가입 신청 시 기수+이름으로
+// 이 테이블을 찾아 knownEmail로 OTP를 보내서 "진짜 명단에 있는 사람"인지
+// 확인한다. role(acting/alumni)은 여기서 판단하지 않는다 — 가입 직후엔 무조건
+// alumni로 등록되고, admin이 나중에 개별로 acting으로 올린다.
+// claimedByMemberId가 채워지면 이미 가입이 끝난 것 — 같은 항목으로 두 번
+// 가입하는 걸 막는다.
 model PeopleDirectory {
-  id                String       @id @default(cuid())
-  notionPageId      String       @unique @map("notion_page_id")
+  id                String    @id @default(cuid())
+  notionPageId      String    @unique @map("notion_page_id")
   cohort            String
-  cohortNormalized  String       @map("cohort_normalized")
+  cohortNormalized  String    @map("cohort_normalized")
   name              String
-  nameNormalized    String       @map("name_normalized")
-  knownEmail        String       @map("known_email")
-  status            CohortStatus
-  statusRaw         String       @map("status_raw")
-  claimedByMemberId String?      @unique @map("claimed_by_member_id")
-  claimedBy         Member?      @relation(fields: [claimedByMemberId], references: [id])
-  claimedAt         DateTime?    @map("claimed_at")
-  importedAt        DateTime     @default(now()) @map("imported_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  nameNormalized    String    @map("name_normalized")
+  knownEmail        String    @map("known_email")
+  claimedByMemberId String?   @unique @map("claimed_by_member_id")
+  claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
+  claimedAt         DateTime? @map("claimed_at")
+  importedAt        DateTime  @default(now()) @map("imported_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   signupRequests SignupRequest[]
 
@@ -160,8 +153,8 @@ enum SignupRequestStatus {
 }
 
 // 기수+이름+원하는 구글 이메일로 가입 신청 → people_directory에서 대조한
-// knownEmail로 OTP 발송 → 인증 성공 시 그 구글 이메일로 members 행 생성/활성화
-// (role은 people_directory.status를 따름).
+// knownEmail로 OTP 발송 → 인증 성공 시 그 구글 이메일로 members 행 생성
+// (role = alumni 고정, admin이 나중에 acting으로 승격).
 model SignupRequest {
   id                String              @id @default(cuid())
   personDirectoryId String              @map("person_directory_id")

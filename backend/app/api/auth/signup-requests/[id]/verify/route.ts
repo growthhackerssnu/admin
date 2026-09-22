@@ -5,8 +5,9 @@ import { hashOtp, OTP_MAX_ATTEMPTS } from "@/lib/otp";
 import { verifySignupRequestSchema } from "@/lib/validation/auth";
 
 // POST /api/auth/signup-requests/{id}/verify
-// OTP 확인 -> 성공하면 desiredEmail로 members 행 생성(role은 people_directory.status
-// 를 따름), people_directory.claimedByMemberId 기록. 이후 그 이메일로 Google 로그인.
+// OTP 확인 -> 성공하면 desiredEmail로 members 행 생성(role은 항상 alumni로 시작 —
+// admin이 admin.ghsnu.com/admin에서 개별로 acting 승격), people_directory에
+// claimedByMemberId 기록. 이후 그 이메일로 Google 로그인.
 export const POST = withPublicApiHandler<{ id: string }>(async (req, { params, requestId }) => {
   const body = await req.json().catch(() => null);
   const parsed = verifySignupRequestSchema.safeParse(body);
@@ -50,10 +51,10 @@ export const POST = withPublicApiHandler<{ id: string }>(async (req, { params, r
   }
 
   const member = await prisma.$transaction(async (tx) => {
-    const created = await tx.member.upsert({
-      where: { email: signupRequest.desiredEmail },
-      update: { displayName: person.name, role: person.status, active: true },
-      create: { email: signupRequest.desiredEmail, displayName: person.name, role: person.status, active: true },
+    // upsert가 아니라 create다 — desiredEmail이 이미 members에 있으면(위에서
+    // 걸렀어야 하지만 경합 상황 대비) role을 조용히 덮어쓰지 않고 그냥 실패한다.
+    const created = await tx.member.create({
+      data: { email: signupRequest.desiredEmail, displayName: person.name, role: "alumni", active: true },
     });
     await tx.peopleDirectory.update({
       where: { id: person.id },
