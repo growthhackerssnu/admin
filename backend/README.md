@@ -65,6 +65,10 @@ npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남
 
 이 사람이 처음 로그인하는 순간 Supabase user id가 자동으로 연결된다.
 
+## CORS
+
+`middleware.ts`가 `/api/*` 전체에 적용된다. 기본 허용 출처는 로컬 프론트(`http://localhost:5173`)와 운영(`https://admin.ghsnu.com`) — 다른 출처를 추가하려면 `.env.local`에 `ALLOWED_ORIGINS`(콤마 구분)를 지정한다. 라우트별로 따로 설정할 필요 없다.
+
 ## 구현 범위
 
 - **완료(Phase 1)**: 조회 11종(`GET /me, /cycles, /search-options, /companies, /companies/{id}, /outreaches/{id}, /outreaches/{id}/contacts, /companies/{id}/history, /sends/{id}, /template-bindings, /members`)
