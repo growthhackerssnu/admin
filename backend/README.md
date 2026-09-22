@@ -11,7 +11,6 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 1. `npm install`
 2. `.env.example`을 `.env.local`로 복사하고 값 채우기:
    - Supabase 프로젝트의 `DATABASE_URL`(풀링, 6543)/`DIRECT_URL`(다이렉트, 5432), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `ALLOWED_EMAIL_DOMAIN` — 학회 이메일 도메인(`ghsnu.com`). Google OAuth 동의 화면이 Internal이면 이미 막히지만 서버에서 한 번 더 검사한다
    - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
 3. `npm run db:migrate` — 스키마 마이그레이션 생성·적용
@@ -22,7 +21,7 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 
 모든 `/api/v1/*` 요청은 `Authorization: Bearer <Supabase access token>` 헤더가 필요하다. 토큰은 Supabase Auth(Google OAuth)로 로그인한 뒤 발급받는다 — 이 백엔드 자체는 로그인 화면을 제공하지 않는다(프론트가 Supabase 클라이언트로 로그인 플로우를 처리한다).
 
-**접근은 화이트리스트 방식이다.** `ghsnu.com` 도메인 계정이어도, 관리자가 미리 `members` 테이블에 이메일을 등록해두지 않으면 로그인이 완성되지 않고 403이 반환된다(Google OAuth Internal 설정은 "도메인 제한"까지만 하고, "그 중 누가 실제로 쓸 수 있는지"는 이 화이트리스트가 결정한다). 접근 권한 부여·회수:
+**접근은 화이트리스트 방식이다.** 학회원 계정 도메인이 `ghsnu.com`/`gmail.com`/`snu.ac.kr` 등으로 섞여 있어 도메인 검사로는 거를 수 없다. Google OAuth 동의 화면은 **External**로 설정한다(Internal은 단일 Workspace 조직 소속 계정만 로그인 자체가 가능해서, 도메인이 섞인 이 상황과 맞지 않는다). 로그인 자체는 어떤 Google 계정이든 시도할 수 있지만, 관리자가 미리 `members` 테이블(대협봇 자체 DB 테이블, Supabase Auth의 사용자 목록과는 별개다)에 이메일을 등록해두지 않으면 접근이 403으로 막힌다. 접근 권한 부여·회수:
 
 ```sh
 npm run members:add -- person@ghsnu.com "표시 이름" pm      # 등록 (role 생략 시 member)

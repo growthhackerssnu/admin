@@ -39,17 +39,10 @@ export async function getAuthenticatedMember(req: NextRequest): Promise<Member> 
     throw new ApiError("UNAUTHENTICATED", "인증 서비스에 연결할 수 없습니다.");
   }
 
-  // Google OAuth 동의 화면이 Internal이면 이 도메인 밖 계정은 로그인 자체가
-  // 안 되지만, 설정이 바뀌거나 다른 방식이 섞여도 안전하도록 한 번 더 검사한다.
-  const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN;
-  if (allowedDomain && !email.toLowerCase().endsWith(`@${allowedDomain.toLowerCase()}`)) {
-    throw new ApiError("FORBIDDEN", "학회 이메일 계정으로만 접근할 수 있습니다.");
-  }
-
-  // 접근은 화이트리스트 방식이다. Google 인증 + 도메인 검사를 통과해도, 관리자가
-  // 미리 이메일로 만들어둔 members 행이 없으면 자동으로 계정을 만들어주지 않는다
-  // ("admin@ghsnu.com + 일부 학회원만" 요구사항 — 도메인 전체가 아니라 지정된
-  // 사람만 접근 가능해야 한다).
+  // 학회원 계정이 ghsnu.com/gmail.com/snu.ac.kr 등 도메인이 섞여 있어 도메인
+  // 검사로는 못 거른다. Google OAuth 동의 화면을 External로 두고(Internal은
+  // 단일 Workspace 도메인 소속 계정만 로그인 자체가 가능해서 이 조합과 안 맞음),
+  // 실제 접근 통제는 아래 members 화이트리스트가 전담한다.
   let member = await prisma.member.findUnique({ where: { email } });
 
   if (!member) {
