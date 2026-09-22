@@ -10,12 +10,25 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 
 1. `npm install`
 2. `.env.example`을 `.env.local`로 복사하고 값 채우기:
-   - Supabase 프로젝트의 `DATABASE_URL`(풀링, 6543)/`DIRECT_URL`(다이렉트, 5432), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+   - Supabase 프로젝트의 `DATABASE_URL`(Transaction pooler, 6543)/`DIRECT_URL`(**Session pooler**, 5432 — 대시보드의 "Direct connection" 탭 값이 아니다. 그건 IPv6 전용이라 일반 네트워크에서 `prisma migrate`가 "Can't reach database server"로 막힌다), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+   - `NOTION_API_KEY`/`NOTION_ALUMNI_DATABASE_ID` — 알럼나이 가입 흐름(아래 참고)에 필요. 지금 당장은 비워둬도 나머지 개발엔 지장 없음
    - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
 3. `npm run db:migrate` — 스키마 마이그레이션 생성·적용
 4. `npm run db:seed` — `frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩
 5. `npm run dev` — `http://localhost:3000`에서 API 실행
+
+`db:migrate`/`db:seed`/`members:*`/`alumni:import`는 전부 `dotenv-cli`로 `.env.local`을 로드한다(`prisma` CLI와 `tsx` 둘 다 `.env.local`을 자동으로 읽지 않기 때문 — `npm run dev`의 `next dev`만 자동으로 읽는다). 새 스크립트를 추가할 때도 이 패턴을 따른다.
+
+## 알럼나이 가입 (Notion 연동)
+
+학회원 확인은 "기수+이름+원하는 구글 이메일로 가입 신청 → 노션에 기록된 신뢰 이메일로 OTP 발송 → 인증 성공 시 그 구글 이메일 등록" 흐름이다. 노션 명단을 우리 DB(`alumni_directory`)로 동기화:
+
+```sh
+npm run alumni:import
+```
+
+노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/이름/이메일)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`로 실제 컬럼명을 지정한다 — 안 맞으면 스크립트가 조용히 건너뛰지 않고 실제 컬럼 목록을 보여주며 바로 실패한다. 가입 신청/OTP 검증 API 엔드포인트 자체는 아직 구현 전이다.
 
 ## 인증·접근 권한
 
