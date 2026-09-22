@@ -110,8 +110,56 @@ model Member {
   checkedResponses    Response[]
   cycleStartIntents   CycleStartIntent[]
   idempotencyKeys     IdempotencyKey[]
+  claimedAlumniEntry  AlumniDirectory?
 
   @@map("members")
+}
+
+// 노션 알럼나이 명단에서 가져온 "신뢰 이메일" 원장 (npm run alumni:import로 동기화).
+// 가입 신청 시 기수+이름으로 이 테이블을 찾아 knownEmail로 OTP를 보낸다.
+// claimedByMemberId가 채워지면 이미 이 항목으로 가입이 끝난 것 — 같은 항목으로
+// 두 번 가입하는 걸 막는다.
+model AlumniDirectory {
+  id                String    @id @default(cuid())
+  notionPageId      String    @unique @map("notion_page_id")
+  cohort            String
+  cohortNormalized  String    @map("cohort_normalized")
+  name              String
+  nameNormalized    String    @map("name_normalized")
+  knownEmail        String    @map("known_email")
+  claimedByMemberId String?   @unique @map("claimed_by_member_id")
+  claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
+  claimedAt         DateTime? @map("claimed_at")
+  importedAt        DateTime  @default(now()) @map("imported_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  signupRequests SignupRequest[]
+
+  @@index([cohortNormalized, nameNormalized])
+  @@map("alumni_directory")
+}
+
+enum SignupRequestStatus {
+  pending
+  verified
+  expired
+}
+
+// 기수+이름+원하는 구글 이메일로 가입 신청 → alumni_directory에서 대조한
+// knownEmail로 OTP 발송 → 인증 성공 시 그 구글 이메일로 members 행 생성/활성화.
+model SignupRequest {
+  id                String              @id @default(cuid())
+  alumniDirectoryId String              @map("alumni_directory_id")
+  alumniDirectory   AlumniDirectory     @relation(fields: [alumniDirectoryId], references: [id])
+  desiredEmail      String              @map("desired_email")
+  otpHash           String              @map("otp_hash")
+  otpExpiresAt      DateTime            @map("otp_expires_at")
+  attempts          Int                 @default(0)
+  status            SignupRequestStatus @default(pending)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  verifiedAt        DateTime?           @map("verified_at")
+
+  @@map("signup_requests")
 }
 
 // ---------- 차수·탐색 ----------

@@ -15,9 +15,11 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "members:add": "tsx prisma/addMember.ts",
-    "members:remove": "tsx prisma/removeMember.ts"
+    "members:remove": "tsx prisma/removeMember.ts",
+    "alumni:import": "tsx prisma/importAlumniDirectory.ts"
   },
   "dependencies": {
+    "@notionhq/client": "^2.3.0",
     "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.45.0",
     "inngest": "^3.28.0",
