@@ -10,6 +10,7 @@
 - [대협봇 프론트 실행·구조 안내](apps/dh-frontend/README.md)
 - [공유 UI 패키지](packages/ui-shell/README.md)
 - [게이트웨이(도메인·리라이트)](gateway/README.md)
+- [라우팅 구조 — 포털·dh·hr을 어떻게 나누고 연결하는지](docs/admin/routing.md)
 - [설계·정책·연동 제안](docs/admin/README.md)
 - [목업 실행 안내](prototypes/admin/README.md)
 
