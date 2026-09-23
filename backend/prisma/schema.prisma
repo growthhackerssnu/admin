@@ -1,0 +1,475 @@
+// dhbot 어드민 백엔드 데이터 모델
+// 근거: docs/admin/integration/05_데이터 모델 제안.md (목업 기준 테이블 설계)
+// 소싱·수집 파이프라인(sources/articles/funding_events 등)은 이번 범위 밖이다.
+// DB 컬럼(snake_case)과 API DTO(camelCase)의 이름 차이는 src/lib/serializers/*에서 흡수한다.
+// responseStatus(API)는 저장 컬럼이 아니라 이 outreach의 최신 Response.result에서 계산한다.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------- Enums ----------
+
+// admin: admin@ghsnu.com 고정, 전 영역 접근·편집·회원 승인/삭제.
+// acting: 현재 액팅 회원. dh+hr 업무 권한 전부 동일(PM 서브권한 없음).
+// alumni: 가입한 알럼나이. hr은 보기 전용, dh(대협봇)는 접근 자체 불가.
+enum Role {
+  admin
+  acting
+  alumni
+}
+
+enum Channel {
+  email
+  linkedin
+}
+
+enum Route {
+  new
+  alternate_contact
+  recontact
+  repeat_collaboration
+}
+
+enum WorkStage {
+  company_review
+  recipient_selection
+  draft_review
+  ready_to_send
+  response_check
+}
+
+enum InternalDecision {
+  active
+  skipped_for_cycle
+  excluded_permanently
+}
+
+enum ResponseResult {
+  no_reply
+  discussing
+  rejected
+  deferred
+  referred
+  closed
+}
+
+enum ResponseCategory {
+  resource_shortage
+  not_interested
+  no_problem_demand
+  other
+}
+
+enum SendStatus {
+  queued
+  sending
+  sent
+  failed
+  unknown
+}
+
+enum JobType {
+  cycle_search
+  contact_search
+  draft_generate
+}
+
+enum JobStatus {
+  queued
+  running
+  succeeded
+  failed
+}
+
+enum DraftOrigin {
+  ai
+  admin_edit
+}
+
+// ---------- 사용자 ----------
+
+// 접근은 화이트리스트 방식이다. 관리자가 이메일로 행을 미리 만들어야 로그인이
+// 완성된다(Google 인증 + 도메인 통과만으로는 접근이 열리지 않는다). 미리 만들
+// 때는 supabaseUserId를 모르므로 nullable — 첫 로그인 때 연결한다.
+model Member {
+  id             String   @id @default(cuid())
+  supabaseUserId String?  @unique @map("supabase_user_id")
+  email          String   @unique
+  displayName    String   @map("display_name")
+  role           Role     @default(acting)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  lastLoginAt    DateTime? @map("last_login_at")
+
+  startedCycles       Cycle[]              @relation("CycleStartedBy")
+  ownedOutreaches     Outreach[]           @relation("OutreachOwner")
+  decidedOutreaches   Outreach[]           @relation("OutreachDecidedBy")
+  triggeredSearchRuns SearchRun[]
+  checkedResponses    Response[]
+  cycleStartIntents   CycleStartIntent[]
+  idempotencyKeys     IdempotencyKey[]
+  claimedPersonEntry  PeopleDirectory?
+
+  @@map("members")
+}
+
+// 노션 People DB(액팅+알럼나이 전체)에서 가져온 "신뢰 이메일" 원장
+// (npm run people:import로 동기화). 딱 하나만 한다: 가입 신청 시 기수+이름으로
+// 이 테이블을 찾아 knownEmail로 OTP를 보내서 "진짜 명단에 있는 사람"인지
+// 확인한다. role(acting/alumni)은 여기서 판단하지 않는다 — 가입 직후엔 무조건
+// alumni로 등록되고, admin이 나중에 개별로 acting으로 올린다.
+// claimedByMemberId가 채워지면 이미 가입이 끝난 것 — 같은 항목으로 두 번
+// 가입하는 걸 막는다.
+model PeopleDirectory {
+  id                String    @id @default(cuid())
+  notionPageId      String    @unique @map("notion_page_id")
+  cohort            String
+  cohortNormalized  String    @map("cohort_normalized")
+  name              String
+  nameNormalized    String    @map("name_normalized")
+  knownEmail        String    @map("known_email")
+  claimedByMemberId String?   @unique @map("claimed_by_member_id")
+  claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
+  claimedAt         DateTime? @map("claimed_at")
+  importedAt        DateTime  @default(now()) @map("imported_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  signupRequests SignupRequest[]
+
+  @@index([cohortNormalized, nameNormalized])
+  @@map("people_directory")
+}
+
+enum SignupRequestStatus {
+  pending
+  verified
+  expired
+}
+
+// 기수+이름+원하는 구글 이메일로 가입 신청 → people_directory에서 대조한
+// knownEmail로 OTP 발송 → 인증 성공 시 그 구글 이메일로 members 행 생성
+// (role = alumni 고정, admin이 나중에 acting으로 승격).
+model SignupRequest {
+  id                String              @id @default(cuid())
+  personDirectoryId String              @map("person_directory_id")
+  personDirectory   PeopleDirectory     @relation(fields: [personDirectoryId], references: [id])
+  desiredEmail      String              @map("desired_email")
+  otpHash           String              @map("otp_hash")
+  otpExpiresAt      DateTime            @map("otp_expires_at")
+  attempts          Int                 @default(0)
+  status            SignupRequestStatus @default(pending)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  verifiedAt        DateTime?           @map("verified_at")
+
+  @@map("signup_requests")
+}
+
+// ---------- 차수·탐색 ----------
+
+model Cycle {
+  id            String    @id @default(cuid())
+  name          String
+  startedAt     DateTime  @map("started_at")
+  startedById   String    @map("started_by_id")
+  startedBy     Member    @relation("CycleStartedBy", fields: [startedById], references: [id])
+  endedAt       DateTime? @map("ended_at")
+
+  searchRuns          SearchRun[]
+  currentOutreaches    Outreach[] @relation("OutreachCurrentCycle")
+  lastSentOutreaches   Outreach[] @relation("OutreachLastSentCycle")
+  skipOutreaches       Outreach[] @relation("OutreachSkipCycle")
+  sentMessages        SentMessage[]
+
+  @@map("cycles")
+}
+
+// 서버가 "새 기업 탐색" 버튼의 클릭 의도·시각을 먼저 기록해두는 짧은 수명 레코드.
+// #12 cycle-start-intents. 차수 자체는 아니며, 취소되면 차수를 만들지 않는다.
+model CycleStartIntent {
+  id           String   @id @default(cuid())
+  openedAt     DateTime @default(now()) @map("opened_at")
+  expiresAt    DateTime @map("expires_at")
+  openedById   String   @map("opened_by_id")
+  openedBy     Member   @relation(fields: [openedById], references: [id])
+  consumedAt   DateTime? @map("consumed_at")
+
+  @@map("cycle_start_intents")
+}
+
+model SearchRun {
+  id                  String   @id @default(cuid())
+  cycleId             String   @map("cycle_id")
+  cycle               Cycle    @relation(fields: [cycleId], references: [id])
+  conditionsSnapshot  Json     @map("conditions_snapshot")
+  triggeredById       String   @map("triggered_by_id")
+  triggeredBy         Member   @relation(fields: [triggeredById], references: [id])
+  jobId               String   @unique @map("job_id")
+  job                 Job      @relation(fields: [jobId], references: [id])
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@map("search_runs")
+}
+
+// ---------- 기업 ----------
+
+model Company {
+  id                        String    @id @default(cuid())
+  name                      String
+  product                   String
+  domain                    String
+  version                   Int       @default(1)
+  permanentlyExcluded       Boolean   @default(false) @map("permanently_excluded")
+  permanentlyExcludedReason String?   @map("permanently_excluded_reason")
+  permanentlyExcludedAt     DateTime? @map("permanently_excluded_at")
+  isPrelaunchOnly           Boolean   @default(false) @map("is_prelaunch_only")
+  createdAt                 DateTime  @default(now()) @map("created_at")
+
+  contacts           Contact[]
+  contactEndpoints   ContactEndpoint[]
+  prelaunchContacts  PrelaunchContact[]
+  outreaches         Outreach[]
+  pastProjects       PastProject[]
+
+  @@map("companies")
+}
+
+model Contact {
+  id           String   @id @default(cuid())
+  companyId    String   @map("company_id")
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  title        String?
+  department   String?
+  linkedinUrl  String?  @map("linkedin_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  endpoints             ContactEndpoint[]
+  recipientOnOutreaches Outreach[]        @relation("OutreachRecipientContact")
+  recipientOnSends      SentMessage[]     @relation("SentMessageRecipientContact")
+
+  @@map("contacts")
+}
+
+model ContactEndpoint {
+  id         String   @id @default(cuid())
+  companyId  String   @map("company_id")
+  company    Company  @relation(fields: [companyId], references: [id])
+  contactId  String?  @map("contact_id")
+  contact    Contact? @relation(fields: [contactId], references: [id])
+  channel    Channel
+  address    String
+  valid      Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  recipientOnOutreaches Outreach[]    @relation("OutreachRecipientEndpoint")
+  recipientOnSends      SentMessage[] @relation("SentMessageRecipientEndpoint")
+
+  @@map("contact_endpoints")
+}
+
+// 배포 전 이력만 있는 수신자를 제외 목적으로만 기록하는 최소 레코드.
+// 정식 Contact 레코드가 없어도(엑셀 이관 등) 이름/이메일/링크드인으로 매칭해 후보에서 뺀다.
+model PrelaunchContact {
+  id           String  @id @default(cuid())
+  companyId    String  @map("company_id")
+  company      Company @relation(fields: [companyId], references: [id])
+  name         String
+  email        String?
+  linkedinUrl  String? @map("linkedin_url")
+  note         String?
+
+  @@map("prelaunch_contacts")
+}
+
+// ---------- 컨택 건 ----------
+// 기업당 진행 중인 건은 하나다(unique companyId). 분기가 바뀌어도 새 행을 만들지
+// 않고 currentCycleId만 갱신한다 — 05_데이터 모델 제안.md에서 이미 확정.
+
+model Outreach {
+  id                    String            @id @default(cuid())
+  companyId             String            @unique @map("company_id")
+  company               Company           @relation(fields: [companyId], references: [id])
+  ownerId               String            @map("owner_id")
+  owner                 Member            @relation("OutreachOwner", fields: [ownerId], references: [id])
+  currentCycleId        String            @map("current_cycle_id")
+  currentCycle          Cycle             @relation("OutreachCurrentCycle", fields: [currentCycleId], references: [id])
+
+  route                 Route
+  workStage             WorkStage         @map("work_stage")
+  internalDecision      InternalDecision  @default(active) @map("internal_decision")
+  version               Int               @default(1)
+
+  recipientContactId    String?           @map("recipient_contact_id")
+  recipientContact      Contact?          @relation("OutreachRecipientContact", fields: [recipientContactId], references: [id])
+  recipientEndpointId   String?           @map("recipient_endpoint_id")
+  recipientEndpoint     ContactEndpoint?  @relation("OutreachRecipientEndpoint", fields: [recipientEndpointId], references: [id])
+
+  lastSentCycleId       String?           @map("last_sent_cycle_id")
+  lastSentCycle         Cycle?            @relation("OutreachLastSentCycle", fields: [lastSentCycleId], references: [id])
+
+  reviewNote            String?           @map("review_note")
+  conditionEvidence     String?           @map("condition_evidence")
+  reviewedAt            DateTime?         @map("reviewed_at")
+  decidedById           String?           @map("decided_by_id")
+  decidedBy             Member?           @relation("OutreachDecidedBy", fields: [decidedById], references: [id])
+  decidedAt             DateTime?         @map("decided_at")
+
+  skipNote              String?           @map("skip_note")
+  skipCycleId           String?           @map("skip_cycle_id")
+  skipCycle             Cycle?            @relation("OutreachSkipCycle", fields: [skipCycleId], references: [id])
+
+  currentRevision       Int?              @map("current_revision")
+  approvedRevision      Int?              @map("approved_revision")
+
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+
+  draftRevisions   MessageDraftRevision[]
+  sentMessages     SentMessage[]
+  responses        Response[]
+
+  @@map("outreaches")
+}
+
+// ---------- 템플릿·초안 ----------
+
+model Template {
+  id              String   @id @default(cuid())
+  route           Route
+  channel         Channel
+  version         Int
+  subjectTemplate String   @map("subject_template")
+  bodyTemplate    String   @map("body_template")
+  active          Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  draftRevisions MessageDraftRevision[]
+  sentMessages   SentMessage[]
+
+  // route x channel 조합당 active = true는 하나만 허용 — 애플리케이션 레이어에서 강제
+  // (부분 유니크 인덱스가 필요하면 마이그레이션에 raw SQL로 추가)
+  @@map("templates")
+}
+
+// 초안은 수정할 때마다 새 리비전 행을 추가하는 append-only 이력이다.
+// outreaches.currentRevision/approvedRevision이 "지금 보여줄 값"을 가리킨다.
+model MessageDraftRevision {
+  id              String      @id @default(cuid())
+  outreachId      String      @map("outreach_id")
+  outreach        Outreach    @relation(fields: [outreachId], references: [id])
+  revision        Int
+  topic           String
+  subject         String
+  body            String
+  templateId      String?     @map("template_id")
+  template        Template?   @relation(fields: [templateId], references: [id])
+  templateVersion Int?        @map("template_version")
+  createdBy       DraftOrigin @map("created_by")
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  @@unique([outreachId, revision])
+  @@map("message_draft_revisions")
+}
+
+// ---------- 발송·응답 ----------
+
+model SentMessage {
+  id                     String      @id @default(cuid())
+  outreachId             String      @map("outreach_id")
+  outreach               Outreach    @relation(fields: [outreachId], references: [id])
+  cycleId                String      @map("cycle_id")
+  cycle                  Cycle       @relation(fields: [cycleId], references: [id])
+  channel                Channel
+  recipientContactId     String      @map("recipient_contact_id")
+  recipientContact       Contact     @relation("SentMessageRecipientContact", fields: [recipientContactId], references: [id])
+  recipientEndpointId    String      @map("recipient_endpoint_id")
+  recipientEndpoint      ContactEndpoint @relation("SentMessageRecipientEndpoint", fields: [recipientEndpointId], references: [id])
+  recipientNameSnapshot  String      @map("recipient_name_snapshot")
+  addressSnapshot        String      @map("address_snapshot")
+  subjectSnapshot        String      @map("subject_snapshot")
+  bodySnapshot           String      @map("body_snapshot")
+  templateId             String?     @map("template_id")
+  template               Template?   @relation(fields: [templateId], references: [id])
+  templateVersion        Int?        @map("template_version")
+  status                 SendStatus  @default(sent)
+  sentAt                 DateTime    @map("sent_at")
+  createdAt              DateTime    @default(now()) @map("created_at")
+
+  responses Response[]
+
+  @@map("sent_messages")
+}
+
+// 응답 확인 결과. append-only — 같은 outreach에 여러 행이 쌓이고 최신 행이 현재 값이다.
+model Response {
+  id                String            @id @default(cuid())
+  outreachId        String            @map("outreach_id")
+  outreach          Outreach          @relation(fields: [outreachId], references: [id])
+  sentMessageId     String?           @map("sent_message_id")
+  sentMessage       SentMessage?      @relation(fields: [sentMessageId], references: [id])
+  result            ResponseResult
+  category          ResponseCategory?
+  explanation       String?
+  revisitCondition  String?           @map("revisit_condition")
+  checkedById       String            @map("checked_by_id")
+  checkedBy         Member            @relation(fields: [checkedById], references: [id])
+  checkedAt         DateTime          @default(now()) @map("checked_at")
+
+  @@map("responses")
+}
+
+// ---------- 과거 협업 ----------
+
+model PastProject {
+  id         String  @id @default(cuid())
+  companyId  String  @map("company_id")
+  company    Company @relation(fields: [companyId], references: [id])
+  title      String
+  summary    String?
+  notionUrl  String? @map("notion_url")
+
+  @@map("past_projects")
+}
+
+// ---------- 비동기 작업 ----------
+
+model Job {
+  id          String    @id @default(cuid())
+  type        JobType
+  status      JobStatus @default(queued)
+  targetType  String?   @map("target_type")
+  targetId    String?   @map("target_id")
+  resultRef   Json?     @map("result_ref")
+  error       String?
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  searchRun SearchRun?
+
+  @@map("jobs")
+}
+
+// ---------- 멱등성 ----------
+
+// POST/PUT/PATCH 업무 변경 요청의 Idempotency-Key를 기록한다. 같은 키로 재시도가 오면
+// 새 버전 검사보다 먼저 이 테이블을 조회해 이전에 성공한 응답을 그대로 재반환한다.
+model IdempotencyKey {
+  key             String   @id
+  actorMemberId   String   @map("actor_member_id")
+  actorMember     Member   @relation(fields: [actorMemberId], references: [id])
+  route           String
+  requestHash     String   @map("request_hash")
+  responseStatus  Int      @map("response_status")
+  responseBody    Json     @map("response_body")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
+}
