@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/dh", "destination": "https://TODO-dh-frontend-deployment-url/" },
+    { "source": "/dh/:path*", "destination": "https://TODO-dh-frontend-deployment-url/:path*" },
+    { "source": "/admin", "destination": "https://TODO-dh-frontend-deployment-url/admin" },
+    { "source": "/admin/:path*", "destination": "https://TODO-dh-frontend-deployment-url/admin/:path*" },
+    { "source": "/hr", "destination": "https://TODO-hr-frontend-deployment-url/" },
+    { "source": "/hr/:path*", "destination": "https://TODO-hr-frontend-deployment-url/:path*" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "dhbot-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
