@@ -2,7 +2,7 @@
 // 이 사람이 owner/checkedBy 등으로 남긴 기록(FK)이 있어서 삭제하면 안 된다.
 //
 // 사용법: npm run members:remove -- person@ghsnu.com
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma";
 
 const prisma = new PrismaClient();
 

@@ -1,4 +1,4 @@
-import type { InternalDecision, Response, Route, WorkStage } from "@prisma/client";
+import type { InternalDecision, Response, Route, WorkStage } from "@/generated/prisma";
 
 // 조회(#06)와 변경(#16~29) 엔드포인트가 공유하는 단일 판단 지점.
 // 05_데이터 모델 제안.md §3(상태 축)·§3(라우팅 규칙)과 docs/admin/policies.md의

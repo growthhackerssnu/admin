@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import type { Member } from "@prisma/client";
+import type { Member } from "@/generated/prisma";
 import { getAuthenticatedMember } from "./auth";
 import { ApiError, errorBody } from "./errors";
 

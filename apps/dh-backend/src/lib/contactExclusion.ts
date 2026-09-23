@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import type { Route } from "@prisma/client";
+import type { Route } from "@/generated/prisma";
 
 // #07(관계자 후보 조회)과 #20(수신자 선택)이 공유하는 제외 판정.
 // 1) prelaunch_contacts와 이름/이메일/링크드인이 일치 — 배포 전 접촉자는 항상 제외

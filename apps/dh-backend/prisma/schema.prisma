@@ -6,6 +6,11 @@
 
 generator client {
   provider = "prisma-client-js"
+  // npm workspaces가 @prisma/client를 루트 node_modules로 hoist하는데, 이
+  // 저장소엔 스키마가 다른 Prisma Client가 두 개(이 앱 + apps/portal-backend)
+  // 있다 — 같은 위치로 generate하면 나중에 실행한 쪽이 다른 쪽 타입을 덮어쓴다.
+  // 앱마다 생성 위치를 분리해서 서로 건드리지 않게 한다.
+  output = "../src/generated/prisma"
 }
 
 datasource db {

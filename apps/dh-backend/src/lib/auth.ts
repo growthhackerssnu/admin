@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import type { Member, Role } from "@prisma/client";
+import type { Member, Role } from "@/generated/prisma";
 import { prisma } from "./prisma";
 import { getSupabaseAuthClient } from "./supabase";
 import { ApiError } from "./errors";
@@ -77,15 +77,5 @@ export async function getAuthenticatedMember(req: NextRequest): Promise<Member> 
 export function requireCapability(member: Member, capability: Capability) {
   if (!capabilitiesFor(member.role).includes(capability)) {
     throw new ApiError("FORBIDDEN", `이 작업에는 ${capability} 권한이 필요합니다.`);
-  }
-}
-
-// 회원 명단 조회·role 변경·비활성화(admin.ghsnu.com/admin이 호출할 API)는
-// capabilitiesFor 체계(view/review/send 같은 dh 업무 권한)와 별개로, admin
-// role인지만 직접 확인한다 — acting에게도 열어줄 이유가 없는 완전히 다른 종류의
-// 권한이라 CAPABILITIES_BY_ROLE에 억지로 끼워 넣지 않는다.
-export function requireAdmin(member: Member) {
-  if (member.role !== "admin") {
-    throw new ApiError("FORBIDDEN", "관리자만 접근할 수 있습니다.");
   }
 }

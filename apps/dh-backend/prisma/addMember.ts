@@ -6,7 +6,7 @@
 // 케이스는 이 스크립트로 직접 등록한다.
 //
 // 사용법: npm run members:add -- person@ghsnu.com "표시 이름" [admin|acting|alumni]
-import { PrismaClient, type Role } from "@prisma/client";
+import { PrismaClient, type Role } from "../src/generated/prisma";
 
 const prisma = new PrismaClient();
 const VALID_ROLES = ["admin", "acting", "alumni"] as const;

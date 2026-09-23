@@ -1,7 +1,7 @@
 // apps/dh-frontend/src/mocks/fixtures.ts의 샘플 8개 기업을 그대로 재현하는 시드.
 // 목업이 이미 검증한 시나리오(무응답 차단, 배포 전 접촉자 제외, 재접촉 맥락 등)로
 // 실제 API를 바로 스모크 테스트할 수 있게 하는 것이 목적이다.
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma";
 
 const prisma = new PrismaClient();
 

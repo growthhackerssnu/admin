@@ -7,6 +7,7 @@ tsconfig.tsbuildinfo
 *.log
 .DS_Store
 prisma/*.db
+**/src/generated/
 
 # 실제 값이 든 env 파일만 무시한다. .env.example 같은 템플릿은 커밋 대상이다.
 .env

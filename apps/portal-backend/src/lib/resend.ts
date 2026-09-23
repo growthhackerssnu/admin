@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 
-// 지연 생성 — supabase.ts/notion.ts와 같은 이유.
+// 지연 생성 — supabase.ts와 같은 이유.
 let cached: Resend | null = null;
 
 function getResendClient(): Resend {

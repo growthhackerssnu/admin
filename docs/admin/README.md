@@ -8,6 +8,8 @@
 
 현재 프론트 기준 [API 연결 명세 초안](api-contract.md)에 전체 endpoint 제안, 요청·응답, 업무 명령 대응, 미정 사항을 정리했다. 이전 integration 문서보다 구체적인 연결 협의 자료이며 배포된 API는 아니다.
 
+로그인·가입·회원 관리는 `apps/portal-frontend`+`apps/portal-backend`가 담당하고, 대협봇 `/dh`·그핵드인 `/hr`과 어떻게 경로별로 연결되는지는 [라우팅 구조](routing.md)에 정리했다 — hr 앱을 새로 만들 때 특히 이 문서를 먼저 읽는다.
+
 ## 읽는 순서
 
 1. [업무 흐름과 화면](workflow.md)
@@ -15,7 +17,8 @@
 3. [설계 의사결정 배경](decisions.md)
 4. [과거 코드 연결표 — 참고용](backend-mapping.md)
 5. [연동 규격 제안](integration/00_먼저%20읽기.md)
-6. [목업 실행 및 확인 방법](../../prototypes/admin/README.md)
+6. [라우팅 구조 — 포털·dh·hr](routing.md)
+7. [목업 실행 및 확인 방법](../../prototypes/admin/README.md)
 
 ## 문서의 지위
 

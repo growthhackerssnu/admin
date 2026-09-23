@@ -61,13 +61,18 @@ export function verifySignupRequest(signupRequestId: string, otp: string) {
   );
 }
 
-// --- 내 정보 (admin 여부 판단용 — capabilities에 manage_settings가 있으면 admin) ---
+// --- 내 정보 (로그인 직후 어디로 보낼지 판단용) ---
+
+export interface Me {
+  userId: string;
+  email: string;
+  displayName: string;
+  role: "admin" | "acting" | "alumni";
+  redirectPath: string;
+}
 
 export function getMe(token: string) {
-  return request<{ userId: string; displayName: string; organizationId: string | null; capabilities: string[] }>(
-    "/api/v1/me",
-    { token },
-  );
+  return request<Me>("/api/v1/me", { token });
 }
 
 // --- 관리자: 회원 관리 ---

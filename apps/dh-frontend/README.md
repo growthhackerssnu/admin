@@ -1,23 +1,19 @@
 # 대협 어드민 프론트 기반
 
-기존 클릭 목업을 React + TypeScript + Vite 프로젝트로 옮긴 개발 기반이다. 현재 디자인은 임시 기본값이며, `/`(기업 목록·상세)는 샘플 저장소만 연결되어 있다 — 실제 조사·메일 발송·운영 DB는 이 화면에 연결하지 않았다. `/login`과 `/admin`은 `apps/dh-backend/`(실제 API)에 직접 연결된다.
+기존 클릭 목업을 React + TypeScript + Vite 프로젝트로 옮긴 개발 기반이다. 현재 디자인은 임시 기본값이며, `/`(기업 목록·상세)는 샘플 저장소만 연결되어 있다 — 실제 조사·메일 발송·운영 DB는 이 화면에 연결하지 않았다. 로그인·가입·OTP·회원 관리는 이 앱 범위 밖이다 — `apps/portal-frontend`가 `admin.ghsnu.com` 루트에서 담당한다.
 
 ## 페이지
 
 | 경로 | 내용 | 데이터 |
 |---|---|---|
 | `/` | 기업 목록·상세 클릭 목업 | 샘플 저장소(localStorage), 실 백엔드 미연결 |
-| `/login` | Google 로그인 / 가입 신청(기수·이름·이메일) + OTP 인증 | `apps/dh-backend/`의 `/api/auth/*`, Supabase Auth |
-| `/admin` | 회원 명단·권한 변경·삭제(비활성화)·재활성화, admin 전용 | `apps/dh-backend/`의 `/api/v1/admin/members/*` |
-
-`/login`, `/admin`은 `.env.local`(`.env.example` 복사)에 `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`(`apps/dh-backend/.env.local`과 같은 Supabase 프로젝트 값)와 `VITE_API_BASE_URL`(로컬은 `http://localhost:3000`, `apps/dh-backend/` 실행 필요)이 있어야 동작한다. `/admin`은 `GET /api/v1/me`의 `capabilities`에 `manage_settings`가 있는지로 admin 여부를 판단한다(그 capability는 admin role에만 있음).
 
 ## 실행
 
 Node.js 24 LTS를 사용한다 (.nvmrc 제공). Windows ARM의 시스템 Node 25에서는 빌드 프로세스 비정상 종료가 재현되어 지원 기준에서 제외했다. Node 24.19.0에서 최종 빌드를 확인했다. 저장소 루트에서:
 
 ```sh
-cd frontend
+cd apps/dh-frontend
 npm ci
 npm run dev
 ```
@@ -37,8 +33,8 @@ npm run preview
 
 | 바꾸려는 내용 | 파일·폴더 |
 |---|---|
-| 색·글자·간격·모서리 | `src/styles/tokens.ts` — Ant Design 테마와 CSS 변수의 공통 원본 |
-| 목록·상세 배치 | `src/pages/`, `src/styles/app.css` |
+| 색·글자·간격·모서리 | `packages/ui-shell/src/tokens.ts` — Ant Design 테마와 CSS 변수의 공통 원본(다른 앱과 공유) |
+| 목록·상세 배치 | `src/pages/`, `packages/ui-shell/src/app.css`(공통 리셋·유틸리티 클래스) |
 | 반복 UI·업무 패턴 | `src/components/` |
 | 화면용 데이터·행동 타입 | `src/models/outreach.ts` |
 | 데이터 연결 계약 | `src/services/outreachRepository.ts` |
@@ -46,9 +42,6 @@ npm run preview
 | 샘플 기업·지정 템플릿 슬롯 | `src/mocks/fixtures.ts` |
 | 샘플 저장·상태 전환 | `src/mocks/mockRepository.ts` |
 | 실제 어댑터로 교체할 위치 | `src/main.tsx`의 repository 주입 |
-| 로그인/가입/OTP 화면 | `src/pages/Login.tsx` |
-| 관리자 회원 관리 화면 | `src/pages/AdminMembers.tsx` |
-| 백엔드 API 호출·Supabase 세션 | `src/lib/api.ts`, `src/lib/supabase.ts`, `src/hooks/useSession.ts` |
 
 UI → repository 인터페이스 → 샘플 또는 실제 어댑터 순서다. 화면 컴포넌트는 localStorage나 샘플 데이터를 직접 읽지 않는다. 조회 응답은 화면용 Workspace이며 테이블 설계가 아니다. 지금은 작은 데이터셋 전체 조회를 사용한다. 실제 연결에서는 목록 페이지 처리와 상세 조회를 팀원과 합의해 확장해야 한다.
 
@@ -94,4 +87,4 @@ UI → repository 인터페이스 → 샘플 또는 실제 어댑터 순서다. 
 - Ant Design을 포함한 초기 JS 번들이 약 995 kB(압축 약 313 kB)로, 빌드에 크기 경고가 있다. 운영 배포 전 분할 로딩 검토 대상이다.
 - 설치 중 registry metadata 불일치를 피하려고 nanoid를 확인된 3.3.11로 override했다. package-lock.json으로 버전을 고정하며 재설치는 npm ci를 사용한다.
 
-API 협의는 [전체 API 연결 명세](../docs/admin/api-contract.md)를 참고한다. 현재 샘플 repository와 운영 API 제안의 차이를 포함한다.
+API 협의는 [전체 API 연결 명세](../../docs/admin/api-contract.md)를 참고한다. 현재 샘플 repository와 운영 API 제안의 차이를 포함한다.

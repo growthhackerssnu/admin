@@ -1,7 +1,7 @@
 import { withPublicApiHandler } from "@/lib/apiHandler";
 import { ApiError, successBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
-import { normalizeCohort, normalizeName } from "@/lib/notion";
+import { normalizeCohort, normalizeName } from "@/lib/normalize";
 import { generateOtp, hashOtp, maskEmail, OTP_RESEND_COOLDOWN_MS, OTP_TTL_MS } from "@/lib/otp";
 import { sendOtpEmail } from "@/lib/resend";
 import { signupRequestSchema } from "@/lib/validation/auth";
