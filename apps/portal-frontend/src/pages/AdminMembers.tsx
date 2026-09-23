@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { App as AntApp, Alert, Button, Skeleton, Space, Table, Tag } from "antd";
+import { App as AntApp, Alert, Button, Segmented, Skeleton, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   ApiClientError,
@@ -40,6 +40,7 @@ export function AdminMembers() {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [view, setView] = useState<"all" | "active" | "inactive">("all");
 
   const token = session?.access_token;
 
@@ -129,13 +130,31 @@ export function AdminMembers() {
   const hasInactiveSelected = selectedMembers.some((m) => !m.active);
   const hasActiveSelected = selectedMembers.some((m) => m.active);
 
+  const viewCounts = {
+    all: members?.length ?? 0,
+    active: members?.filter((m) => m.active).length ?? 0,
+    inactive: members?.filter((m) => !m.active).length ?? 0,
+  };
+  const visibleMembers = (members ?? []).filter((m) => {
+    if (view === "active") return m.active;
+    if (view === "inactive") return !m.active;
+    return true;
+  });
+
   const columns: ColumnsType<AdminMember> = [
+    {
+      title: "기수",
+      dataIndex: "cohort",
+      width: 90,
+      sorter: (a, b) => (Number(a.cohort) || 0) - (Number(b.cohort) || 0),
+      render: (cohort: string | null) => cohort ?? "—",
+    },
     {
       title: "회원",
       key: "member",
       render: (_, m) => (
         <div>
-          <div>{m.cohort ? `${m.cohort}기 ${m.displayName}` : m.displayName}</div>
+          <div>{m.displayName}</div>
           <div className="meta">{m.email}</div>
         </div>
       ),
@@ -161,7 +180,7 @@ export function AdminMembers() {
       <div className="row section-gap">
         <div>
           <h1>회원 관리</h1>
-          <p className="muted">기수+이름, 이메일, 권한, 가입일, 최근 접속일</p>
+          <p className="muted">기수, 이름, 이메일, 권한, 가입일, 최근 접속일</p>
         </div>
         <Button onClick={() => void signOut()}>로그아웃</Button>
       </div>
@@ -177,6 +196,20 @@ export function AdminMembers() {
       )}
 
       <div className="surface">
+        <Segmented
+          style={{ marginBottom: 16 }}
+          value={view}
+          onChange={(v) => {
+            setView(v as typeof view);
+            setSelectedIds([]);
+          }}
+          options={[
+            { label: `전체 (${viewCounts.all})`, value: "all" },
+            { label: `활성 (${viewCounts.active})`, value: "active" },
+            { label: `비활성 (${viewCounts.inactive})`, value: "inactive" },
+          ]}
+        />
+
         {selectedIds.length > 0 && (
           <div className="actions" style={{ marginTop: 0, paddingTop: 0, borderTop: "none", marginBottom: 16 }}>
             <span>{selectedIds.length}명 선택됨</span>
@@ -221,7 +254,7 @@ export function AdminMembers() {
         ) : (
           <Table
             rowKey="id"
-            dataSource={members}
+            dataSource={visibleMembers}
             columns={columns}
             pagination={false}
             rowSelection={{
