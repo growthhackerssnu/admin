@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, App as AntApp, Button, Form, Input, Segmented, Typography } from "antd";
-import { ApiClientError, createSignupRequest, verifySignupRequest } from "../lib/api";
-import { signInWithGoogle } from "../lib/supabase";
+import { Alert, App as AntApp, Button, Form, Input, Segmented, Skeleton, Typography } from "antd";
+import { ApiClientError, createSignupRequest, getMe, verifySignupRequest } from "../lib/api";
+import { signInWithGoogle, signOut } from "../lib/supabase";
+import { useSession } from "../hooks/useSession";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const MAX_OTP_ATTEMPTS = 5;
@@ -9,8 +10,18 @@ const MAX_OTP_ATTEMPTS = 5;
 type Mode = "login" | "signup";
 type SignupStep = "form" | "otp" | "done";
 
+// gateway는 production에서 /dh, /hr을 같은 origin 아래로 rewrite하므로 상대
+// 경로면 충분하다. 로컬은 앱마다 포트가 달라서, 있으면 절대 URL로 덮어쓴다.
+function resolveRedirect(path: string): string {
+  if (path === "/dh" && import.meta.env.VITE_DH_URL) return import.meta.env.VITE_DH_URL;
+  if (path === "/hr" && import.meta.env.VITE_HR_URL) return import.meta.env.VITE_HR_URL;
+  return path;
+}
+
 export function Login() {
   const { message } = AntApp.useApp();
+  const session = useSession();
+
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<SignupStep>("form");
   const [busy, setBusy] = useState(false);
@@ -26,6 +37,24 @@ export function Login() {
   const [otpError, setOtpError] = useState<string>();
   const [terminalFailure, setTerminalFailure] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+
+  // 이미 로그인된 세션으로 이 페이지(또는 OAuth 리다이렉트 대상인 "/")에
+  // 도달하면, /me로 role을 물어서 있어야 할 곳(관리자/dh/hr)으로 곧장 보낸다.
+  const [redirecting, setRedirecting] = useState(false);
+  useEffect(() => {
+    if (!session) return;
+    setRedirecting(true);
+    (async () => {
+      try {
+        const me = await getMe(session.access_token);
+        window.location.href = resolveRedirect(me.redirectPath);
+      } catch {
+        setRedirecting(false);
+        void message.error("계정 정보를 확인하지 못했습니다. 관리자에게 문의하세요.");
+        await signOut();
+      }
+    })();
+  }, [session]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -116,6 +145,16 @@ export function Login() {
       void message.error("Google 로그인을 시작할 수 없습니다.");
       setBusy(false);
     }
+  }
+
+  if (session === undefined || redirecting) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <Skeleton active paragraph={{ rows: 4 }} />
+        </div>
+      </div>
+    );
   }
 
   return (

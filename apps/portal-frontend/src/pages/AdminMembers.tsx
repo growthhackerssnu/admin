@@ -63,7 +63,7 @@ export function AdminMembers() {
       setChecking(true);
       try {
         const me = await getMe(token);
-        setIsAdmin(me.capabilities.includes("manage_settings"));
+        setIsAdmin(me.role === "admin");
       } catch {
         setIsAdmin(false);
       } finally {

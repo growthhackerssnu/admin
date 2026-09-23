@@ -1,4 +1,4 @@
-import type { Route } from "@prisma/client";
+import type { Route } from "@/generated/prisma";
 import { withApiHandler } from "@/lib/apiHandler";
 import { successBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";

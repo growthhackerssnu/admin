@@ -4,13 +4,11 @@ import { App as AntApp, ConfigProvider } from "antd";
 import koKR from "antd/locale/ko_KR";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
-import { Login } from "./pages/Login";
-import { AdminMembers } from "./pages/AdminMembers";
 import { createMockRepository } from "./mocks/mockRepository";
 import type { Scenario } from "./models/outreach";
 import { installTokens, theme } from "@dhbot/ui-shell";
 import "antd/dist/reset.css";
-import "./styles/app.css";
+import "@dhbot/ui-shell/src/app.css";
 installTokens();
 function MockWorkspace() {
   const [scenario, setScenario] = useState<Scenario>("normal");
@@ -33,10 +31,9 @@ function Root() {
       <AntApp>
         <BrowserRouter>
           <Routes>
-            {/* 기존 샘플 저장소 기반 목업 — 실 백엔드 연결(liveRepository)은 별도 작업 */}
+            {/* 기존 샘플 저장소 기반 목업 — 실 백엔드 연결(liveRepository)은 별도 작업.
+                로그인/회원 관리는 apps/portal-frontend가 admin.ghsnu.com 루트에서 담당한다. */}
             <Route path="/" element={<MockWorkspace />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/admin" element={<AdminMembers />} />
           </Routes>
         </BrowserRouter>
       </AntApp>

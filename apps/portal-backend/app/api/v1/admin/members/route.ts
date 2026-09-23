@@ -3,8 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { successBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/v1/admin/members — 회원 명단(admin 전용). #11 GET /members(활성
-// 멤버 id+이름만 주는 담당자 필터용 조회)와는 별개 — 여긴 관리 화면용으로
+// GET /api/v1/admin/members — 회원 명단(admin 전용). 관리 화면용으로
 // role·활성여부·가입일·최근 접속일·기수(있으면)까지 전부 내려준다.
 export const GET = withApiHandler(async (req, { member, requestId }) => {
   requireAdmin(member);

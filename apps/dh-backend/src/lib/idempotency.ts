@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
-import type { Member, Prisma } from "@prisma/client";
+import type { Member, Prisma } from "@/generated/prisma";
 import { prisma } from "./prisma";
 import { ApiError } from "./errors";
 

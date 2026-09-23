@@ -9,7 +9,7 @@
 // 필요한 환경변수: NOTION_API_KEY, NOTION_PEOPLE_DATABASE_ID
 // 컬럼명이 기본값(기수/Name/이메일)과 다르면 NOTION_COHORT_PROPERTY /
 // NOTION_NAME_PROPERTY / NOTION_EMAIL_PROPERTY로 지정한다.
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../src/generated/prisma";
 import { extractPropertyText, getNotionClient, normalizeCohort, normalizeName } from "../src/lib/notion";
 
 const prisma = new PrismaClient();
