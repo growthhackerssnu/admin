@@ -25,7 +25,7 @@ apps/portal-backend                              (Next.js, 3000)    (Next.js, �
 - **gateway**: `admin.ghsnu.com` 도메인을 소유하는 Vercel 프로젝트. 자체 코드가 없고 `vercel.json`의 `rewrites`로 경로별 트래픽을 각 앱의 배포로 그대로 넘긴다.
 - **portal**(`apps/portal-frontend` + `apps/portal-backend`): 로그인·가입(OTP)·회원 관리(admin API)만 담당하는 계정/신원 도메인. `admin.ghsnu.com`의 루트 경험이다.
 - **dh**(`apps/dh-frontend` + `apps/dh-backend`): 대협봇 업무 로직.
-- **hr**(`apps/hr-frontend` + `apps/hr-backend`, 준비 중): 그핵드인(알럼나이 관리) 업무 로직.
+- **hr**(`apps/hr-frontend` + `apps/hr-backend`): 그핵드인(알럼나이 관리) 업무 로직. 백엔드는 스캐폴딩까지 준비돼 있고(포트 3002) 업무 라우트는 아직 없다. 프론트는 빈 자리다.
 
 각 앱은 독립된 Vercel 프로젝트로 배포된다(프로젝트마다 Root Directory를 `apps/xxx`로 지정). 코드 저장소만 하나로 모여 있을 뿐, 배포·스케일링·재시작은 완전히 분리돼 있다.
 
@@ -73,7 +73,7 @@ Vercel의 `rewrites`는 **redirect가 아니라 proxy**다 — 주소창의 URL�
 | `apps/dh-frontend` | `http://localhost:5173` |
 | `apps/dh-backend` | `http://localhost:3000` |
 | `apps/hr-frontend`(준비 중) | `http://localhost:5175` 권장 |
-| `apps/hr-backend`(준비 중) | `http://localhost:3002` 권장 |
+| `apps/hr-backend` | `http://localhost:3002` |
 
 `apps/portal-frontend/.env.local`의 `VITE_DH_URL`/`VITE_HR_URL`을 채우면 로컬에서도 role별 리다이렉트가 실제로 그 포트로 이동한다(비워두면 프로덕션과 동일하게 상대 경로 `"/dh"`/`"/hr"`로 이동을 시도하고, 로컬엔 그 경로가 없으니 빈 화면이 뜬다 — 그 자체는 정상이다). `apps/dh-frontend/.env.example`, `apps/portal-frontend/.env.example`에 각 앱의 `ALLOWED_ORIGINS`/CORS 기본값도 이 포트 기준으로 맞춰져 있다.
 

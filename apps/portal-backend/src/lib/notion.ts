@@ -1,3 +1,8 @@
+// 노션 People DB 동기화(npm run people:import)에서만 쓰는 노션 접근 유틸.
+//
+// 기수/이름 정규화는 여기 두지 않고 ./normalize에 있다. 동기화가 쓰는 정규화와
+// 가입 신청 조회가 쓰는 정규화가 다르면 매칭이 조용히 어긋나기 때문에, 두 경로가
+// 반드시 같은 구현을 보게 한다.
 import { Client } from "@notionhq/client";
 
 // 지연 생성 — supabase.ts와 같은 이유(빌드 시점엔 NOTION_API_KEY가 없을 수 있음).
@@ -11,17 +16,6 @@ export function getNotionClient(): Client {
   }
   cached = new Client({ auth: apiKey });
   return cached;
-}
-
-// 기수는 "19기" 처럼 텍스트가 섞여 들어올 수 있어 숫자만 뽑아 비교한다.
-export function normalizeCohort(raw: string): string {
-  const digits = raw.replace(/[^0-9]/g, "");
-  return digits || raw.trim();
-}
-
-// 이름은 공백 차이만으로 매칭이 어긋나지 않게 공백을 모두 제거해 비교한다.
-export function normalizeName(raw: string): string {
-  return raw.replace(/\s+/g, "").trim();
 }
 
 type NotionPageProperty = Record<string, unknown>;

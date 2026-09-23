@@ -1,0 +1,17 @@
+{
+  "name": "@dhbot/db",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DB 구조(스키마+마이그레이션)의 유일한 원본. 앱은 이 패키지를 import하지 않는다.",
+  "scripts": {
+    "db:migrate": "dotenv -e .env.local -- prisma migrate dev --skip-generate",
+    "db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
+    "db:status": "dotenv -e .env.local -- prisma migrate status",
+    "db:resolve": "dotenv -e .env.local -- prisma migrate resolve",
+    "db:validate": "prisma validate"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^7.4.4",
+    "prisma": "^5.22.0"
+  }
+}

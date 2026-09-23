@@ -1,0 +1,67 @@
+// apps/hr-backend가 쓰는 테이블 목록 — 생성 전용 사본이다.
+//
+// 물리 스키마의 원본은 packages/db/schema.prisma이고, 마이그레이션도 거기서만
+// 만든다. 이 파일은 prisma generate로 이 앱의 타입을 뽑기 위한 것이므로, 여기서
+// prisma migrate를 실행하면 안 된다 — 이 스키마는 DB 전체(core 일부와 dh)를
+// 모르기 때문에 Prisma가 모르는 테이블을 삭제 대상으로 판단한다.
+// 규칙: docs/db/conventions.md §7
+//
+// ───────────────────────────────────────────────────────────────────────────
+// hr 테이블을 추가하려면:
+//   1. packages/db/schema.prisma의 datasource.schemas에 "hr"을 추가한다
+//   2. 거기에 모델을 만들고 각각 @@schema("hr")을 붙인다
+//   3. cd packages/db && npm run db:migrate
+//   4. 그 모델을 이 파일에도 복사하고 아래 schemas에 "hr"을 추가한다
+//   5. npm run db:generate
+//   6. docs/db/conventions.md §4의 데이터 딕셔너리에 한 줄씩 추가한다
+//
+// Postgres에는 hr 스키마가 비어 있는 상태로 이미 만들어져 있다.
+// ───────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  // npm workspaces가 @prisma/client를 루트 node_modules로 hoist하는데, 이
+  // 저장소엔 스키마가 다른 Prisma Client가 여럿 있다 — 같은 위치로 generate하면
+  // 나중에 실행한 쪽이 다른 쪽 타입을 덮어쓴다. 앱마다 생성 위치를 분리한다.
+  output = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  // hr 테이블이 생기면 "hr"을 추가한다. 지금은 모델이 없어서 선언하지 않는다.
+  schemas   = ["core"]
+}
+
+// ---------- core (소유자: portal — 읽기만 한다) ----------
+//
+// core.members는 세 앱이 공유하는 회원 화이트리스트다. 이 앱은 요청마다
+// "이 사람이 명단에 있나"를 확인하려고 읽기만 한다. role이나 active를 바꾸는
+// 코드는 갖지 않는다 — 그건 portal 전용이다 (conventions.md §5.1).
+//
+// hr 업무용 회원 정보를 저장하고 싶어도 core.members에 컬럼을 추가하지 않는다.
+// hr 스키마에 member_id를 참조하는 별도 테이블을 만든다 (§5.3).
+
+enum Role {
+  admin
+  acting
+  alumni
+
+  @@schema("core")
+}
+
+model Member {
+  id             String    @id @default(cuid())
+  supabaseUserId String?   @unique @map("supabase_user_id")
+  email          String    @unique
+  displayName    String    @map("display_name")
+  role           Role      @default(acting)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastLoginAt    DateTime? @map("last_login_at")
+
+  @@map("members")
+  @@schema("core")
+}

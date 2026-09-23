@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "next dev",
     "dev:inngest": "inngest-cli dev -u http://localhost:3000/api/inngest",
     "build": "tsc --noEmit && next build",
@@ -11,16 +12,10 @@
     "test": "vitest run",
     "format": "prettier --write app src prisma/seed.ts",
     "db:generate": "prisma generate",
-    "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
-    "db:reset": "dotenv -e .env.local -- prisma migrate reset",
-    "db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
-    "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
-    "members:add": "dotenv -e .env.local -- tsx prisma/addMember.ts",
-    "members:remove": "dotenv -e .env.local -- tsx prisma/removeMember.ts",
-    "people:import": "dotenv -e .env.local -- tsx prisma/importPeopleDirectory.ts"
+    "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts"
   },
   "dependencies": {
-    "@notionhq/client": "^2.3.0",
+    "@dhbot/auth": "*",
     "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.45.0",
     "inngest": "^3.28.0",
@@ -44,8 +39,5 @@
   },
   "engines": {
     "node": "^24.0.0"
-  },
-  "prisma": {
-    "seed": "dotenv -e .env.local -- tsx prisma/seed.ts"
   }
 }

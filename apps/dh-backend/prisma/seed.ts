@@ -6,6 +6,8 @@ import { PrismaClient } from "../src/generated/prisma";
 const prisma = new PrismaClient();
 
 async function main() {
+  // 아래는 전부 dh 스키마 소유 테이블이다. idempotencyKey는 분리 이후
+  // dh.idempotency_keys를 가리키므로 지워도 portal에 영향이 없다(§4.1).
   await prisma.$transaction([
     prisma.idempotencyKey.deleteMany(),
     prisma.response.deleteMany(),
@@ -22,14 +24,21 @@ async function main() {
     prisma.cycleStartIntent.deleteMany(),
     prisma.cycle.deleteMany(),
     prisma.template.deleteMany(),
-    prisma.member.deleteMany(),
   ]);
 
-  const jaewook = await prisma.member.create({
-    data: { supabaseUserId: "seed-jaewook", email: "jaewook@ghsnu.com", displayName: "재욱", role: "acting" },
+  // members는 portal이 소유하는 core 스키마의 공유 테이블이다(conventions.md §4, §5).
+  // 예전엔 위 삭제 목록에 member.deleteMany()가 있어서, dh 시드를 한 번 돌리면 실제
+  // 회원 계정이 전부 날아갔다 — 개발용 DB가 따로 없어 운영 DB를 그대로 보는 지금
+  // 구조에서는 특히 위험했다. 이제 시드 전용 계정 둘만 upsert하고 나머지는 두지 않는다.
+  const jaewook = await prisma.member.upsert({
+    where: { email: "jaewook@ghsnu.com" },
+    update: { displayName: "재욱", role: "acting", active: true },
+    create: { supabaseUserId: "seed-jaewook", email: "jaewook@ghsnu.com", displayName: "재욱", role: "acting" },
   });
-  const minjun = await prisma.member.create({
-    data: { supabaseUserId: "seed-minjun", email: "minjun@ghsnu.com", displayName: "민준", role: "acting" },
+  const minjun = await prisma.member.upsert({
+    where: { email: "minjun@ghsnu.com" },
+    update: { displayName: "민준", role: "acting", active: true },
+    create: { supabaseUserId: "seed-minjun", email: "minjun@ghsnu.com", displayName: "민준", role: "acting" },
   });
 
   const previousCycle = await prisma.cycle.create({
@@ -269,7 +278,8 @@ async function main() {
     });
   }
 
-  console.log("시드 완료: members=2, cycles=2, companies=8");
+  console.log("시드 완료: 시드 회원 2명(upsert), cycles=2, companies=8");
+  console.log("  core.members의 다른 회원은 건드리지 않았습니다 — portal 소유 테이블입니다.");
 }
 
 main()
