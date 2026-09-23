@@ -1,6 +1,10 @@
-// 가입 신청(기수+이름)을 people_directory와 대조할 때 쓰는 정규화. Notion API
-// 클라이언트는 여기서 안 쓴다 — 동기화(npm run people:import)는 apps/dh-backend
-// 책임이고, 이 앱은 이미 동기화된 people_directory 테이블만 읽는다.
+// core.people_directory의 기수/이름 정규화. 두 경로가 이 구현을 함께 쓴다.
+//
+//   쓰기: prisma/importPeopleDirectory.ts (노션 -> people_directory 동기화)
+//   읽기: app/api/auth/signup-requests (가입 신청을 기수+이름으로 대조)
+//
+// 둘이 서로 다른 정규화를 쓰면 저장된 값과 조회 조건이 어긋나서 "명단에 있는
+// 사람인데 가입이 안 되는" 현상이 조용히 생긴다. 그래서 한 파일에 둔다.
 
 // 기수는 "19기" 처럼 텍스트가 섞여 들어올 수 있어 숫자만 뽑아 비교한다.
 export function normalizeCohort(raw: string): string {

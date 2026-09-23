@@ -11,14 +11,13 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 1. `npm install`
 2. `.env.example`을 `.env.local`로 복사하고 값 채우기:
    - Supabase 프로젝트의 `DATABASE_URL`(Transaction pooler, 6543)/`DIRECT_URL`(**Session pooler**, 5432 — 대시보드의 "Direct connection" 탭 값이 아니다. 그건 IPv6 전용이라 일반 네트워크에서 `prisma migrate`가 "Can't reach database server"로 막힌다), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `NOTION_API_KEY`/`NOTION_PEOPLE_DATABASE_ID` — People DB 동기화(`npm run people:import`, 아래 참고)에 필요. 지금 당장은 비워둬도 나머지 개발엔 지장 없음
    - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
-3. `npm run db:migrate` — 스키마 마이그레이션 생성·적용
+3. 스키마가 최신인지 확인 — 마이그레이션은 이 앱이 아니라 `packages/db`가 소유한다(`cd ../../packages/db && npm run db:status`). 자세한 규칙은 [DB 공유 규칙](../../docs/db/conventions.md) §7
 4. `npm run db:seed` — `apps/dh-frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩
 5. `npm run dev` — `http://localhost:3000`에서 API 실행
 
-`db:migrate`/`db:seed`/`members:*`/`people:import`는 전부 `dotenv-cli`로 `.env.local`을 로드한다(`prisma` CLI와 `tsx` 둘 다 `.env.local`을 자동으로 읽지 않기 때문 — `npm run dev`의 `next dev`만 자동으로 읽는다). 새 스크립트를 추가할 때도 이 패턴을 따른다.
+`db:seed`는 `dotenv-cli`로 `.env.local`을 로드한다(`prisma` CLI와 `tsx` 둘 다 `.env.local`을 자동으로 읽지 않기 때문 — `npm run dev`의 `next dev`만 자동으로 읽는다). 새 스크립트를 추가할 때도 이 패턴을 따른다.
 
 ## 역할(Role)
 
@@ -32,23 +31,26 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
 
 가입 직후에는 **무조건 `alumni`로 등록된다.** `people_directory`는 "이 사람이 진짜 명단에 있는 사람인지"만 확인하는 용도이고, 거기엔 액팅/알럼나이 구분이 없다 — admin이 `apps/portal-backend`의 관리자 API로 개별/일괄로 `acting`으로 승격시킨다. `admin`으로의 승격은 API로 불가 — 수동(CLI)으로만.
 
-## People DB 동기화 (노션)
+## 이 앱이 더 이상 하지 않는 것
 
-가입 확인(`apps/portal-backend`가 처리)에 쓰는 `people_directory` 테이블은 이 저장소가 동기화한다 — 물리 스키마와 마이그레이션 이력을 이 저장소가 갖고 있기 때문이다.
+`core` 스키마(회원·신원)는 `apps/portal-backend` 소유다([DB 공유 규칙](../../docs/db/conventions.md) §4). 그 테이블을 쓰던 CLI는 전부 그쪽으로 옮겼다.
 
-```sh
-npm run people:import
-```
+| 하던 일 | 지금 위치 |
+|---|---|
+| 노션 People DB 동기화 (`people:import`) | `apps/portal-backend` |
+| 회원 등록·회수 (`members:add` / `members:remove`) | `apps/portal-backend` |
+| 마이그레이션 생성·적용 | `packages/db` |
 
-노션 데이터베이스를 먼저 해당 integration에 Share 해야 하고(`.env.example`의 `NOTION_API_KEY` 주석 참고), 컬럼명이 기본 가정(기수/Name/이메일)과 다르면 `NOTION_COHORT_PROPERTY`/`NOTION_NAME_PROPERTY`/`NOTION_EMAIL_PROPERTY`로 실제 컬럼명을 지정한다. `acting`/`alumni` role은 여기서 정하지 않는다 — 이 DB는 "명단에 있는 사람이 맞다"만 확인하는 용도다.
+이 앱은 `core.members`를 **읽기만** 한다(요청마다 "이 사람이 명단에 있나" 확인). `role`이나 `active`를 바꾸는 코드는 갖지 않는다.
 
 ## 인증·접근 권한
 
 모든 `/api/v1/*` 요청은 `Authorization: Bearer <Supabase access token>` 헤더가 필요하다. 토큰은 Supabase Auth(Google OAuth)로 로그인한 뒤 발급받는다 — 이 백엔드 자체는 로그인 화면을 제공하지 않는다(`apps/portal-frontend`가 로그인·가입 UI를, Supabase 클라이언트가 OAuth 플로우를 처리한다).
 
-**접근은 화이트리스트 방식이다.** 학회원 계정 도메인이 `ghsnu.com`/`gmail.com`/`snu.ac.kr` 등으로 섞여 있어 도메인 검사로는 거를 수 없다. Google OAuth 동의 화면은 **External**로 설정한다(Internal은 단일 Workspace 도메인 소속 계정만 로그인 자체가 가능해서, 도메인이 섞인 이 상황과 맞지 않는다). 로그인 자체는 어떤 Google 계정이든 시도할 수 있지만, `members` 테이블(대협봇 자체 DB 테이블, Supabase Auth의 사용자 목록과는 별개다)에 이메일이 등록돼 있지 않으면 접근이 403으로 막힌다. 보통은 위 가입 흐름으로 자동 등록되고, admin이나 예외 케이스만 수동으로:
+**접근은 화이트리스트 방식이다.** 학회원 계정 도메인이 `ghsnu.com`/`gmail.com`/`snu.ac.kr` 등으로 섞여 있어 도메인 검사로는 거를 수 없다. Google OAuth 동의 화면은 **External**로 설정한다(Internal은 단일 Workspace 도메인 소속 계정만 로그인 자체가 가능해서, 도메인이 섞인 이 상황과 맞지 않는다). 로그인 자체는 어떤 Google 계정이든 시도할 수 있지만, `members` 테이블(대협봇 자체 DB 테이블, Supabase Auth의 사용자 목록과는 별개다)에 이메일이 등록돼 있지 않으면 접근이 403으로 막힌다. 보통은 가입 흐름으로 자동 등록되고, admin이나 예외 케이스만 수동으로 등록한다 — **`apps/portal-backend`에서** 실행한다:
 
 ```sh
+cd ../portal-backend
 npm run members:add -- person@ghsnu.com "표시 이름" admin   # 등록 (role 생략 시 acting)
 npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남기고 비활성화만)
 ```

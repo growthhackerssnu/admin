@@ -26,7 +26,7 @@
 | `POST /api/auth/signup-requests` | `{cohort, name, desiredEmail}` → `people_directory` 대조 → 매칭되면 그 사람의 노션 신뢰 이메일로 OTP 발송(Resend). `signupRequestId`와 마스킹된 발신 주소(`sentTo`) 응답 |
 | `POST /api/auth/signup-requests/{id}/verify` | `{otp}` → 일치하면 `desiredEmail`로 `members` 행을 `role: alumni`로 생성, `people_directory.claimedByMemberId` 기록 |
 
-노션 People DB → `people_directory` 동기화 자체(`npm run people:import`)는 `apps/dh-backend` 책임이다. 이 앱은 이미 동기화된 테이블만 읽는다.
+노션 People DB → `core.people_directory` 동기화(`npm run people:import`)도 이 앱 책임이다. 쓰는 쪽(동기화)과 읽는 쪽(가입 신청 대조)이 `src/lib/normalize.ts`의 같은 정규화를 쓰게 하려고 한 앱에 뒀다 — 둘이 어긋나면 명단에 있는 사람이 가입에 실패한다.
 
 ### 인증 필요 (`Authorization: Bearer <Supabase access token>`)
 
@@ -42,7 +42,7 @@
 
 ## 접근 제어
 
-화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, `apps/dh-backend`의 CLI(`npm run members:add`)로 수동 등록한다. `admin`으로의 승격은 API로 불가 — CLI로만.
+화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, 이 앱의 CLI(`npm run members:add`)로 수동 등록한다. `admin`으로의 승격은 API로 불가 — CLI로만.
 
 ## CORS
 
