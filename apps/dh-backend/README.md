@@ -1,6 +1,6 @@
 # 대협 어드민 백엔드
 
-`docs/admin/api-contract.md`의 API 계약을 구현하는 Next.js(App Router, API 전용) 백엔드다. UI는 없다 — `frontend/`가 이 API를 호출하는 쪽이다.
+`docs/admin/api-contract.md`의 API 계약을 구현하는 Next.js(App Router, API 전용) 백엔드다. UI는 없다 — `apps/dh-frontend/`가 이 API를 호출하는 쪽이다.
 
 ## 스택
 
@@ -16,7 +16,7 @@ Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres 
    - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
 3. `npm run db:migrate` — 스키마 마이그레이션 생성·적용
-4. `npm run db:seed` — `frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩
+4. `npm run db:seed` — `apps/dh-frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩
 5. `npm run dev` — `http://localhost:3000`에서 API 실행
 
 `db:migrate`/`db:seed`/`members:*`/`people:import`는 전부 `dotenv-cli`로 `.env.local`을 로드한다(`prisma` CLI와 `tsx` 둘 다 `.env.local`을 자동으로 읽지 않기 때문 — `npm run dev`의 `next dev`만 자동으로 읽는다). 새 스크립트를 추가할 때도 이 패턴을 따른다.
@@ -98,4 +98,4 @@ npm run members:remove -- person@ghsnu.com                  # 회수 (행은 남
 - [API 계약](../docs/admin/api-contract.md)
 - [데이터 모델](../docs/admin/integration/05_데이터%20모델%20제안.md)
 - [정책·확정 규칙](../docs/admin/policies.md), [업무 흐름](../docs/admin/workflow.md)
-- [프론트 연결 지점](../frontend/README.md) — `frontend/src/services/liveRepository.ts`(아직 없음)가 이 API를 호출하도록 `frontend/src/main.tsx`에서 조립해야 한다. 프론트의 한국어 Stage enum ↔ 이 API의 영문 코드 변환은 그 어댑터의 책임이며 이 백엔드의 범위는 아니다.
+- [프론트 연결 지점](../dh-frontend/README.md) — `apps/dh-frontend/src/services/liveRepository.ts`(아직 없음)가 이 API를 호출하도록 `apps/dh-frontend/src/main.tsx`에서 조립해야 한다. 프론트의 한국어 Stage enum ↔ 이 API의 영문 코드 변환은 그 어댑터의 책임이며 이 백엔드의 범위는 아니다.
