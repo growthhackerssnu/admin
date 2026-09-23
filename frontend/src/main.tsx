@@ -2,14 +2,17 @@ import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { App as AntApp, ConfigProvider } from "antd";
 import koKR from "antd/locale/ko_KR";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
+import { Login } from "./pages/Login";
+import { AdminMembers } from "./pages/AdminMembers";
 import { createMockRepository } from "./mocks/mockRepository";
 import type { Scenario } from "./models/outreach";
 import { installTokens, theme } from "./styles/tokens";
 import "antd/dist/reset.css";
 import "./styles/app.css";
 installTokens();
-function Root() {
+function MockWorkspace() {
   const [scenario, setScenario] = useState<Scenario>("normal");
   const repository = useMemo(
     () =>
@@ -22,14 +25,20 @@ function Root() {
       ),
     [scenario],
   );
+  return <App repository={repository} scenario={scenario} onScenario={setScenario} />;
+}
+function Root() {
   return (
     <ConfigProvider locale={koKR} theme={theme}>
       <AntApp>
-        <App
-          repository={repository}
-          scenario={scenario}
-          onScenario={setScenario}
-        />
+        <BrowserRouter>
+          <Routes>
+            {/* 기존 샘플 저장소 기반 목업 — 실 백엔드 연결(liveRepository)은 별도 작업 */}
+            <Route path="/" element={<MockWorkspace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/admin" element={<AdminMembers />} />
+          </Routes>
+        </BrowserRouter>
       </AntApp>
     </ConfigProvider>
   );
