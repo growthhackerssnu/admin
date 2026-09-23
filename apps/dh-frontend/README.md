@@ -1,16 +1,16 @@
 # 대협 어드민 프론트 기반
 
-기존 클릭 목업을 React + TypeScript + Vite 프로젝트로 옮긴 개발 기반이다. 현재 디자인은 임시 기본값이며, `/`(기업 목록·상세)는 샘플 저장소만 연결되어 있다 — 실제 조사·메일 발송·운영 DB는 이 화면에 연결하지 않았다. `/login`과 `/admin`은 `backend/`(실제 API)에 직접 연결된다.
+기존 클릭 목업을 React + TypeScript + Vite 프로젝트로 옮긴 개발 기반이다. 현재 디자인은 임시 기본값이며, `/`(기업 목록·상세)는 샘플 저장소만 연결되어 있다 — 실제 조사·메일 발송·운영 DB는 이 화면에 연결하지 않았다. `/login`과 `/admin`은 `apps/dh-backend/`(실제 API)에 직접 연결된다.
 
 ## 페이지
 
 | 경로 | 내용 | 데이터 |
 |---|---|---|
 | `/` | 기업 목록·상세 클릭 목업 | 샘플 저장소(localStorage), 실 백엔드 미연결 |
-| `/login` | Google 로그인 / 가입 신청(기수·이름·이메일) + OTP 인증 | `backend/`의 `/api/auth/*`, Supabase Auth |
-| `/admin` | 회원 명단·권한 변경·삭제(비활성화)·재활성화, admin 전용 | `backend/`의 `/api/v1/admin/members/*` |
+| `/login` | Google 로그인 / 가입 신청(기수·이름·이메일) + OTP 인증 | `apps/dh-backend/`의 `/api/auth/*`, Supabase Auth |
+| `/admin` | 회원 명단·권한 변경·삭제(비활성화)·재활성화, admin 전용 | `apps/dh-backend/`의 `/api/v1/admin/members/*` |
 
-`/login`, `/admin`은 `.env.local`(`.env.example` 복사)에 `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`(`backend/.env.local`과 같은 Supabase 프로젝트 값)와 `VITE_API_BASE_URL`(로컬은 `http://localhost:3000`, `backend/` 실행 필요)이 있어야 동작한다. `/admin`은 `GET /api/v1/me`의 `capabilities`에 `manage_settings`가 있는지로 admin 여부를 판단한다(그 capability는 admin role에만 있음).
+`/login`, `/admin`은 `.env.local`(`.env.example` 복사)에 `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`(`apps/dh-backend/.env.local`과 같은 Supabase 프로젝트 값)와 `VITE_API_BASE_URL`(로컬은 `http://localhost:3000`, `apps/dh-backend/` 실행 필요)이 있어야 동작한다. `/admin`은 `GET /api/v1/me`의 `capabilities`에 `manage_settings`가 있는지로 admin 여부를 판단한다(그 capability는 admin role에만 있음).
 
 ## 실행
 

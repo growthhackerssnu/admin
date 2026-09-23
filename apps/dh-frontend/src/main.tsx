@@ -8,7 +8,7 @@ import { Login } from "./pages/Login";
 import { AdminMembers } from "./pages/AdminMembers";
 import { createMockRepository } from "./mocks/mockRepository";
 import type { Scenario } from "./models/outreach";
-import { installTokens, theme } from "./styles/tokens";
+import { installTokens, theme } from "@dhbot/ui-shell";
 import "antd/dist/reset.css";
 import "./styles/app.css";
 installTokens();
