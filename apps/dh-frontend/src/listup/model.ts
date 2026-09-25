@@ -70,7 +70,10 @@ export const fitLabel: Record<Fit, string> = {
 };
 
 export function canHandoff(company: Company) {
-  return company.fit === "fit" && company.people.some((person) => person.email || person.linkedin);
+  return (
+    company.fit === "fit" &&
+    company.people.some((person) => person.email || person.linkedin)
+  );
 }
 
 export function preferredRoute(company: Company): Channel | null {
