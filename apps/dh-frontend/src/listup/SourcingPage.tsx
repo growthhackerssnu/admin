@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Batch, Company, Fit, ListupState } from "./model";
-import { canHandoff, fitLabel, quarterLabel, quarters } from "./model";
+import {
+  canHandoff,
+  fitLabel,
+  formatActivityTime,
+  previewActor,
+  quarterLabel,
+  quarters,
+} from "./model";
 
 function BatchCheckbox({
   label,
@@ -94,6 +101,13 @@ function SearchDialog({
             ))}
           </select>
         </label>
+        <div className="lu-field lu-assignee-field">
+          <strong>배치 담당자</strong>
+          <span>{previewActor.name}</span>
+          <small>
+            현재는 시연용 계정입니다. 실제 로그인은 연결되지 않았어요.
+          </small>
+        </div>
         <label className="lu-field">
           관심 기업 조건 <span className="lu-muted">(선택)</span>
           <input
@@ -202,6 +216,9 @@ export function SourcingPage({
       .map((task) => task.companyId),
   );
   const detail = state.companies.find((company) => company.id === detailId);
+  const detailBatch = batches.find(
+    (batch) => detailId && batch.companyIds.includes(detailId),
+  );
   const fits = (company: Company) =>
     (tab === "all" || company.fit === tab) &&
     (!query ||
@@ -372,7 +389,10 @@ export function SourcingPage({
                   </span>
                   <span>
                     <strong>{batch.condition || "조건 없이 탐색"}</strong>
-                    <small>{batch.createdAt}</small>
+                    <small>
+                      {batch.createdAt} <span aria-hidden="true">·</span> 담당{" "}
+                      {batch.assignee?.name ?? "미지정"}
+                    </small>
                   </span>
                   <span className="lu-batch-count">{rows.length}개 기업</span>
                 </button>
@@ -443,6 +463,11 @@ export function SourcingPage({
                                   <span className={`lu-tag ${company.fit}`}>
                                     {fitLabel[company.fit]}
                                   </span>
+                                  {company.fitChanges.length > 0 && (
+                                    <small className="lu-fit-origin">
+                                      사람 수정
+                                    </small>
+                                  )}
                                 </td>
                                 <td
                                   className={
@@ -506,6 +531,9 @@ export function SourcingPage({
             <div className="lu-drawer-body">
               <h2>{detail.name}</h2>
               <p>{detail.about}</p>
+              <div className="lu-detail-owner">
+                배치 담당 · {detailBatch?.assignee?.name ?? "미지정"}
+              </div>
               <div className="lu-section">
                 <div className="lu-section-head">
                   <h3>fit 판단</h3>
@@ -523,6 +551,17 @@ export function SourcingPage({
                     ))}
                   </select>
                 </div>
+                <div className="lu-fit-provenance">
+                  <span>AI 최초 판단 · {fitLabel[detail.aiFit]}</span>
+                  {detail.fitChanges.length > 0 && (
+                    <span>
+                      최근 사람 수정 ·{" "}
+                      {detail.fitChanges.at(-1)?.by?.name ?? "수정자 기록 없음"}
+                      {detail.fitChanges.at(-1)?.at &&
+                        ` · ${formatActivityTime(detail.fitChanges.at(-1)!.at)}`}
+                    </span>
+                  )}
+                </div>
                 <h4>{detail.area}</h4>
                 <strong>개입 가능성</strong>
                 <p>{detail.possibility}</p>
@@ -532,8 +571,21 @@ export function SourcingPage({
                   확인할 사항 · 실제 우선순위와 데이터 접근, 실험 권한은 기업과
                   확인이 필요해요.
                 </div>
-                {detail.changedByUser && (
-                  <div className="lu-muted">사람이 변경한 판단입니다.</div>
+                {detail.fitChanges.length > 1 && (
+                  <details className="lu-fit-changes">
+                    <summary>
+                      이전 수정 내역 {detail.fitChanges.length}건
+                    </summary>
+                    <ol>
+                      {detail.fitChanges.map((change, index) => (
+                        <li key={`${change.at ?? "legacy"}-${index}`}>
+                          {fitLabel[change.fit]} ·{" "}
+                          {change.by?.name ?? "수정자 기록 없음"} ·{" "}
+                          {formatActivityTime(change.at)}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
                 )}
               </div>
               <div className="lu-section">

@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { sampleCompanies } from "./fixtures";
+import {
+  initialState,
+  normalizeStoredState,
+  sampleCompanies,
+} from "./fixtures";
 import {
   canHandoff,
   draftFor,
   eligibleForBulkEmail,
   preferredRoute,
+  previewActor,
+  reviewFit,
 } from "./model";
-import type { ContactTask } from "./model";
+import type { ContactTask, ListupState } from "./model";
 
 describe("신규 기업 탐색과 컨택 경계", () => {
   const linkedInCompany = sampleCompanies[0];
@@ -65,5 +71,52 @@ describe("신규 기업 탐색과 컨택 경계", () => {
         emailOnlyCompany,
       ),
     ).toBe(false);
+  });
+
+  it("사람이 fit을 바꿀 때 AI 최초 판단과 이전 변경 이력을 유지한다", () => {
+    const original = sampleCompanies[2];
+    const first = reviewFit(
+      original,
+      "fit",
+      previewActor,
+      "2026-09-25T06:00:00.000Z",
+    );
+    const second = reviewFit(
+      first,
+      "unfit",
+      previewActor,
+      "2026-09-25T06:01:00.000Z",
+    );
+    expect(original.fitChanges).toHaveLength(0);
+    expect(second.aiFit).toBe("pending");
+    expect(second.fit).toBe("unfit");
+    expect(second.fitChanges.map((change) => change.fit)).toEqual([
+      "fit",
+      "unfit",
+    ]);
+    expect(
+      reviewFit(second, "unfit", previewActor, "2026-09-25T06:02:00.000Z"),
+    ).toBe(second);
+  });
+
+  it("이전 브라우저 저장 데이터의 담당자와 fit 수정 기록을 안전하게 보완한다", () => {
+    const legacy = initialState() as ListupState & {
+      companies: Array<
+        (typeof sampleCompanies)[number] & { changedByUser?: boolean }
+      >;
+    };
+    delete (legacy.batches[0] as Partial<(typeof legacy.batches)[number]>)
+      .assignee;
+    delete (legacy.companies[0] as Partial<(typeof legacy.companies)[number]>)
+      .aiFit;
+    delete (legacy.companies[0] as Partial<(typeof legacy.companies)[number]>)
+      .fitChanges;
+    legacy.companies[0].changedByUser = true;
+    const migrated = normalizeStoredState(legacy);
+    expect(migrated.batches[0].assignee).toBeNull();
+    expect(migrated.companies[0].aiFit).toBe("fit");
+    expect(migrated.companies[0].fitChanges).toEqual([
+      { fit: "fit", by: null, at: null },
+    ]);
   });
 });

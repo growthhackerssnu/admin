@@ -354,9 +354,13 @@ input[type="checkbox"]:disabled {
 }
 .lu-batch-head small {
   display: block;
-  color: #8c8c8c;
+  color: #595959;
   font-size: 12px;
   margin-top: 4px;
+}
+.lu-batch-head small span {
+  margin: 0 5px;
+  color: #bfbfbf;
 }
 .lu-chevron {
   width: 12px;
@@ -456,6 +460,13 @@ input[type="checkbox"]:disabled {
   background: #fafafa;
   border-color: #d9d9d9;
 }
+.lu-fit-origin {
+  display: block;
+  width: max-content;
+  margin-top: 5px;
+  color: #595959;
+  font-size: 11px;
+}
 .lu-list-footer {
   color: #8c8c8c;
   font-size: 12px;
@@ -513,6 +524,18 @@ input[type="checkbox"]:disabled {
   margin-top: 8px;
   font-weight: 400;
 }
+.lu-assignee-field > span {
+  display: block;
+  margin-top: 8px;
+  font-weight: 500;
+}
+.lu-assignee-field > small {
+  display: block;
+  margin-top: 3px;
+  color: #595959;
+  font-size: 12px;
+  font-weight: 400;
+}
 .lu-source-options {
   display: flex;
   gap: 16px;
@@ -565,6 +588,37 @@ input[type="checkbox"]:disabled {
 .lu-drawer-body p {
   line-height: 1.75;
   color: #595959;
+}
+.lu-detail-owner {
+  border-top: 1px solid #f0f0f0;
+  padding-top: 14px;
+  font-size: 13px;
+  color: #595959;
+}
+.lu-fit-provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #595959;
+}
+.lu-fit-changes {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 18px;
+  padding-top: 12px;
+  font-size: 12px;
+  color: #595959;
+}
+.lu-fit-changes summary {
+  cursor: pointer;
+}
+.lu-fit-changes ol {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+.lu-fit-changes li + li {
+  margin-top: 5px;
 }
 .lu-section {
   border-top: 1px solid #f0f0f0;

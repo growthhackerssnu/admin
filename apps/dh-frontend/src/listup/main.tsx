@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { extraCompanies, initialState } from "./fixtures";
+import { extraCompanies, initialState, normalizeStoredState } from "./fixtures";
 import type { Company, ContactTask, Fit, ListupState } from "./model";
-import { canHandoff, draftFor, quarters } from "./model";
+import {
+  canHandoff,
+  draftFor,
+  previewActor,
+  quarters,
+  reviewFit,
+} from "./model";
 import { SourcingPage } from "./SourcingPage";
 import { ContactPage } from "./ContactPage";
 import "./styles.css";
@@ -18,7 +24,7 @@ function readState(): ListupState {
         Array.isArray(parsed.batches) &&
         Array.isArray(parsed.tasks)
       )
-        return parsed;
+        return normalizeStoredState(parsed);
     }
   } catch {
     /* Corrupt sample data falls back to fixtures. */
@@ -66,7 +72,12 @@ function Root() {
     });
   }
   function setFit(id: string, fit: Fit) {
-    updateCompany(id, { fit, changedByUser: true });
+    const company = state.companies.find((item) => item.id === id);
+    if (!company || company.fit === fit) return;
+    updateCompany(
+      id,
+      reviewFit(company, fit, previewActor, new Date().toISOString()),
+    );
   }
   function researchContact(id: string) {
     const company = state.companies.find((item) => item.id === id);
@@ -172,6 +183,7 @@ function Root() {
         minute: "2-digit",
         hour12: false,
       }),
+      assignee: previewActor,
       sources,
       companyIds: found.map((company) => company.id),
       excludedCount: existing.size,

@@ -2,6 +2,23 @@ export type Fit = "fit" | "pending" | "unfit";
 export type DraftStatus = "pending" | "ready" | "failed";
 export type Channel = "linkedin" | "email";
 
+export interface ActorRef {
+  id: string;
+  name: string;
+}
+
+export interface FitChange {
+  fit: Fit;
+  by: ActorRef | null;
+  at: string | null;
+}
+
+// Login is not connected in this preview. Replace this with the authenticated user.
+export const previewActor: ActorRef = {
+  id: "preview-current-user",
+  name: "샘플 팀원 A",
+};
+
 export interface Person {
   id: string;
   name: string;
@@ -19,7 +36,8 @@ export interface Company {
   possibility: string;
   value: string;
   fit: Fit;
-  changedByUser?: boolean;
+  aiFit: Fit;
+  fitChanges: FitChange[];
   people: Person[];
 }
 
@@ -28,6 +46,7 @@ export interface Batch {
   quarter: string;
   condition: string | null;
   createdAt: string;
+  assignee: ActorRef | null;
   sources: string[];
   companyIds: string[];
   excludedCount: number;
@@ -68,6 +87,30 @@ export const fitLabel: Record<Fit, string> = {
   pending: "판단 보류",
   unfit: "부적합",
 };
+
+export function reviewFit(
+  company: Company,
+  fit: Fit,
+  by: ActorRef,
+  at: string,
+): Company {
+  if (company.fit === fit) return company;
+  return {
+    ...company,
+    fit,
+    fitChanges: [...company.fitChanges, { fit, by, at }],
+  };
+}
+
+export function formatActivityTime(at: string | null) {
+  if (!at) return "시각 기록 없음";
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(at));
+}
 
 export function canHandoff(company: Company) {
   return (
