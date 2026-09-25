@@ -1,0 +1,127 @@
+// apps/portal-backend가 쓰는 테이블 목록 — 생성 전용 사본이다.
+//
+// 계정/회원 도메인(로그인·가입·회원 관리)만 다룬다. 물리 스키마의 원본은
+// packages/db/schema.prisma이고, 마이그레이션도 거기서만 만든다. 이 파일은
+// prisma generate로 이 앱의 타입을 뽑기 위한 것이다. 규칙: docs/db/conventions.md §7
+//
+// 선언 범위: core 하나뿐이다. core는 portal이 소유하는 공유 영역이고(§4), dh/hr의
+// 업무 스키마는 보지 않는다. 테이블 구조를 바꿔야 하면 packages/db에서 마이그레이션을
+// 만들고 이 파일도 같이 갱신한다.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+  // npm workspaces가 @prisma/client를 루트 node_modules로 hoist하는데, 이
+  // 저장소엔 스키마가 다른 Prisma Client가 두 개(이 앱 + apps/dh-backend)
+  // 있다 — 같은 위치로 generate하면 나중에 실행한 쪽이 다른 쪽 타입을 덮어쓴다.
+  // 앱마다 생성 위치를 분리해서 서로 건드리지 않게 한다.
+  output = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["core"]
+}
+
+// admin: admin@ghsnu.com 고정, 전 영역 접근·편집, 회원 role 변경/삭제.
+// acting: 현재 액팅 회원. dh+hr 업무 권한 전부 동일(PM 서브권한 없음).
+// alumni: 가입한 알럼나이. hr은 보기 전용, dh(대협봇)는 접근 자체 불가.
+enum Role {
+  admin
+  acting
+  alumni
+  @@schema("core")
+}
+
+// 접근은 화이트리스트 방식이다. 관리자가 이메일로 행을 미리 만들어야 로그인이
+// 완성된다. apps/dh-backend가 이 테이블에 대한 auth 진입점(getAuthenticatedMember)도
+// 갖고 있다 — 두 앱이 같은 members 테이블을 각자의 스키마로 본다.
+model Member {
+  id             String    @id @default(cuid())
+  supabaseUserId String?   @unique @map("supabase_user_id")
+  email          String    @unique
+  displayName    String    @map("display_name")
+  role           Role      @default(acting)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastLoginAt    DateTime? @map("last_login_at")
+
+  claimedPersonEntry PeopleDirectory?
+
+  @@map("members")
+  @@schema("core")
+}
+
+// 노션 People DB(액팅+알럼나이 전체)에서 가져온 "신뢰 이메일" 원장
+// (이 앱의 npm run people:import로 동기화한다 — prisma/importPeopleDirectory.ts).
+// role(acting/alumni)은 여기서 판단하지 않는다 — 가입 직후엔 무조건 alumni로
+// 등록되고, admin이 나중에 개별로 acting으로 올린다. claimedByMemberId가
+// 채워지면 이미 가입이 끝난 것 — 같은 항목으로 두 번 가입하는 걸 막는다.
+model PeopleDirectory {
+  id                String    @id @default(cuid())
+  notionPageId      String    @unique @map("notion_page_id")
+  cohort            String
+  cohortNormalized  String    @map("cohort_normalized")
+  name              String
+  nameNormalized    String    @map("name_normalized")
+  knownEmail        String    @map("known_email")
+  claimedByMemberId String?   @unique @map("claimed_by_member_id")
+  claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
+  claimedAt         DateTime? @map("claimed_at")
+  importedAt        DateTime  @default(now()) @map("imported_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  signupRequests SignupRequest[]
+
+  @@index([cohortNormalized, nameNormalized])
+  @@map("people_directory")
+  @@schema("core")
+}
+
+enum SignupRequestStatus {
+  pending
+  verified
+  expired
+  @@schema("core")
+}
+
+// 기수+이름+원하는 구글 이메일로 가입 신청 → people_directory에서 대조한
+// knownEmail로 OTP 발송 → 인증 성공 시 그 구글 이메일로 members 행 생성
+// (role = alumni 고정, admin이 나중에 acting으로 승격).
+model SignupRequest {
+  id                String              @id @default(cuid())
+  personDirectoryId String              @map("person_directory_id")
+  personDirectory   PeopleDirectory     @relation(fields: [personDirectoryId], references: [id])
+  desiredEmail      String              @map("desired_email")
+  otpHash           String              @map("otp_hash")
+  otpExpiresAt      DateTime            @map("otp_expires_at")
+  attempts          Int                 @default(0)
+  status            SignupRequestStatus @default(pending)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  verifiedAt        DateTime?           @map("verified_at")
+
+  @@map("signup_requests")
+  @@schema("core")
+}
+
+// POST/PATCH 관리자 요청의 Idempotency-Key를 기록한다. 이름은 dh의 것과 같지만
+// core.idempotency_keys로 물리 테이블이 다르다 — 공유 도메인 데이터가 아니라 앱
+// 내부 구현이라 스키마마다 자기 테이블을 갖는다(conventions.md §4.1). 예전에는 한
+// 테이블을 공유해서, 두 앱이 우연히 같은 키를 받으면 서로의 응답을 돌려줄 수 있었다.
+//
+// actorMemberId는 관계로 선언하지 않고 원시 값으로만 쓴다 — 이 앱 스키마에서
+// Member 쪽 역관계를 늘릴 이유가 없다(FK 제약은 packages/db 마이그레이션에 있다).
+model IdempotencyKey {
+  key            String   @id
+  actorMemberId  String   @map("actor_member_id")
+  route          String
+  requestHash    String   @map("request_hash")
+  responseStatus Int      @map("response_status")
+  responseBody   Json     @map("response_body")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
+  @@schema("core")
+}

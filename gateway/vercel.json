@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "https://TODO-portal-frontend-deployment-url/" },
+    { "source": "/login", "destination": "https://TODO-portal-frontend-deployment-url/login" },
+    { "source": "/login/:path*", "destination": "https://TODO-portal-frontend-deployment-url/login/:path*" },
+    { "source": "/admin", "destination": "https://TODO-portal-frontend-deployment-url/admin" },
+    { "source": "/admin/:path*", "destination": "https://TODO-portal-frontend-deployment-url/admin/:path*" },
+    { "source": "/dh", "destination": "https://TODO-dh-frontend-deployment-url/" },
+    { "source": "/dh/:path*", "destination": "https://TODO-dh-frontend-deployment-url/:path*" },
+    { "source": "/hr", "destination": "https://TODO-hr-frontend-deployment-url/" },
+    { "source": "/hr/:path*", "destination": "https://TODO-hr-frontend-deployment-url/:path*" }
+  ]
+}

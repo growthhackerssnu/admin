@@ -4,7 +4,13 @@
 
 ## 프론트 기반 구현 후 업데이트
 
-`frontend/`에 화면·타입·샘플 데이터 어댑터·디자인 토큰을 분리한 개발 환경을 추가했다. [실행 및 구현 범위](../../frontend/README.md)를 먼저 확인한다. 아래 integration 문서는 초기 계약 제안이며, 현재 실행 가능한 계약은 frontend/src/services/outreachRepository.ts다. 실제 서버 연결은 아직 하지 않았다.
+`apps/dh-frontend/`에 화면·타입·샘플 데이터 어댑터·디자인 토큰을 분리한 개발 환경을 추가했다. [실행 및 구현 범위](../../apps/dh-frontend/README.md)를 먼저 확인한다. 아래 integration 문서는 초기 계약 제안이며, 현재 실행 가능한 계약은 apps/dh-frontend/src/services/outreachRepository.ts다. 실제 서버 연결은 아직 하지 않았다.
+
+현재 프론트 기준 [API 연결 명세 초안](api-contract.md)에 전체 endpoint 제안, 요청·응답, 업무 명령 대응, 미정 사항을 정리했다. 이전 integration 문서보다 구체적인 연결 협의 자료이며 배포된 API는 아니다.
+
+로그인·가입·회원 관리는 `apps/portal-frontend`+`apps/portal-backend`가 담당하고, 대협봇 `/dh`·그핵드인 `/hr`과 어떻게 경로별로 연결되는지는 [라우팅 구조](routing.md)에 정리했다 — hr 앱을 새로 만들 때 특히 이 문서를 먼저 읽는다.
+
+세 앱은 Supabase Postgres 하나를 공유한다. 어느 테이블이 어느 앱 소유이고, 공유하는 `members`를 누가 쓸 수 있고, 테이블을 추가·변경할 때 어떤 절차를 밟는지는 [DB 공유 규칙](../db/conventions.md)에 있다 — **Prisma 스키마나 마이그레이션을 건드리기 전에 반드시 읽는다.**
 
 ## 읽는 순서
 
@@ -13,7 +19,9 @@
 3. [설계 의사결정 배경](decisions.md)
 4. [과거 코드 연결표 — 참고용](backend-mapping.md)
 5. [연동 규격 제안](integration/00_먼저%20읽기.md)
-6. [목업 실행 및 확인 방법](../../prototypes/admin/README.md)
+6. [라우팅 구조 — 포털·dh·hr](routing.md)
+7. [DB 공유 규칙 — 스키마·소유권·마이그레이션](../db/conventions.md)
+8. [목업 실행 및 확인 방법](../../prototypes/admin/README.md)
 
 ## 문서의 지위
 
