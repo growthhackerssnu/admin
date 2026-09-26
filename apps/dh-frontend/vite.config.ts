@@ -4,4 +4,12 @@ export default defineConfig({
   plugins: [react()],
   base: "./",
   server: { port: 5173, strictPort: true },
+  build: {
+    rollupOptions: {
+      input: {
+        admin: "index.html",
+        listup: "listup.html",
+      },
+    },
+  },
 });
