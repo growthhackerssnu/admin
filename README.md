@@ -15,6 +15,7 @@
 - [라우팅 구조 — 포털·dh·hr을 어떻게 나누고 연결하는지](docs/admin/routing.md)
 - [DB 공유 규칙 — 세 앱이 Supabase 하나를 같이 쓰는 방법 (스키마 작업 전 필독)](docs/db/conventions.md)
 - [설계·정책·연동 제안](docs/admin/README.md)
+- [신규 리스트업 업무 규칙](docs/admin/listup/README.md)
 - [목업 실행 안내](prototypes/admin/README.md)
 
 ## 목업 실행
