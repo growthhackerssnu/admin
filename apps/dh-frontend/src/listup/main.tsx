@@ -1,69 +1,67 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
-import { extraCompanies, initialState, normalizeStoredState } from "./fixtures";
-import type { Company, ContactTask, Fit, ListupState } from "./model";
 import {
-  canHandoff,
-  draftFor,
-  previewActor,
-  quarters,
+  extraCompanies,
+  initialState,
+  initialSelectionPreviewState,
+  normalizeStoredState,
+} from "./fixtures";
+import type { Company, ContactTask, Fit, ListupState, Person } from "./model";
+import {
+  canManageCompany,
+  prepareCandidateTasks,
+  previewUsers,
   reviewFit,
 } from "./model";
-import { SourcingPage } from "./SourcingPage";
-import { ContactPage } from "./ContactPage";
+import { WorkspacePage } from "./WorkspacePage";
 import "./styles.css";
 
 const storageKey = "dhbot-listup-frontend-v1";
+const selectionPreview =
+  new URLSearchParams(window.location.search).get("selectionPreview") === "1";
+
 function readState(): ListupState {
+  if (selectionPreview)
+    return prepareCandidateTasks(initialSelectionPreviewState());
   try {
-    const value = window.localStorage.getItem(storageKey);
-    if (value) {
-      const parsed = JSON.parse(value) as ListupState;
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored) {
+      const parsed = JSON.parse(stored) as ListupState;
       if (
         Array.isArray(parsed.companies) &&
         Array.isArray(parsed.batches) &&
         Array.isArray(parsed.tasks)
-      )
-        return normalizeStoredState(parsed);
+      ) {
+        return prepareCandidateTasks(normalizeStoredState(parsed));
+      }
     }
   } catch {
     /* Corrupt sample data falls back to fixtures. */
   }
-  return initialState();
+  return prepareCandidateTasks(initialState());
 }
 
 function Root() {
   const [state, setState] = useState(readState);
-  const [page, setPage] = useState<"sourcing" | "contact">(
-    window.location.hash === "#contact" ? "contact" : "sourcing",
-  );
   const [toast, setToast] = useState("");
-  useEffect(() => {
-    const sync = () =>
-      setPage(window.location.hash === "#contact" ? "contact" : "sourcing");
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, []);
-  useEffect(() => {
-    document.title = `대협 어드민 · ${page === "contact" ? "컨택 작업" : "기업 탐색"}`;
-  }, [page]);
+  const [currentUser, setCurrentUser] = useState(previewUsers[0]);
+  document.title = "대협 어드민 · 수주 후보";
+
   function notify(message: string) {
     setToast(message);
-    window.setTimeout(() => setToast(""), 3500);
+    window.setTimeout(() => setToast(""), 5000);
   }
   function save(next: ListupState) {
-    setState(next);
-    window.localStorage.setItem(storageKey, JSON.stringify(next));
-  }
-  function navigate(next: "sourcing" | "contact") {
-    setPage(next);
-    window.location.hash = next;
-    window.scrollTo(0, 0);
+    const prepared = prepareCandidateTasks(next);
+    setState(prepared);
+    if (!selectionPreview)
+      window.localStorage.setItem(storageKey, JSON.stringify(prepared));
   }
   function setQuarter(quarter: string) {
-    if (quarters.includes(quarter)) save({ ...state, quarter });
+    if (state.quarters.includes(quarter)) save({ ...state, quarter });
   }
   function updateCompany(id: string, patch: Partial<Company>) {
+    if (!allowEdit(id)) return;
     save({
       ...state,
       companies: state.companies.map((company) =>
@@ -73,105 +71,108 @@ function Root() {
   }
   function setFit(id: string, fit: Fit) {
     const company = state.companies.find((item) => item.id === id);
-    if (!company || company.fit === fit) return;
-    updateCompany(
-      id,
-      reviewFit(company, fit, previewActor, new Date().toISOString()),
-    );
+    if (company && company.fit !== fit)
+      updateCompany(
+        id,
+        reviewFit(company, fit, currentUser, new Date().toISOString()),
+      );
   }
   function researchContact(id: string) {
+    if (!allowEdit(id)) return;
     const company = state.companies.find((item) => item.id === id);
     if (!company || company.fit !== "fit") return;
-    updateCompany(id, {
-      people: [
-        ...company.people,
-        {
-          id: `${id}-sample`,
-          name: "김서연",
-          role: "Product Manager",
-          email: "contact@example.com",
-          linkedin: "https://www.linkedin.com/",
-        },
-      ],
-    });
-    notify("예시 연락 창구를 추가했어요. 실제 조사는 연결되지 않았습니다.");
-  }
-  function addTasks(ids: string[]) {
-    const existing = new Set(
-      state.tasks.map((task) => `${task.quarter}:${task.companyId}`),
+    const hasSample = company.people.some(
+      (person) => person.id === `${id}-sample`,
     );
-    const tasks: ContactTask[] = ids.flatMap((id) => {
-      const company = state.companies.find((item) => item.id === id);
-      const batch = state.batches.find(
-        (item) =>
-          item.quarter === state.quarter && item.companyIds.includes(id),
-      );
-      if (
-        !company ||
-        !batch ||
-        !canHandoff(company) ||
-        existing.has(`${state.quarter}:${id}`)
-      )
-        return [];
-      const draft = draftFor(company);
-      return [
-        {
-          companyId: id,
-          quarter: state.quarter,
-          batchId: batch.id,
-          status: "pending" as const,
-          ...draft,
-          personId: null,
-          channel: null,
-          sent: null,
-        },
-      ];
+    save({
+      ...state,
+      companies: state.companies.map((item) =>
+        item.id === id && !hasSample
+          ? {
+              ...item,
+              people: [
+                ...item.people,
+                {
+                  id: `${id}-sample`,
+                  name: "김서연",
+                  role: "Product Manager",
+                  email: "contact@example.com",
+                  linkedin: "https://www.linkedin.com/",
+                },
+              ],
+            }
+          : item,
+      ),
+      tasks: state.tasks.map((task) =>
+        task.companyId === id ? { ...task, needsResearch: false } : task,
+      ),
     });
-    if (tasks.length) save({ ...state, tasks: [...state.tasks, ...tasks] });
-    notify(`${tasks.length}개 기업을 컨택 작업에 추가했어요.`);
+    notify("예시 연락 창구를 보완했어요. 실제 조사 API는 연결되지 않았습니다.");
+  }
+  function addPerson(id: string, person: Omit<Person, "id">) {
+    if (!allowEdit(id)) return;
+    const company = state.companies.find((item) => item.id === id);
+    if (!company) return;
+    save({
+      ...state,
+      companies: state.companies.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              people: [
+                ...item.people,
+                { ...person, id: `${id}-manual-${Date.now()}` },
+              ],
+            }
+          : item,
+      ),
+      tasks: state.tasks.map((task) =>
+        task.companyId === id ? { ...task, needsResearch: false } : task,
+      ),
+    });
+    notify(
+      "연락 창구를 추가했어요. 실제 운영에서는 출처와 재직 확인이 필요합니다.",
+    );
   }
   function updateTask(id: string, patch: Partial<ContactTask>) {
+    if (!allowEdit(id)) return;
     save({
       ...state,
       tasks: state.tasks.map((task) =>
-        task.quarter === state.quarter && task.companyId === id
-          ? { ...task, ...patch }
-          : task,
+        task.companyId === id ? { ...task, ...patch } : task,
       ),
     });
   }
   function updateTasks(updates: { id: string; patch: Partial<ContactTask> }[]) {
+    if (updates.some((update) => !allowEdit(update.id))) return;
     save({
       ...state,
       tasks: state.tasks.map((task) => {
-        const update = updates.find(
-          (item) =>
-            item.id === task.companyId && task.quarter === state.quarter,
-        );
+        const update = updates.find((item) => item.id === task.companyId);
         return update ? { ...task, ...update.patch } : task;
       }),
+    });
+  }
+  function moveTask(id: string, quarter: string) {
+    if (!allowEdit(id)) return;
+    if (!state.quarters.includes(quarter)) return;
+    save({
+      ...state,
+      tasks: state.tasks.map((task) =>
+        task.companyId === id && !task.sent ? { ...task, quarter } : task,
+      ),
     });
   }
   function startSearch(
     condition: string | null,
     sources: string[],
-    limit: number,
+    researchLimit: number,
     quarter: string,
   ) {
-    const existing = new Set(
-      state.batches
-        .filter((batch) => batch.quarter === quarter)
-        .flatMap((batch) => batch.companyIds),
-    );
-    const pool = [
-      ...state.companies,
-      ...extraCompanies.filter(
-        (company) => !state.companies.some((item) => item.id === company.id),
-      ),
-    ];
-    const found = pool
-      .filter((company) => !existing.has(company.id))
-      .slice(0, limit);
+    const known = new Set(state.batches.flatMap((batch) => batch.companyIds));
+    const found = extraCompanies
+      .filter((company) => !known.has(company.id))
+      .slice(0, researchLimit);
     const batch = {
       id: `batch-${Date.now()}`,
       quarter,
@@ -183,14 +184,18 @@ function Root() {
         minute: "2-digit",
         hour12: false,
       }),
-      assignee: previewActor,
+      assignee: currentUser,
       sources,
       companyIds: found.map((company) => company.id),
-      excludedCount: existing.size,
+      excludedCount: 0,
+      researchLimit,
     };
     save({
       ...state,
       quarter,
+      quarters: state.quarters.includes(quarter)
+        ? state.quarters
+        : [...state.quarters, quarter].sort(),
       companies: [
         ...state.companies,
         ...found.filter(
@@ -200,9 +205,18 @@ function Root() {
       batches: [...state.batches, batch],
     });
     notify(
-      `신규 ${found.length}개 기업을 찾았어요. 실제 검색 API는 아직 연결되지 않았습니다.`,
+      `샘플 기업 ${found.length}개를 조사했어요. 중복 기업은 분기와 관계없이 제외됩니다.`,
     );
   }
+
+  function allowEdit(companyId: string) {
+    if (canManageCompany(state, currentUser, companyId)) return true;
+    notify(
+      "다른 담당자의 업무는 조회만 가능해요. 변경은 담당자 또는 팀장만 할 수 있습니다.",
+    );
+    return false;
+  }
+
   return (
     <div className="lu-shell">
       <aside className="lu-sidebar" aria-label="주 메뉴">
@@ -211,17 +225,8 @@ function Root() {
         </div>
         <div className="lu-side-label">신규 수주</div>
         <nav>
-          <button
-            className={page === "sourcing" ? "active" : ""}
-            onClick={() => navigate("sourcing")}
-          >
-            ⌕ <span>기업 탐색</span>
-          </button>
-          <button
-            className={page === "contact" ? "active" : ""}
-            onClick={() => navigate("contact")}
-          >
-            ✉ <span>컨택 작업</span>
+          <button className="active" type="button">
+            ⌕ <span>수주 후보</span>
           </button>
         </nav>
         <div className="lu-side-note">
@@ -234,27 +239,47 @@ function Root() {
         <header className="lu-topbar">
           <strong>대협 어드민</strong>
           <span>개발용 샘플 · 실제 외부 발송 없음</span>
+          <label className="lu-preview-user">
+            권한 미리보기
+            <select
+              aria-label="권한 미리보기 사용자"
+              value={currentUser.id}
+              onChange={(event) => {
+                setCurrentUser(
+                  previewUsers.find((user) => user.id === event.target.value)!,
+                );
+                setToast("");
+              }}
+            >
+              {previewUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </header>
-        {page === "sourcing" ? (
-          <SourcingPage
-            state={state}
-            setQuarter={setQuarter}
-            setFit={setFit}
-            researchContact={researchContact}
-            addTasks={addTasks}
-            startSearch={startSearch}
-            navigateContact={() => navigate("contact")}
-          />
-        ) : (
-          <ContactPage
-            state={state}
-            setQuarter={setQuarter}
-            updateTask={updateTask}
-            updateTasks={updateTasks}
-            navigateSourcing={() => navigate("sourcing")}
-            notify={notify}
-          />
+        {selectionPreview && (
+          <div className="lu-ws-preview-notice">
+            <strong>전체 선택 검토용 샘플</strong> · 가상 기업 48개 / 배치별
+            24개. 기존 목업 데이터에는 영향을 주지 않습니다.
+            <a href="/listup.html">기본 목업으로 돌아가기</a>
+          </div>
         )}
+        <WorkspacePage
+          key={currentUser.id}
+          currentUser={currentUser}
+          state={state}
+          setQuarter={setQuarter}
+          setFit={setFit}
+          researchContact={researchContact}
+          addPerson={addPerson}
+          updateTask={updateTask}
+          updateTasks={updateTasks}
+          moveTask={moveTask}
+          startSearch={startSearch}
+          notify={notify}
+        />
       </div>
       {toast && (
         <div className="lu-toast" role="status">

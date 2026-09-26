@@ -19,6 +19,27 @@ export const previewActor: ActorRef = {
   name: "샘플 팀원 A",
 };
 
+export type PreviewUser = ActorRef & { role: "member" | "leader" };
+export const previewUsers: PreviewUser[] = [
+  { ...previewActor, role: "member" },
+  { id: "preview-teammate-b", name: "샘플 팀원 B", role: "member" },
+  { id: "preview-leader", name: "샘플 팀장", role: "leader" },
+];
+
+// Preview-only guard. The API must enforce this using the authenticated user.
+export function canManageCompany(
+  state: ListupState,
+  user: PreviewUser,
+  companyId: string,
+) {
+  if (user.role === "leader") return true;
+  const task = state.tasks.find((item) => item.companyId === companyId);
+  const batch = task
+    ? state.batches.find((item) => item.id === task.batchId)
+    : state.batches.find((item) => item.companyIds.includes(companyId));
+  return batch?.assignee?.id === user.id;
+}
+
 export interface Person {
   id: string;
   name: string;
@@ -50,6 +71,7 @@ export interface Batch {
   sources: string[];
   companyIds: string[];
   excludedCount: number;
+  researchLimit: number;
 }
 
 export interface SentRecord {
@@ -70,10 +92,12 @@ export interface ContactTask {
   personId: string | null;
   channel: Channel | null;
   sent: SentRecord | null;
+  needsResearch: boolean;
 }
 
 export interface ListupState {
   quarter: string;
+  quarters: string[];
   companies: Company[];
   batches: Batch[];
   tasks: ContactTask[];
@@ -82,6 +106,18 @@ export interface ListupState {
 export const quarters = ["2026-Q3", "2026-Q4", "2027-Q1"];
 export const quarterLabel = (quarter: string) =>
   `${quarter.slice(0, 4)}년 ${quarter.slice(-1)}분기`;
+export function quarterOfTimestamp(value: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "numeric",
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  return `${year}-Q${Math.floor((month - 1) / 3) + 1}`;
+}
 export const fitLabel: Record<Fit, string> = {
   fit: "적합",
   pending: "판단 보류",
@@ -112,28 +148,52 @@ export function formatActivityTime(at: string | null) {
   }).format(new Date(at));
 }
 
-export function canHandoff(company: Company) {
+export function hasContactOption(company: Company) {
   return (
     company.fit === "fit" &&
     company.people.some((person) => person.email || person.linkedin)
   );
 }
 
-export function preferredRoute(company: Company): Channel | null {
-  if (company.people.some((person) => person.linkedin)) return "linkedin";
-  if (company.people.some((person) => person.email)) return "email";
-  return null;
-}
-
 export function eligibleForBulkEmail(task: ContactTask, company: Company) {
   return (
     !task.sent &&
+    !task.needsResearch &&
     task.status === "ready" &&
     task.channel === "email" &&
     task.personId !== null &&
+    !!task.subject.trim() &&
+    !!task.body.trim() &&
     !!company.people.find((person) => person.id === task.personId)?.email &&
-    preferredRoute(company) === "email"
+    hasContactOption(company)
   );
+}
+
+export function prepareCandidateTasks(state: ListupState): ListupState {
+  const known = new Set(state.tasks.map((task) => task.companyId));
+  const created: ContactTask[] = [];
+  for (const batch of state.batches) {
+    for (const companyId of batch.companyIds) {
+      const company = state.companies.find((item) => item.id === companyId);
+      if (!company || !hasContactOption(company) || known.has(companyId))
+        continue;
+      known.add(companyId);
+      created.push({
+        companyId,
+        quarter: batch.quarter,
+        batchId: batch.id,
+        status: "ready",
+        ...draftFor(company),
+        personId: null,
+        channel: null,
+        sent: null,
+        needsResearch: false,
+      });
+    }
+  }
+  return created.length
+    ? { ...state, tasks: [...state.tasks, ...created] }
+    : state;
 }
 
 export function draftFor(company: Company) {

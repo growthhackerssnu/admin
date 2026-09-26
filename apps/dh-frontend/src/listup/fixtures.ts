@@ -1,5 +1,5 @@
 import type { Company, ListupState } from "./model";
-import { previewActor } from "./model";
+import { previewActor, quarters } from "./model";
 
 const shared = {
   possibility: "사용자 이용 흐름을 분석하고 안내 방식을 실험할 수 있습니다.",
@@ -108,7 +108,6 @@ export const sampleCompanies: Company[] = [
         name: "박지우",
         role: "Co-founder",
         email: "hello@example.com",
-        linkedin: "https://www.linkedin.com/",
       },
     ],
   },
@@ -178,6 +177,7 @@ export const extraCompanies: Company[] = [
 export function initialState(): ListupState {
   return {
     quarter: "2026-Q4",
+    quarters: [...quarters],
     companies: structuredClone(sampleCompanies),
     batches: [
       {
@@ -189,6 +189,7 @@ export function initialState(): ListupState {
         sources: ["Google", "뉴스레터"],
         companyIds: ["morningloop", "foldmarket", "clearnote"],
         excludedCount: 0,
+        researchLimit: 10,
       },
       {
         id: "commerce",
@@ -199,6 +200,7 @@ export function initialState(): ListupState {
         sources: ["혁신의 숲"],
         companyIds: ["obrit", "passon", "greenery", "milestone"],
         excludedCount: 0,
+        researchLimit: 10,
       },
     ],
     tasks: [],
@@ -214,9 +216,15 @@ export function normalizeStoredState(state: ListupState): ListupState {
   );
   return {
     ...state,
+    quarters: Array.isArray(state.quarters) ? state.quarters : [...quarters],
     batches: state.batches.map((batch) => ({
       ...batch,
       assignee: batch.assignee ?? null,
+      researchLimit: batch.researchLimit ?? batch.companyIds.length,
+    })),
+    tasks: state.tasks.map((task) => ({
+      ...task,
+      needsResearch: task.needsResearch ?? false,
     })),
     companies: state.companies.map((stored) => {
       const { changedByUser, ...company } = stored as Company & {
@@ -232,5 +240,38 @@ export function normalizeStoredState(state: ListupState): ListupState {
             : [],
       };
     }),
+  };
+}
+
+/** Isolated, fictional fixtures for comparing page and result selection. */
+export function initialSelectionPreviewState(): ListupState {
+  const state = initialState();
+  const companies: Company[] = Array.from({ length: 48 }, (_, index) => ({
+    ...structuredClone(sampleCompanies[0]),
+    id: `selection-example-${index + 1}`,
+    name: `샘플 기업 ${String(index + 1).padStart(2, "0")}`,
+    service: "전체 선택 검토용 가상 기업",
+    people: [
+      {
+        id: `selection-person-${index + 1}`,
+        name: "샘플 담당자",
+        role: "Product Manager",
+        email: `sample-${index + 1}@example.com`,
+        linkedin: "https://www.linkedin.com/",
+      },
+    ],
+  }));
+  return {
+    ...state,
+    companies,
+    batches: state.batches.map((batch, index) => ({
+      ...batch,
+      condition: `전체 선택 검토용 배치 ${index + 1}`,
+      companyIds: companies
+        .slice(index * 24, (index + 1) * 24)
+        .map((company) => company.id),
+      researchLimit: 24,
+    })),
+    tasks: [],
   };
 }
