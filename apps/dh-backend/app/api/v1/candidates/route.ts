@@ -116,7 +116,7 @@ export const GET = withApiHandler(async (req) => {
 
         return {
           id: candidate.id,
-          searchRunId: candidate.searchRunId,
+          searchRunId: candidate.originSearchRunId,
           revision: candidate.revision,
           company: serializeCompany(candidate.company),
           fit: {
@@ -127,7 +127,7 @@ export const GET = withApiHandler(async (req) => {
             summary,
           },
           contacts: {
-            status: candidate.contactStatus,
+            status: candidate.contactResearchStatus,
             usableCount: candidate.usableContactCount,
             needsVerificationCount: candidate.needsVerificationContactCount,
           },

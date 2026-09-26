@@ -20,7 +20,7 @@ export async function recomputeCandidateState(tx: Prisma.TransactionClient, cand
   const effectiveFit = activeDecision?.verdict ?? latestAssessment?.verdict ?? null;
 
   // 2. 창구 카운터
-  const grouped = await tx.candidateContact.groupBy({
+  const grouped = await tx.contactOptionAssessment.groupBy({
     by: ["status"],
     where: { candidateId },
     _count: { _all: true },
@@ -45,17 +45,17 @@ export async function recomputeCandidateState(tx: Prisma.TransactionClient, cand
     select: { id: true },
   });
 
-  let contactStatus: "available" | "searching" | "needs_verification" | "not_found" | "not_started";
-  if (usable > 0) contactStatus = "available";
-  else if (activeContactTask) contactStatus = "searching";
-  else if (needsVerification > 0) contactStatus = "needs_verification";
-  else if (succeededContactResearch) contactStatus = "not_found";
-  else contactStatus = "not_started";
+  let contactResearchStatus: "available" | "searching" | "needs_verification" | "not_found" | "not_started";
+  if (usable > 0) contactResearchStatus = "available";
+  else if (activeContactTask) contactResearchStatus = "searching";
+  else if (needsVerification > 0) contactResearchStatus = "needs_verification";
+  else if (succeededContactResearch) contactResearchStatus = "not_found";
+  else contactResearchStatus = "not_started";
 
   // 4. 사용자에게 보이는 상태가 바뀌었을 때만 revision을 올린다.
   const changed =
     candidate.effectiveFit !== effectiveFit ||
-    candidate.contactStatus !== contactStatus ||
+    candidate.contactResearchStatus !== contactResearchStatus ||
     candidate.usableContactCount !== usable ||
     candidate.needsVerificationContactCount !== needsVerification ||
     candidate.unusableContactCount !== unusable;
@@ -64,7 +64,7 @@ export async function recomputeCandidateState(tx: Prisma.TransactionClient, cand
     where: { id: candidateId },
     data: {
       effectiveFit,
-      contactStatus,
+      contactResearchStatus,
       usableContactCount: usable,
       needsVerificationContactCount: needsVerification,
       unusableContactCount: unusable,

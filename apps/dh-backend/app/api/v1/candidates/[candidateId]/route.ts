@@ -31,7 +31,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (_req, { params
     for (const id of claim.evidenceIds) evidenceIds.add(id);
   }
   for (const intervention of candidate.latestSystemAssessment?.interventions ?? []) {
-    for (const id of intervention.feasibilityEvidenceIds) evidenceIds.add(id);
+    for (const id of intervention.possibilityEvidenceIds) evidenceIds.add(id);
     for (const id of intervention.valueEvidenceIds) evidenceIds.add(id);
   }
 

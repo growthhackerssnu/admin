@@ -10,19 +10,32 @@ export const GET = withApiHandler<{ searchRunId: string }>(async (_req, { params
     where: { id: params.searchRunId },
     include: {
       createdBy: { select: { id: true, displayName: true } },
-      quarter: { select: { id: true, label: true } },
+      assignedMember: { select: { id: true, displayName: true } },
+      targetQuarter: true,
     },
   });
   if (!run) throw new ApiError("NOT_FOUND", "탐색을 찾을 수 없습니다.");
 
-  const [byFit, fitWithContact, byTaskStatus] = await Promise.all([
+  const [byFit, fitWithContact, noContact, byTaskStatus] = await Promise.all([
     prisma.candidate.groupBy({
       by: ["effectiveFit"],
-      where: { searchRunId: run.id },
+      where: { originSearchRunId: run.id },
       _count: { _all: true },
     }),
     prisma.candidate.count({
-      where: { searchRunId: run.id, effectiveFit: "fit", contactStatus: "available" },
+      where: {
+        originSearchRunId: run.id,
+        effectiveFit: "fit",
+        contactResearchStatus: "available",
+      },
+    }),
+    // 적합하지만 쓸 창구를 못 찾은 기업. 조사 내역에는 남고 활성 후보에는 안 들어간다(P-07).
+    prisma.candidate.count({
+      where: {
+        originSearchRunId: run.id,
+        effectiveFit: "fit",
+        contactResearchStatus: { not: "available" },
+      },
     }),
     prisma.researchTask.groupBy({
       by: ["status"],
@@ -39,6 +52,7 @@ export const GET = withApiHandler<{ searchRunId: string }>(async (_req, { params
   return {
     body: successBody({
       searchRun: serializeSearchRun(run),
+      // 현재 유효 판단 기준이라 배치가 끝난 뒤 사람이 판단을 바꾸면 값도 바뀐다(v0.4 §6.4).
       counts: {
         candidates: byFit.reduce((sum, row) => sum + row._count._all, 0),
         fit: fitCount("fit"),
@@ -46,6 +60,8 @@ export const GET = withApiHandler<{ searchRunId: string }>(async (_req, { params
         pending: fitCount("pending"),
         notAssessed: fitCount(null),
         fitWithAvailableContact: fitWithContact,
+        noContact,
+        eligible: fitWithContact,
         activeTasks: taskCount("queued") + taskCount("running"),
         failedTasks: taskCount("failed"),
       },

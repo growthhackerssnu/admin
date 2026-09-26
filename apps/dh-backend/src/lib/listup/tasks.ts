@@ -18,7 +18,8 @@ type EnqueueInput = {
   candidateId?: string | null;
   parentTaskId?: string | null;
   type: ResearchTaskType;
-  trigger: "initial" | "auto_followup" | "human_request" | "fit_changed";
+  // v0.4 §6.7: 배치가 만든 작업(searchRun)과 사람이 요청한 작업(userRequest)만 구분한다.
+  trigger: "searchRun" | "userRequest";
   requestedInformation?: string[];
   followupPolicy: "automatic" | "none";
 };

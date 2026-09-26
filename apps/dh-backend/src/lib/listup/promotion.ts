@@ -1,29 +1,26 @@
 import type { Prisma } from "@/generated/prisma";
 import { ApiError } from "../errors";
 
-// 발견 쪽에서 확보한 연락 창구를 발송 쪽 Contact/ContactEndpoint로 넘기는 이음새.
+// 발견 쪽에서 확보한 연락 창구를 발송 작업의 수신자로 넘기는 이음새.
 //
-// src/lib/listup/** 중 발송 도메인 모델을 건드리는 유일한 파일이다. 반대 방향
-// (발송 코드가 발견 테이블을 읽는) 의존은 만들지 않는다 — 발송 기능은 나중에
-// 재작업될 예정이라, 그때 이 파일 하나만 고치면 되게 경계를 좁혀둔다.
+// v0.4 §8.4에 따라 관계자·연락 수단이 발송 쪽과 **같은 테이블**이 되면서 값을 복사할
+// 필요가 없어졌다. 이제 하는 일은 "이 평가가 쓸 만한지 확인하고 그 endpoint를 컨택
+// 건의 수신자로 지정"하는 것뿐이다.
 //
-// 아직 호출자가 없다. 프론트의 "컨택 작업 인계"(canHandoff) 버튼이 쓸 엔드포인트
-// 형태는 명세 범위 밖이라 합의가 필요하다.
-export async function promoteChannelToOutreachContact(
+// 아직 호출자가 없다. 프론트의 "컨택 작업으로 넘기기" 버튼이 쓸 경로는 v0.4 §6.8의
+// `PUT /outreaches/{id}/recipient`로 흡수될 가능성이 커서, 계약을 정한 뒤 연결한다.
+export async function promoteOptionToRecipient(
   tx: Prisma.TransactionClient,
-  input: { candidateId: string; contactChannelId: string },
-): Promise<{ contactId: string; endpointId: string }> {
-  const evaluation = await tx.candidateContact.findUnique({
+  input: { candidateId: string; endpointId: string; outreachId: string },
+): Promise<{ contactId: string | null; endpointId: string }> {
+  const evaluation = await tx.contactOptionAssessment.findUnique({
     where: {
-      candidateId_contactChannelId: {
-        candidateId: input.candidateId,
-        contactChannelId: input.contactChannelId,
-      },
+      candidateId_endpointId: { candidateId: input.candidateId, endpointId: input.endpointId },
     },
-    include: { contactChannel: { include: { person: true } } },
+    include: { endpoint: true },
   });
   if (!evaluation) {
-    throw new ApiError("NOT_FOUND", "후보의 연락 창구 평가를 찾을 수 없습니다.");
+    throw new ApiError("NOT_FOUND", "연락 선택지 평가를 찾을 수 없습니다.");
   }
   if (evaluation.status !== "usable") {
     throw new ApiError("INVALID_STATE", "사용 가능으로 판정된 창구만 인계할 수 있습니다.", {
@@ -31,38 +28,27 @@ export async function promoteChannelToOutreachContact(
     });
   }
 
-  const channel = evaluation.contactChannel;
-  const name = channel.person?.name ?? "담당자 미상";
-
-  // 발송 쪽 Contact는 (기업, 이름)으로 식별한다 — 발견 쪽 person_id를 발송 테이블에
-  // 심으면 두 도메인이 다시 묶이므로 값만 옮긴다.
-  const existingContact = await tx.contact.findFirst({
-    where: { companyId: channel.companyId, name },
+  const outreach = await tx.outreach.findUnique({
+    where: { id: input.outreachId },
+    select: { companyId: true },
   });
-  const contact =
-    existingContact ??
-    (await tx.contact.create({
-      data: {
-        companyId: channel.companyId,
-        name,
-        title: channel.person?.jobTitle ?? null,
-        linkedinUrl: channel.type === "linkedin" ? channel.value : null,
-      },
-    }));
+  if (!outreach || outreach.companyId !== evaluation.endpoint.companyId) {
+    throw new ApiError("VALIDATION_ERROR", "연락 창구가 이 기업의 것이 아닙니다.", {
+      fieldErrors: { endpointId: "다른 기업의 창구" },
+    });
+  }
 
-  const existingEndpoint = await tx.contactEndpoint.findFirst({
-    where: { companyId: channel.companyId, channel: channel.type, address: channel.value },
+  // 채널은 사람이 고르는 것이 원칙이라(P-09) 여기서는 endpoint의 채널을 그대로 따른다.
+  await tx.outreach.update({
+    where: { id: input.outreachId },
+    data: {
+      recipientContactId: evaluation.endpoint.contactId,
+      recipientEndpointId: evaluation.endpoint.id,
+      selectedChannel: evaluation.endpoint.channel,
+      selectionVersion: { increment: 1 },
+      version: { increment: 1 },
+    },
   });
-  const endpoint =
-    existingEndpoint ??
-    (await tx.contactEndpoint.create({
-      data: {
-        companyId: channel.companyId,
-        contactId: contact.id,
-        channel: channel.type,
-        address: channel.value,
-      },
-    }));
 
-  return { contactId: contact.id, endpointId: endpoint.id };
+  return { contactId: evaluation.endpoint.contactId, endpointId: evaluation.endpoint.id };
 }

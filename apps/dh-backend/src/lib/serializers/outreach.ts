@@ -40,7 +40,7 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
     route: outreach.route,
     workStage: outreach.workStage,
     internalDecision: outreach.internalDecision,
-    quarterId: outreach.quarterId,
+    currentTargetQuarterId: outreach.currentTargetQuarterId,
     lastSentQuarterId: outreach.lastSentQuarterId,
     recipientContactId: outreach.recipientContactId,
     currentRevision: outreach.currentRevision,
@@ -53,7 +53,7 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
   return {
     id: outreach.id,
     companyId: outreach.companyId,
-    quarterId: outreach.quarterId,
+    currentTargetQuarterId: outreach.currentTargetQuarterId,
     version: outreach.version,
     route: outreach.route,
     workStage: outreach.workStage,

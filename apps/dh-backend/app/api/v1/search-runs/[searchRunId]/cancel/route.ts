@@ -34,7 +34,8 @@ export const POST = withApiHandler<{ searchRunId: string }>(async (_req, { param
       where: { id: run.id },
       include: {
         createdBy: { select: { id: true, displayName: true } },
-        quarter: { select: { id: true, label: true } },
+        assignedMember: { select: { id: true, displayName: true } },
+        targetQuarter: true,
       },
     });
   });

@@ -7,11 +7,17 @@ import { serializeResearchTask, serializeSearchRun } from "@/lib/listup/serializ
 import { enqueueResearchTask } from "@/lib/listup/tasks";
 import { createSearchRunSchema } from "@/lib/listup/validation";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
+import {
+  LISTUP_EXECUTION_VERSION,
+  listupExecution,
+  type ConditionsSnapshot,
+} from "@/config/listupExecution";
 import { prisma } from "@/lib/prisma";
 
 const runInclude = {
   createdBy: { select: { id: true, displayName: true } },
-  quarter: { select: { id: true, label: true } },
+  assignedMember: { select: { id: true, displayName: true } },
+  targetQuarter: true,
 } satisfies Prisma.SearchRunInclude;
 
 const SEARCH_RUN_STATUSES: SearchRunStatus[] = [
@@ -23,13 +29,14 @@ const SEARCH_RUN_STATUSES: SearchRunStatus[] = [
   "cancelled",
 ];
 
-// GET /search-runs?status&quarter_id&cursor&limit
+// GET /search-runs?targetQuarterId&assignedMemberId&status&cursor&limit
 export const GET = withApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
   const status = searchParams.get("status");
-  const quarterId = searchParams.get("quarterId");
+  const targetQuarterId = searchParams.get("targetQuarterId");
+  const assignedMemberId = searchParams.get("assignedMemberId");
 
   if (status && !SEARCH_RUN_STATUSES.includes(status as SearchRunStatus)) {
     throw new ApiError("VALIDATION_ERROR", "status 값이 올바르지 않습니다.", { fieldErrors: { status: "허용되지 않는 값" } });
@@ -38,7 +45,8 @@ export const GET = withApiHandler(async (req) => {
   const rows = await prisma.searchRun.findMany({
     where: {
       ...(status ? { status: status as SearchRunStatus } : {}),
-      ...(quarterId ? { quarterId } : {}),
+      ...(targetQuarterId ? { targetQuarterId } : {}),
+      ...(assignedMemberId ? { assignedMemberId } : {}),
     },
     take: takeWithLookahead(limit),
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -68,22 +76,25 @@ export const POST = withApiHandler(async (req, { member }) => {
   }
 
   return withIdempotency(req, member, "POST /search-runs", input, async (tx) => {
-    const quarter = await tx.quarter.findUnique({ where: { id: input.quarterId } });
-    if (!quarter) throw new ApiError("NOT_FOUND", "분기를 찾을 수 없습니다.");
-    if (!quarter.active) {
-      throw new ApiError("INVALID_STATE", "닫힌 분기에는 새 탐색을 만들 수 없습니다.", {
-        fieldErrors: { quarterId: "닫힌 분기" },
-      });
-    }
+    const quarter = await tx.targetQuarter.findUnique({ where: { id: input.targetQuarterId } });
+    if (!quarter) throw new ApiError("NOT_FOUND", "목표 분기를 찾을 수 없습니다.");
+
+    // 실행 설정은 요청 본문이 아니라 서버 config에서 읽어 스냅샷으로 얼려둔다(v0.4 §6.4).
+    // 나중에 config를 바꿔도 이 배치가 어떤 상한으로 돌았는지는 남는다.
+    const conditionsSnapshot: ConditionsSnapshot = {
+      schemaVersion: LISTUP_EXECUTION_VERSION,
+      sources: input.sources,
+      filters: input.filters,
+      execution: listupExecution,
+    };
 
     const run = await tx.searchRun.create({
       data: {
-        quarterId: input.quarterId,
-        sourcePolicy: input.sourcePolicy,
-        sources: input.sources,
-        filters: input.filters,
-        limits: input.limits,
+        targetQuarterId: input.targetQuarterId,
+        conditionsSnapshot,
+        // 탐색을 시작한 사람이 결과 기업의 첫 전송까지 담당한다(P-02).
         createdById: member.id,
+        assignedMemberId: member.id,
       },
       include: runInclude,
     });
@@ -91,7 +102,7 @@ export const POST = withApiHandler(async (req, { member }) => {
     const { task } = await enqueueResearchTask(tx, {
       searchRunId: run.id,
       type: "company_discovery",
-      trigger: "initial",
+      trigger: "searchRun",
       followupPolicy: "automatic",
     });
 

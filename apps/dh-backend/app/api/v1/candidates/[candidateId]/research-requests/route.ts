@@ -39,17 +39,17 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
       }
 
       if (input.type === "contact_verification") {
-        const existing = await tx.candidateContact.count({ where: { candidateId: candidate.id } });
+        const existing = await tx.contactOptionAssessment.count({ where: { candidateId: candidate.id } });
         if (existing === 0) {
           throw new ApiError("NO_CONTACT_TO_VERIFY", "검증할 연락 창구가 없습니다.");
         }
       }
 
       const { task, reused } = await enqueueResearchTask(tx, {
-        searchRunId: candidate.searchRunId,
+        searchRunId: candidate.originSearchRunId,
         candidateId: candidate.id,
         type: input.type,
-        trigger: "human_request",
+        trigger: "userRequest",
         requestedInformation: input.requestedInformation,
         // 연락 계열은 연락 가능성 평가까지 이어서 하고, 사실 보완은 거기서 멈춘다.
         followupPolicy: isContactWork ? "automatic" : "none",

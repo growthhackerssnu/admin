@@ -19,19 +19,14 @@ export const searchFiltersSchema = z.object({
   additionalConditions: z.string().trim().min(1).nullable(),
 });
 
-export const searchLimitsSchema = z.object({
-  maxCompanies: z.number().int().min(1),
-  maxFitFollowupRounds: z.number().int().min(0),
-  maxContactSearchRounds: z.number().int().min(1),
-});
-
+// v0.4 §6.4: targetQuarterId·sources·filters만 받는다. 탐색 이름·담당자·Cycle ID는
+// 받지 않고, sourcePolicy와 실행 상한(limits)도 사용자 입력이 아니다 — 실행 설정은
+// 서버 config에서 읽어 conditionsSnapshot에 얼린다.
 export const createSearchRunSchema = z
   .object({
-    quarterId: z.string().min(1),
-    sourcePolicy: z.enum(["selected_only", "allow_supplementary"]),
+    targetQuarterId: z.string().min(1),
     sources: z.array(sourceConfigSchema).min(1),
     filters: searchFiltersSchema,
-    limits: searchLimitsSchema,
   })
   .superRefine((data, ctx) => {
     const keys = data.sources.map((s) => s.key);

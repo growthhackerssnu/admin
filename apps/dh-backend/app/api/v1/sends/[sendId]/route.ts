@@ -11,7 +11,7 @@ export const GET = withApiHandler<{ sendId: string }>(async (_req, { params }) =
     body: successBody({
       id: send.id,
       outreachId: send.outreachId,
-      quarterId: send.quarterId,
+      targetQuarterId: send.targetQuarterId,
       channel: send.channel,
       status: send.status,
       recipientNameSnapshot: send.recipientNameSnapshot,

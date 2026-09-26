@@ -24,14 +24,8 @@ export type SearchLimits = {
   maxContactSearchRounds: number;
 };
 
-// FitAssessment.informationGaps도 같은 이유로 Json이다(스칼라 두 개, 조회 대상 아님).
-export type InformationGap = {
-  question: string;
-  resolutionMethod: "public_research" | "company_confirmation";
-};
-
-// ResearchTask.resultRefs — 가리키는 리소스 종류가 섞여 있어 형태만 맞춘다.
+// ResearchTask.resultRefs — 가리키는 리소스 종류가 섞여 있어 형태만 맞춘다(v0.4 §5.2).
 export type ResultRef = {
-  resourceType: string;
-  resourceId: string;
+  type: "companyResearch" | "fitAssessment" | "contactEndpoint" | "draftRevision";
+  id: string;
 };

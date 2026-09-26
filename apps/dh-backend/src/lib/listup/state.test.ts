@@ -10,7 +10,7 @@ type Scenario = {
     activeHumanDecisionId: string | null;
     latestSystemAssessmentId: string | null;
     effectiveFit: "fit" | "unfit" | "pending" | null;
-    contactStatus: string;
+    contactResearchStatus: string;
     usableContactCount: number;
     needsVerificationContactCount: number;
     unusableContactCount: number;
@@ -31,7 +31,7 @@ function fakeTx(scenario: Scenario) {
         activeHumanDecisionId: scenario.humanVerdict ? "dec1" : null,
         latestSystemAssessmentId: scenario.systemVerdict ? "assess1" : null,
         effectiveFit: scenario.candidate?.effectiveFit ?? null,
-        contactStatus: scenario.candidate?.contactStatus ?? "not_started",
+        contactResearchStatus: scenario.candidate?.contactResearchStatus ?? "not_started",
         usableContactCount: scenario.candidate?.usableContactCount ?? 0,
         needsVerificationContactCount: scenario.candidate?.needsVerificationContactCount ?? 0,
         unusableContactCount: scenario.candidate?.unusableContactCount ?? 0,
@@ -47,7 +47,7 @@ function fakeTx(scenario: Scenario) {
     fitAssessment: {
       findUnique: async () => (scenario.systemVerdict ? { verdict: scenario.systemVerdict } : null),
     },
-    candidateContact: {
+    contactOptionAssessment: {
       groupBy: async () =>
         (scenario.contacts ?? []).map((c) => ({ status: c.status, _count: { _all: c.count } })),
     },
@@ -92,7 +92,7 @@ describe("contact_status 우선순위 (명세 §4.1)", () => {
       contacts: [{ status: "usable", count: 1 }],
       activeContactTask: true,
     });
-    expect(data.contactStatus).toBe("available");
+    expect(data.contactResearchStatus).toBe("available");
   });
 
   it("usable이 없고 연락 조사가 진행 중이면 searching", async () => {
@@ -100,12 +100,12 @@ describe("contact_status 우선순위 (명세 §4.1)", () => {
       contacts: [{ status: "needs_verification", count: 2 }],
       activeContactTask: true,
     });
-    expect(data.contactStatus).toBe("searching");
+    expect(data.contactResearchStatus).toBe("searching");
   });
 
   it("활성 작업이 없고 needs_verification이 있으면 needs_verification", async () => {
     const data = await runState({ contacts: [{ status: "needs_verification", count: 1 }] });
-    expect(data.contactStatus).toBe("needs_verification");
+    expect(data.contactResearchStatus).toBe("needs_verification");
   });
 
   it("정상 종료한 연락 조사가 있고 쓸 창구가 없으면 not_found", async () => {
@@ -113,17 +113,17 @@ describe("contact_status 우선순위 (명세 §4.1)", () => {
       contacts: [{ status: "unusable", count: 3 }],
       succeededContactResearch: true,
     });
-    expect(data.contactStatus).toBe("not_found");
+    expect(data.contactResearchStatus).toBe("not_found");
   });
 
   it("아무 조건도 만족하지 않으면 not_started", async () => {
     const data = await runState({});
-    expect(data.contactStatus).toBe("not_started");
+    expect(data.contactResearchStatus).toBe("not_started");
   });
 
   it("조사가 실패하기만 한 경우도 not_started다 — 미발견과 실패를 구분한다", async () => {
     const data = await runState({ succeededContactResearch: false });
-    expect(data.contactStatus).toBe("not_started");
+    expect(data.contactResearchStatus).toBe("not_started");
   });
 });
 
@@ -135,7 +135,7 @@ describe("revision", () => {
 
   it("아무것도 안 바뀌면 올리지 않는다", async () => {
     const data = await runState({
-      candidate: { effectiveFit: null, contactStatus: "not_started" },
+      candidate: { effectiveFit: null, contactResearchStatus: "not_started" },
     });
     expect(data.revision).toBeUndefined();
   });

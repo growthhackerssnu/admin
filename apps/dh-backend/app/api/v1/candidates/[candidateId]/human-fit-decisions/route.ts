@@ -11,7 +11,7 @@ import {
   countAutomaticContactRounds,
   enqueueResearchTask,
 } from "@/lib/listup/tasks";
-import type { SearchLimits } from "@/lib/listup/types";
+import type { ConditionsSnapshot } from "@/config/listupExecution";
 import { humanFitDecisionSchema } from "@/lib/listup/validation";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
@@ -66,7 +66,7 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
     async (tx) => {
       const candidate = await tx.candidate.findUnique({
         where: { id: params.candidateId },
-        include: { searchRun: { select: { limits: true } } },
+        include: { originSearchRun: { select: { conditionsSnapshot: true } } },
       });
       assertRevisionMatch(candidate, candidate?.revision, input.expectedRevision);
 
@@ -101,10 +101,10 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
 
       const followup = await applyFollowup(tx, {
         candidateId: candidate.id,
-        searchRunId: candidate.searchRunId,
+        searchRunId: candidate.originSearchRunId,
         verdict: input.verdict,
         usableContactCount: candidate.usableContactCount,
-        limits: candidate.searchRun.limits as unknown as SearchLimits,
+        execution: (candidate.originSearchRun.conditionsSnapshot as unknown as ConditionsSnapshot).execution,
       });
 
       const updated = await recomputeCandidateState(tx, candidate.id);
@@ -140,7 +140,7 @@ async function applyFollowup(
     searchRunId: string;
     verdict: "fit" | "unfit" | "pending";
     usableContactCount: number;
-    limits: SearchLimits;
+    execution: ConditionsSnapshot["execution"];
   },
 ): Promise<FollowupResult> {
   if (input.verdict !== "fit") {
@@ -164,8 +164,9 @@ async function applyFollowup(
     return { action: "task_reused", taskId: activeContactTask.id, reason: "existing_task" };
   }
 
+  // 연락 창구 조사 라운드만 센다. 기업 정보 보완이나 배치의 발견 루프와는 별개 한도다.
   const usedRounds = await countAutomaticContactRounds(tx, input.candidateId);
-  if (usedRounds >= input.limits.maxContactSearchRounds) {
+  if (usedRounds >= input.execution.maxContactSearchRounds) {
     return { action: "none", taskId: null, reason: "automatic_limit_reached" };
   }
 
@@ -173,7 +174,7 @@ async function applyFollowup(
     searchRunId: input.searchRunId,
     candidateId: input.candidateId,
     type: "contact_research",
-    trigger: "fit_changed",
+    trigger: "userRequest",
     followupPolicy: "automatic",
   });
   return { action: "task_created", taskId: task.id, reason: "fit_changed" };

@@ -19,7 +19,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
     assertRevisionMatch(current, current?.version, expectedVersion);
 
     // 전역 "현재 분기"가 없으므로, 건너뛸 분기는 이 컨택 건이 실제로 속한 분기여야 한다.
-    if (current.quarterId !== quarterId) {
+    if (current.currentTargetQuarterId !== quarterId) {
       throw new ApiError("INVALID_STATE", "이 컨택 건의 분기가 아닙니다. 최신 내용을 다시 확인해주세요.", {
         fieldErrors: { quarterId: "이 컨택 건의 분기가 아님" },
         });

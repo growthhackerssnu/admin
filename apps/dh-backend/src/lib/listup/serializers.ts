@@ -1,9 +1,9 @@
 import type {
   Candidate,
-  CandidateContact,
-  CompanyPerson,
   CompanyResearch,
-  ContactChannel,
+  Contact,
+  ContactEndpoint,
+  ContactOptionAssessment,
   Evidence,
   FitAssessment,
   HumanFitDecision,
@@ -13,7 +13,8 @@ import type {
   ResearchTask,
   SearchRun,
 } from "@/generated/prisma";
-import type { InformationGap, ResultRef, SearchFilters, SearchLimits, SourceConfig } from "./types";
+import type { ResultRef } from "./types";
+import type { ConditionsSnapshot } from "@/config/listupExecution";
 
 // 응답 키는 camelCase이고 Prisma 필드명과 같다(v0.3 §7.1). 그래도 직렬화를 거치는
 // 이유는 Date → ISO 문자열 변환, 노출 필드 제한, effectiveFit의 null → "not_assessed"
@@ -25,17 +26,30 @@ function actor(member: MemberRef) {
   return { id: member.id, displayName: member.displayName };
 }
 
-export function serializeSearchRun(run: SearchRun & { createdBy: MemberRef; quarter: { id: string; label: string } }) {
+export function serializeSearchRun(
+  run: SearchRun & {
+    createdBy: MemberRef;
+    assignedMember: MemberRef;
+    targetQuarter: { id: string; year: number; quarter: number };
+  },
+) {
+  // 읽기 모델은 스냅샷에서 sources·filters를 펼쳐 제공한다(v0.4 §6.4).
+  const snapshot = run.conditionsSnapshot as unknown as ConditionsSnapshot;
   return {
     id: run.id,
-    quarter: { id: run.quarter.id, label: run.quarter.label },
-    sourcePolicy: run.sourcePolicy,
-    sources: run.sources as unknown as SourceConfig[],
-    filters: run.filters as unknown as SearchFilters,
-    limits: run.limits as unknown as SearchLimits,
+    targetQuarter: {
+      id: run.targetQuarter.id,
+      year: run.targetQuarter.year,
+      quarter: run.targetQuarter.quarter,
+    },
+    sources: snapshot.sources,
+    filters: snapshot.filters,
+    execution: snapshot.execution,
     status: run.status,
     duplicateExcludedCount: run.duplicateExcludedCount,
+    finishReason: run.finishReason,
     createdBy: actor(run.createdBy),
+    assignedMember: actor(run.assignedMember),
     createdAt: run.createdAt.toISOString(),
     startedAt: run.startedAt?.toISOString() ?? null,
     finishedAt: run.finishedAt?.toISOString() ?? null,
@@ -48,8 +62,7 @@ export function serializeEvidence(evidence: Evidence) {
     companyId: evidence.companyId,
     searchRunId: evidence.searchRunId,
     url: evidence.url,
-    sourceName: evidence.sourceName,
-    sourceType: evidence.sourceType,
+    sourceKey: evidence.sourceKey,
     title: evidence.title,
     excerpt: evidence.excerpt,
     publishedAt: evidence.publishedAt?.toISOString() ?? null,
@@ -71,7 +84,8 @@ export function serializeCompanyResearch(research: CompanyResearch & { claims: R
   return {
     id: research.id,
     companyId: research.companyId,
-    searchRunId: research.searchRunId,
+    originSearchRunId: research.originSearchRunId,
+    taskId: research.taskId,
     claims: research.claims.map(serializeResearchClaim),
     missingInformation: research.missingInformation,
     createdAt: research.createdAt.toISOString(),
@@ -82,15 +96,15 @@ export function serializeInterventionAssessment(intervention: InterventionAssess
   return {
     id: intervention.id,
     area: intervention.area,
-    feasibility: {
-      verdict: intervention.feasibilityVerdict,
-      rationale: intervention.feasibilityRationale,
-      evidenceIds: intervention.feasibilityEvidenceIds,
-      requiredConditions: intervention.requiredConditions,
+    possibility: {
+      assessment: intervention.possibilityVerdict,
+      reason: intervention.possibilityReason,
+      evidenceIds: intervention.possibilityEvidenceIds,
     },
+    prerequisites: intervention.prerequisites,
     value: {
-      verdict: intervention.valueVerdict,
-      rationale: intervention.valueRationale,
+      assessment: intervention.valueVerdict,
+      reason: intervention.valueReason,
       evidenceIds: intervention.valueEvidenceIds,
       targetBusinessOutcome: intervention.targetBusinessOutcome,
     },
@@ -107,7 +121,7 @@ export function serializeFitAssessment(
     verdict: assessment.verdict,
     summary: assessment.summary,
     interventions: assessment.interventions.map(serializeInterventionAssessment),
-    informationGaps: assessment.informationGaps as unknown as InformationGap[],
+    informationGaps: assessment.informationGaps,
     criteriaVersion: assessment.criteriaVersion,
     modelVersion: assessment.modelVersion,
     createdAt: assessment.createdAt.toISOString(),
@@ -136,62 +150,69 @@ export function serializeEffectiveFit(effectiveFit: Candidate["effectiveFit"]) {
 export function serializeCandidate(candidate: Candidate) {
   return {
     id: candidate.id,
-    searchRunId: candidate.searchRunId,
+    originSearchRunId: candidate.originSearchRunId,
     companyId: candidate.companyId,
     discoveryEvidenceIds: candidate.discoveryEvidenceIds,
     currentResearchId: candidate.currentResearchId,
     latestSystemAssessmentId: candidate.latestSystemAssessmentId,
     activeHumanDecisionId: candidate.activeHumanDecisionId,
     effectiveFit: serializeEffectiveFit(candidate.effectiveFit),
-    contactStatus: candidate.contactStatus,
+    contactResearchStatus: candidate.contactResearchStatus,
     revision: candidate.revision,
     createdAt: candidate.createdAt.toISOString(),
     updatedAt: candidate.updatedAt.toISOString(),
   };
 }
 
-export function serializeCompanyPerson(person: CompanyPerson) {
+// 관계자·연락 수단은 발송 쪽과 같은 테이블을 쓴다(v0.4 §8.4). 발송 업무가 쓰는
+// 필드(title, department, valid 등)는 여기서 내보내지 않는다.
+export function serializeContactPerson(person: Contact) {
   return {
     id: person.id,
     companyId: person.companyId,
     name: person.name,
-    jobTitle: person.jobTitle,
+    role: person.role ?? person.title,
     jobFunction: person.jobFunction,
     seniority: person.seniority,
     employmentStatus: person.employmentStatus,
-    employmentEvidenceIds: person.employmentEvidenceIds,
-    checkedAt: person.checkedAt.toISOString(),
+    employmentCheckedAt: person.employmentCheckedAt?.toISOString() ?? null,
+    evidenceIds: person.evidenceIds,
   };
 }
 
-export function serializeContactChannel(channel: ContactChannel) {
+export function serializeContactEndpoint(endpoint: ContactEndpoint) {
   return {
-    id: channel.id,
-    companyId: channel.companyId,
-    personId: channel.personId,
-    type: channel.type,
-    value: channel.value,
-    ownerType: channel.ownerType,
-    discoveryMethod: channel.discoveryMethod,
-    ownershipStatus: channel.ownershipStatus,
-    validationStatus: channel.validationStatus,
-    reachabilityStatus: channel.reachabilityStatus,
-    linkedinMethods: channel.linkedinMethods,
-    evidenceIds: channel.evidenceIds,
-    checkedAt: channel.checkedAt.toISOString(),
+    id: endpoint.id,
+    companyId: endpoint.companyId,
+    contactId: endpoint.contactId,
+    ownerType: endpoint.ownerType,
+    channel: endpoint.channel,
+    address: endpoint.address,
+    discoveryMethod: endpoint.discoveryMethod,
+    ownershipStatus: endpoint.ownershipStatus,
+    validationStatus: endpoint.validationStatus,
+    reachabilityStatus: endpoint.reachabilityStatus,
+    linkedinMethods: endpoint.linkedinMethods,
+    evidenceIds: endpoint.evidenceIds,
+    checkedAt: endpoint.checkedAt?.toISOString() ?? null,
   };
 }
 
-export function serializeCandidateContact(evaluation: CandidateContact) {
+// confirmedBy가 있으면 사람이 직접 확인해 등록한 창구다(P-19). 조사가 만든 평가는
+// null이며, 이 둘을 화면에서 구분할 수 있어야 한다.
+export function serializeContactOptionAssessment(
+  evaluation: ContactOptionAssessment & { confirmedBy?: MemberRef | null },
+) {
   return {
     id: evaluation.id,
     candidateId: evaluation.candidateId,
-    contactChannelId: evaluation.contactChannelId,
+    endpointId: evaluation.endpointId,
     status: evaluation.status,
-    priority: evaluation.priority,
     roleRelevance: evaluation.roleRelevance,
     decisionAuthority: evaluation.decisionAuthority,
     reason: evaluation.reason,
+    sourceUrl: evaluation.sourceUrl,
+    confirmedBy: evaluation.confirmedBy ? actor(evaluation.confirmedBy) : null,
     checkedAt: evaluation.checkedAt.toISOString(),
   };
 }

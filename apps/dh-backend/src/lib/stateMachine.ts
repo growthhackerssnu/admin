@@ -25,7 +25,7 @@ export interface OutreachStateInput {
   route: Route;
   workStage: WorkStage;
   internalDecision: InternalDecision;
-  quarterId: string;
+  currentTargetQuarterId: string;
   lastSentQuarterId: string | null;
   recipientContactId: string | null;
   currentRevision: number | null;
@@ -56,7 +56,7 @@ export function computeOutreachState(o: OutreachStateInput): OutreachState {
     return { allowedActions: [], blockedReasons: ["현재 논의 중 — 리스트업에서 제외됩니다."] };
   }
 
-  const sameQuarterAlreadySent = o.lastSentQuarterId === o.quarterId;
+  const sameQuarterAlreadySent = o.lastSentQuarterId === o.currentTargetQuarterId;
   const allowed: OutreachAction[] = [];
 
   switch (o.workStage) {
