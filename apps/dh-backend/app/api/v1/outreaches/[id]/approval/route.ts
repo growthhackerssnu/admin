@@ -1,28 +1,32 @@
 import { withApiHandler } from "@/lib/apiHandler";
 import { ApiError, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
-import { assertVersionMatch } from "@/lib/optimisticLock";
+import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
 import { approvalSchema } from "@/lib/validation/outreach";
 
-// #16 POST /outreaches/{id}/approval — 기업 검토 승인 → 수신자 선택 단계로.
-// 재접촉 경로는 reviewNote(재접촉 사유)가 필수, 나머지 경로는 사유 없이 승인.
-export const POST = withApiHandler<{ id: string }>(async (req, { member, params, requestId }) => {
+// POST /outreaches/{id}/approval — 기업 검토 승인 → 수신자 선택 단계로.
+// 재접촉 경로는 review_note(재접촉 사유)가 필수, 나머지 경로는 사유 없이 승인.
+export const POST = withApiHandler<{ id: string }>(async (req, { member, params }) => {
   const body = await req.json().catch(() => null);
   const parsed = approvalSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
-  const { expectedVersion, reviewNote, conditionEvidence } = parsed.data;
+  const {
+    expected_version: expectedVersion,
+    review_note: reviewNote,
+    condition_evidence: conditionEvidence,
+  } = parsed.data;
 
-  const result = await withIdempotency(req, member, "POST /outreaches/:id/approval", parsed.data, async (tx) => {
+  return withIdempotency(req, member, "POST /outreaches/:id/approval", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.id } });
-    assertVersionMatch(current, expectedVersion);
+    assertRevisionMatch(current, current?.version, expectedVersion);
 
     if (current.workStage !== "company_review") {
       throw new ApiError("INVALID_STATE", "지금은 승인할 수 있는 단계가 아닙니다.");
     }
     if (current.route === "recontact" && !reviewNote?.trim()) {
       throw new ApiError("VALIDATION_ERROR", "재접촉 승인에는 사유가 필요합니다.", {
-        fieldErrors: { reviewNote: "필수" },
+        fields: { review_note: "필수" },
       });
     }
 
@@ -39,11 +43,11 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params,
       },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
+      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
+        expected_revision: expectedVersion,
+      });
     }
 
-    return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx), requestId) };
+    return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx)) };
   });
-
-  return result;
 });

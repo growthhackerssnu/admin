@@ -6,25 +6,26 @@ import type { InternalDecision, Response, Route, WorkStage } from "@/generated/p
 // "지금 뭘 할 수 있는가"는 항상 이 함수를 거쳐 계산한다 — 엔드포인트마다 따로
 // 판단하면 allowedActions가 서로 어긋날 수 있다.
 
+// allowed_actions로 그대로 나가는 값이라 명세의 enum 표기(snake_case)를 따른다.
 export type OutreachAction =
-  | "approveCompany"
-  | "skipForCycle"
-  | "excludeCompany"
-  | "searchContacts"
-  | "selectRecipient"
-  | "changeRecipient"
-  | "generateDraft"
-  | "saveDraft"
-  | "approveDraft"
-  | "manualSendRecord"
-  | "saveResponse";
+  | "approve_company"
+  | "skip_for_quarter"
+  | "exclude_company"
+  | "search_contacts"
+  | "select_recipient"
+  | "change_recipient"
+  | "generate_draft"
+  | "save_draft"
+  | "approve_draft"
+  | "manual_send_record"
+  | "save_response";
 
 export interface OutreachStateInput {
   route: Route;
   workStage: WorkStage;
   internalDecision: InternalDecision;
-  currentCycleId: string;
-  lastSentCycleId: string | null;
+  quarterId: string;
+  lastSentQuarterId: string | null;
   recipientContactId: string | null;
   currentRevision: number | null;
   approvedRevision: number | null;
@@ -44,55 +45,55 @@ export function computeOutreachState(o: OutreachStateInput): OutreachState {
   if (o.companyPermanentlyExcluded || o.internalDecision === "excluded_permanently") {
     return { allowedActions: [], blockedReasons: ["영구 제외된 기업입니다."] };
   }
-  if (o.internalDecision === "skipped_for_cycle") {
+  if (o.internalDecision === "skipped_for_quarter") {
     return {
       allowedActions: [],
-      blockedReasons: ["이번 차수 건너뛰기 처리됨. 다음 차수에 검토 대상으로 복귀합니다."],
+      blockedReasons: ["이번 분기 건너뛰기 처리됨. 다음 분기에 검토 대상으로 복귀합니다."],
     };
   }
   if (o.latestResponse?.result === "discussing") {
     return { allowedActions: [], blockedReasons: ["현재 논의 중 — 리스트업에서 제외됩니다."] };
   }
 
-  const sameCycleAlreadySent = o.lastSentCycleId === o.currentCycleId;
+  const sameQuarterAlreadySent = o.lastSentQuarterId === o.quarterId;
   const allowed: OutreachAction[] = [];
 
   switch (o.workStage) {
     case "company_review": {
-      if (sameCycleAlreadySent) {
-        blockedReasons.push("이번 차수에 이미 발송했습니다. 담당자·채널을 바꿔도 추가 발송할 수 없습니다.");
+      if (sameQuarterAlreadySent) {
+        blockedReasons.push("이번 분기에 이미 발송했습니다. 담당자·채널을 바꿔도 추가 발송할 수 없습니다.");
       } else {
-        allowed.push("approveCompany");
+        allowed.push("approve_company");
       }
       // 신규 경로는 건너뛰기를 허용하지 않는다 (05 문서 §3 경로별 내부 결정 규칙).
-      if (o.route !== "new") allowed.push("skipForCycle");
-      allowed.push("excludeCompany");
+      if (o.route !== "new") allowed.push("skip_for_quarter");
+      allowed.push("exclude_company");
       break;
     }
     case "recipient_selection": {
-      allowed.push("searchContacts", "selectRecipient");
-      if (o.recipientContactId) allowed.push("changeRecipient");
+      allowed.push("search_contacts", "select_recipient");
+      if (o.recipientContactId) allowed.push("change_recipient");
       if (!o.templateBound) {
         blockedReasons.push("경로별 지정 템플릿이 연결되지 않아 새 초안을 생성할 수 없습니다.");
       } else if (o.recipientContactId) {
-        allowed.push("generateDraft");
+        allowed.push("generate_draft");
       }
       break;
     }
     case "draft_review": {
-      allowed.push("saveDraft", "changeRecipient");
-      if (o.currentRevision != null) allowed.push("approveDraft");
+      allowed.push("save_draft", "change_recipient");
+      if (o.currentRevision != null) allowed.push("approve_draft");
       break;
     }
     case "ready_to_send": {
-      allowed.push("saveDraft", "manualSendRecord");
+      allowed.push("save_draft", "manual_send_record");
       break;
     }
     case "response_check": {
-      // 과거 발송의 응답 기록은 활성 차수와 무관하게 항상 가능하다.
-      allowed.push("saveResponse");
-      if (sameCycleAlreadySent) {
-        blockedReasons.push("응답 확인은 가능하지만, 이번 차수 추가 컨택은 할 수 없습니다.");
+      // 과거 발송의 응답 기록은 분기와 무관하게 항상 가능하다.
+      allowed.push("save_response");
+      if (sameQuarterAlreadySent) {
+        blockedReasons.push("응답 확인은 가능하지만, 이번 분기 추가 컨택은 할 수 없습니다.");
       }
       break;
     }

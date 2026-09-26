@@ -1,14 +1,14 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, listBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
-// #07 GET /outreaches/{id}/contacts
+// GET /outreaches/{id}/contacts
 //
 // 제외 판정 두 가지:
 // 1) prelaunch_contacts와 이름/이메일/링크드인이 일치 — 배포 전 접촉자는 항상 제외
 // 2) route가 alternate_contact(다른 관계자)면, 이 outreach의 과거 발송 기록에 이미
 //    등장한 contact도 제외 — "다른 관계자에게 제안" 규칙
-export const GET = withApiHandler<{ id: string }>(async (_req, { params, requestId }) => {
+export const GET = withApiHandler<{ id: string }>(async (_req, { params }) => {
   const outreach = await prisma.outreach.findUnique({
     where: { id: params.id },
     select: { id: true, route: true, companyId: true },
@@ -45,21 +45,22 @@ export const GET = withApiHandler<{ id: string }>(async (_req, { params, request
     else if (alreadyContacted) excludedReason = "이전에 이미 연락한 관계자입니다.";
 
     return {
-      contactId: c.id,
+      contact_id: c.id,
       name: c.name,
       title: c.title,
       department: c.department,
-      linkedinUrl: c.linkedinUrl,
+      linkedin_url: c.linkedinUrl,
       endpoints: c.endpoints.map((e) => ({
-        endpointId: e.id,
+        endpoint_id: e.id,
         channel: e.channel,
         address: e.address,
         valid: e.valid,
       })),
       selectable: excludedReason === null,
-      excludedReason,
+      excluded_reason: excludedReason,
     };
   });
 
-  return { body: successBody({ items }, requestId) };
+  // 기업 하나의 관계자 목록이라 페이지네이션하지 않는다.
+  return { body: listBody(items, { nextCursor: null, hasMore: false }) };
 });
