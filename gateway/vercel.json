@@ -8,6 +8,8 @@
     { "source": "/dh", "destination": "https://TODO-dh-frontend-deployment-url/" },
     { "source": "/dh/:path*", "destination": "https://TODO-dh-frontend-deployment-url/:path*" },
     { "source": "/hr", "destination": "https://TODO-hr-frontend-deployment-url/" },
-    { "source": "/hr/:path*", "destination": "https://TODO-hr-frontend-deployment-url/:path*" }
+    { "source": "/hr/:path*", "destination": "https://TODO-hr-frontend-deployment-url/:path*" },
+    { "source": "/nut", "destination": "https://TODO-nut-frontend-deployment-url/" },
+    { "source": "/nut/:path*", "destination": "https://TODO-nut-frontend-deployment-url/:path*" }
   ]
 }

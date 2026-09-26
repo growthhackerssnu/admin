@@ -1,0 +1,31 @@
+{
+  "name": "dhbot-nut-backend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "next dev -p 3003",
+    "build": "tsc --noEmit && next build",
+    "start": "next start -p 3003",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write app src",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@dhbot/auth": "*",
+    "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "next": "^14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "prettier": "3.6.2",
+    "prisma": "^5.22.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": { "node": "^24.0.0" }
+}

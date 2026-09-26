@@ -145,6 +145,26 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 "프론트 직접 조회" 칸은 실제로 열 때 **뷰 이름과 함께** 갱신한다. 프론트가 어느 데이터에 직접 닿는지가 곧 공격 표면이라, 이 칸이 보안 검토의 시작점이 된다.
 
+### nut — 소유자: nut
+
+NUT 내부 운영팀의 재무 데이터. `admin`/`acting` 백엔드 API가 소유하며, 프론트에서
+Supabase Data API로 직접 노출하지 않는다. 현재 테이블은 다음과 같다.
+
+| 테이블 | 내용 | 프론트 직접 조회 |
+|---|---|---|
+| `finance_periods` | 운영팀 임기·회계연도와 예산/실제 합계 | 아니오 |
+| `finance_buckets` | 비과세 수익·과세 수익·손금산입/불산입 비용·세금 bucket | 아니오 |
+| `budget_nodes`, `budget_parameters` | 엑셀 예산안의 대/중/소분류와 계산 파라미터 | 아니오 |
+| `income_lines` | 진행안 수입 항목과 결산안 실제 수입 | 아니오 |
+| `ledger_entries` | 회계 상세 행 | 아니오 |
+| `accounting_details`, `accounting_summaries` | 프로젝트별·운영팀별 상세/요약 회계 | 아니오 |
+| `tax_summaries` | 법인세·원천징수세·부가세 계산 결과 | 아니오 |
+| `claims` | Slack 청구서 요청과 상태 | 아니오 |
+
+모든 `nut` 테이블은 생성 마이그레이션에서 RLS를 활성화하고, 현재는 백엔드 API만
+접근한다. 프론트 직접 조회를 열게 되면 `v_` 뷰와 `core.current_member_role()` 정책을
+먼저 추가한다.
+
 ### hr — 소유자: hr
 
 미정. hr 구현 시작 시 이 표를 채운다. 테이블을 만들 때마다 한 줄씩 추가한다.

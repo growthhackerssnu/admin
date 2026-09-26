@@ -28,7 +28,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  schemas   = ["core", "dh"]
+  schemas   = ["core", "dh", "nut"]
 }
 
 // ---------- Enums ----------
@@ -544,4 +544,238 @@ model CoreIdempotencyKey {
 
   @@map("idempotency_keys")
   @@schema("core")
+}
+
+// ---------- NUT 재무 ----------
+
+enum NutBucketKind {
+  income
+  expense
+  tax
+  @@schema("nut")
+}
+
+enum NutTaxClass {
+  non_taxable_gain
+  taxable_gain
+  tax_deductible_expense
+  non_tax_deductible_expense
+  tax
+  @@schema("nut")
+}
+
+enum NutBucketLevel {
+  major
+  middle
+  minor
+  @@schema("nut")
+}
+
+enum NutLedgerType {
+  income
+  expense
+  @@schema("nut")
+}
+
+enum NutAccountingScope {
+  project
+  team
+  @@schema("nut")
+}
+
+enum NutAccountingCategory {
+  support
+  technical
+  @@schema("nut")
+}
+
+enum NutClaimStatus {
+  review
+  approved
+  paid
+  rejected
+  @@schema("nut")
+}
+
+model NutFinancePeriod {
+  id             String   @id
+  label          String
+  periodStart    DateTime @map("period_start") @db.Date
+  periodEnd      DateTime @map("period_end") @db.Date
+  asOf           DateTime @map("as_of") @db.Date
+  fiscalYearLabel String  @map("fiscal_year_label")
+  fiscalYearStart DateTime @map("fiscal_year_start") @db.Date
+  fiscalYearEnd  DateTime @map("fiscal_year_end") @db.Date
+  openingCash    BigInt   @default(0) @map("opening_cash")
+  currentCash    BigInt   @default(0) @map("current_cash")
+  incomeBudget   BigInt   @default(0) @map("income_budget")
+  incomeActual   BigInt   @default(0) @map("income_actual")
+  expenseBudget  BigInt   @default(0) @map("expense_budget")
+  expenseActual  BigInt   @default(0) @map("expense_actual")
+
+  @@map("finance_periods")
+  @@schema("nut")
+}
+
+model NutFinanceBucket {
+  id          String   @id
+  name        String
+  parentId    String?  @map("parent_id")
+  kind        NutBucketKind
+  taxClass    NutTaxClass @map("tax_class")
+  budget      BigInt   @default(0)
+  spent       BigInt   @default(0)
+  description String?
+
+  @@map("finance_buckets")
+  @@schema("nut")
+}
+
+model NutBudgetNode {
+  id         String         @id
+  name       String
+  parentId   String?        @map("parent_id")
+  level      NutBucketLevel
+  kind       NutBucketKind
+  taxClass   NutTaxClass    @map("tax_class")
+  budget     BigInt         @default(0)
+  spent      BigInt         @default(0)
+  sortOrder  Int            @map("sort_order")
+  formula    String?
+  formulaKey String?        @map("formula_key")
+  formulaExpression String? @map("formula_expression")
+  note       String?
+  active     Boolean        @default(true)
+
+  @@index([parentId, sortOrder])
+  @@map("budget_nodes")
+  @@schema("nut")
+}
+
+model NutBudgetParameter {
+  id          String   @id
+  label       String
+  value       Int
+  unit        String
+  description String
+
+  @@map("budget_parameters")
+  @@schema("nut")
+}
+
+model NutIncomeLine {
+  id        String      @id
+  periodId  String      @map("period_id")
+  name      String
+  budget    BigInt      @default(0)
+  actual    BigInt      @default(0)
+  sortOrder Int         @map("sort_order")
+  note      String?
+  taxClass  NutTaxClass @map("tax_class")
+
+  @@index([periodId, sortOrder])
+  @@map("income_lines")
+  @@schema("nut")
+}
+
+model NutMonthlyFlow {
+  id       String   @id
+  periodId String   @map("period_id")
+  month    String
+  label    String
+  budget   BigInt  @default(0)
+  actual   BigInt  @default(0)
+  income   BigInt  @default(0)
+
+  @@index([periodId, month])
+  @@map("monthly_flows")
+  @@schema("nut")
+}
+
+model NutLedgerEntry {
+  id            String       @id
+  transactionDate DateTime   @map("transaction_date") @db.Date
+  month         Int
+  type          NutLedgerType
+  bucket        String
+  detail        String
+  income        BigInt       @default(0)
+  expense       BigInt       @default(0)
+  balance       BigInt       @default(0)
+  amount        BigInt       @default(0)
+  claimant      String?
+  note          String?
+  source        String
+  taxClass      NutTaxClass  @map("tax_class")
+
+  @@index([transactionDate])
+  @@index([bucket])
+  @@map("ledger_entries")
+  @@schema("nut")
+}
+
+model NutAccountingDetail {
+  id        String                 @id
+  scope     NutAccountingScope
+  owner     String
+  category  NutAccountingCategory
+  date      DateTime               @db.Date
+  detail    String
+  amount    BigInt
+  balance   BigInt
+  claimant  String?
+
+  @@index([scope, owner, date])
+  @@map("accounting_details")
+  @@schema("nut")
+}
+
+model NutAccountingSummary {
+  id             String             @id
+  scope          NutAccountingScope
+  name           String
+  supportBudget  BigInt             @map("support_budget")
+  supportSpent   BigInt             @map("support_spent")
+  technicalBudget BigInt            @map("technical_budget")
+  technicalSpent BigInt             @map("technical_spent")
+  entryCount     Int                @map("entry_count")
+  note           String?
+
+  @@index([scope, name])
+  @@map("accounting_summaries")
+  @@schema("nut")
+}
+
+model NutClaim {
+  id        String         @id
+  date      DateTime       @db.Date
+  detail    String
+  amount    BigInt
+  claimant  String
+  bucket    String
+  status    NutClaimStatus
+  source    String
+  prepaid   Boolean        @default(false)
+
+  @@index([status, date])
+  @@map("claims")
+  @@schema("nut")
+}
+
+model NutTaxSummary {
+  id                   String @id
+  periodId             String @map("period_id")
+  taxableGains         BigInt @map("taxable_gains")
+  nonTaxableGains      BigInt @map("non_taxable_gains")
+  deductibleExpenses   BigInt @map("deductible_expenses")
+  nonDeductibleExpenses BigInt @map("non_deductible_expenses")
+  freelanceContractCost BigInt @map("freelance_contract_cost")
+  corporateTax         BigInt @map("corporate_tax")
+  withholdingTax       BigInt @map("withholding_tax")
+  vat                  BigInt
+  totalTax             BigInt @map("total_tax")
+
+  @@unique([periodId])
+  @@map("tax_summaries")
+  @@schema("nut")
 }
