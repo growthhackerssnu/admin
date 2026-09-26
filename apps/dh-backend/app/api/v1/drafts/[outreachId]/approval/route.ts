@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
@@ -10,17 +10,14 @@ export const POST = withApiHandler<{ outreachId: string }>(async (req, { member,
   const body = await req.json().catch(() => null);
   const parsed = approveDraftSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
-  const { expected_version: expectedVersion, expected_revision: expectedRevision } = parsed.data;
+  const { expectedVersion, expectedRevision } = parsed.data;
 
   return withIdempotency(req, member, "POST /drafts/:outreachId/approval", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.outreachId } });
     assertRevisionMatch(current, current?.version, expectedVersion);
 
     if (current.currentRevision !== expectedRevision) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 초안을 수정했습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedRevision,
-        current_revision: current.currentRevision,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 초안을 수정했습니다. 최신 내용을 다시 확인해주세요.");
     }
     if (current.workStage !== "draft_review") {
       throw new ApiError("INVALID_STATE", "지금은 초안을 승인할 수 있는 단계가 아닙니다.");
@@ -35,9 +32,7 @@ export const POST = withApiHandler<{ outreachId: string }>(async (req, { member,
       },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.outreachId, tx)) };

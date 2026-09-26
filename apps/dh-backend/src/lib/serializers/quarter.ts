@@ -9,9 +9,9 @@ export function serializeQuarter(quarter: QuarterWithCreator) {
     id: quarter.id,
     label: quarter.label,
     active: quarter.active,
-    created_at: quarter.createdAt.toISOString(),
-    closed_at: quarter.closedAt?.toISOString() ?? null,
-    created_by: { id: quarter.createdBy.id, display_name: quarter.createdBy.displayName },
+    createdAt: quarter.createdAt.toISOString(),
+    closedAt: quarter.closedAt?.toISOString() ?? null,
+    createdBy: { id: quarter.createdBy.id, displayName: quarter.createdBy.displayName },
   };
 }
 

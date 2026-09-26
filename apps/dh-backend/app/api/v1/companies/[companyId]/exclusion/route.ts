@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { exclusionSchema } from "@/lib/validation/outreach";
@@ -12,9 +12,9 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
   const parsed = exclusionSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
   const {
-    expected_company_version: expectedCompanyVersion,
-    outreach_id: outreachId,
-    expected_version: expectedVersion,
+    expectedCompanyVersion,
+    outreachId,
+    expectedVersion,
     note,
   } = parsed.data;
 
@@ -30,7 +30,7 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
     }
     if (outreach.route === "repeat_collaboration" && !note?.trim()) {
       throw new ApiError("VALIDATION_ERROR", "재협업을 진행하지 않는 사유가 필요합니다.", {
-        fields: { note: "필수" },
+        fieldErrors: { note: "필수" },
       });
     }
 
@@ -44,9 +44,7 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
       },
     });
     if (companyUpdate.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedCompanyVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     const outreachUpdate = await tx.outreach.updateMany({
@@ -59,9 +57,7 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
       },
     });
     if (outreachUpdate.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     const [updatedCompany, updatedOutreach] = await Promise.all([
@@ -75,13 +71,13 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
         company: {
           id: updatedCompany!.id,
           version: updatedCompany!.version,
-          permanently_excluded: updatedCompany!.permanentlyExcluded,
-          permanently_excluded_reason: updatedCompany!.permanentlyExcludedReason,
+          permanentlyExcluded: updatedCompany!.permanentlyExcluded,
+          permanentlyExcludedReason: updatedCompany!.permanentlyExcludedReason,
         },
         outreach: {
           id: updatedOutreach!.id,
           version: updatedOutreach!.version,
-          internal_decision: updatedOutreach!.internalDecision,
+          internalDecision: updatedOutreach!.internalDecision,
         },
       }),
     };

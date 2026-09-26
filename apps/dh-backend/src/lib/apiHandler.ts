@@ -23,10 +23,14 @@ export function withApiHandler<P = Record<string, string>>(handler: RouteHandler
     try {
       const member = await getAuthenticatedMember(req);
       const result = await handler(req, { member, requestId, params: routeCtx.params });
-      return NextResponse.json(result.body, {
-        status: result.status ?? 200,
-        ...(result.headers ? { headers: result.headers } : {}),
-      });
+      // 성공 봉투의 requestId는 여기서 붙인다 (v0.3 §7.1). 오류 봉투는 errorBody가 담는다.
+      return NextResponse.json(
+        { ...(result.body as Record<string, unknown>), requestId },
+        {
+          status: result.status ?? 200,
+          ...(result.headers ? { headers: result.headers } : {}),
+        },
+      );
     } catch (err) {
       if (err instanceof ApiError) {
         return NextResponse.json(errorBody(err, requestId), { status: err.status });

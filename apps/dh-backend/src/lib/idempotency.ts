@@ -21,8 +21,8 @@ export async function withIdempotency<T>(
 ): Promise<{ status: number; body: T }> {
   const key = req.headers.get("idempotency-key");
   if (!key) {
-    throw new ApiError("INVALID_REQUEST", "Idempotency-Key 헤더가 필요합니다.", {
-      header: "Idempotency-Key",
+    throw new ApiError("VALIDATION_ERROR", "Idempotency-Key 헤더가 필요합니다.", {
+      fieldErrors: { "Idempotency-Key": "필수" },
     });
   }
 

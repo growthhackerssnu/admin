@@ -1,6 +1,6 @@
 import type { Prisma, SearchRunStatus } from "@/generated/prisma";
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { isSupportedSourceKey } from "@/lib/listup/sources";
 import { serializeResearchTask, serializeSearchRun } from "@/lib/listup/serializers";
@@ -29,10 +29,10 @@ export const GET = withApiHandler(async (req) => {
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
   const status = searchParams.get("status");
-  const quarterId = searchParams.get("quarter_id");
+  const quarterId = searchParams.get("quarterId");
 
   if (status && !SEARCH_RUN_STATUSES.includes(status as SearchRunStatus)) {
-    throw new ApiError("INVALID_REQUEST", "status 값이 올바르지 않습니다.", { status });
+    throw new ApiError("VALIDATION_ERROR", "status 값이 올바르지 않습니다.", { fieldErrors: { status: "허용되지 않는 값" } });
   }
 
   const rows = await prisma.searchRun.findMany({
@@ -46,8 +46,8 @@ export const GET = withApiHandler(async (req) => {
     include: runInclude,
   });
 
-  const { items, page } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeSearchRun), page) };
+  const { items, nextCursor } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeSearchRun), nextCursor) };
 });
 
 // POST /search-runs — 탐색 조건을 저장하고 최초 company_discovery 작업을 만든다.
@@ -57,29 +57,29 @@ export const POST = withApiHandler(async (req, { member }) => {
   const parsed = createSearchRunSchema.safeParse(body);
   if (!parsed.success) {
     throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.", {
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      fieldErrors: fieldErrorsOf(parsed.error.flatten().fieldErrors),
     });
   }
   const input = parsed.data;
 
   const unsupported = input.sources.map((s) => s.key).filter((key) => !isSupportedSourceKey(key));
   if (unsupported.length > 0) {
-    throw new ApiError("UNSUPPORTED_SOURCE", "지원하지 않는 탐색 소스입니다.", { keys: unsupported });
+    throw new ApiError("UNSUPPORTED_SOURCE", "지원하지 않는 탐색 소스입니다.", { fieldErrors: { sources: unsupported.join(", ") } });
   }
 
   return withIdempotency(req, member, "POST /search-runs", input, async (tx) => {
-    const quarter = await tx.quarter.findUnique({ where: { id: input.quarter_id } });
+    const quarter = await tx.quarter.findUnique({ where: { id: input.quarterId } });
     if (!quarter) throw new ApiError("NOT_FOUND", "분기를 찾을 수 없습니다.");
     if (!quarter.active) {
       throw new ApiError("INVALID_STATE", "닫힌 분기에는 새 탐색을 만들 수 없습니다.", {
-        quarter_id: quarter.id,
+        fieldErrors: { quarterId: "닫힌 분기" },
       });
     }
 
     const run = await tx.searchRun.create({
       data: {
-        quarterId: input.quarter_id,
-        sourcePolicy: input.source_policy,
+        quarterId: input.quarterId,
+        sourcePolicy: input.sourcePolicy,
         sources: input.sources,
         filters: input.filters,
         limits: input.limits,
@@ -98,12 +98,12 @@ export const POST = withApiHandler(async (req, { member }) => {
     return {
       status: 202,
       body: successBody({
-        search_run: serializeSearchRun(run),
-        initial_task: serializeResearchTask(task),
+        searchRun: serializeSearchRun(run),
+        initialTask: serializeResearchTask(task),
       }),
     };
   }).then((result) => ({
     ...result,
-    headers: { Location: `/api/v1/search-runs/${(result.body as { data: { search_run: { id: string } } }).data.search_run.id}` },
+    headers: { Location: `/api/v1/search-runs/${(result.body as { data: { searchRun: { id: string } } }).data.searchRun.id}` },
   }));
 });

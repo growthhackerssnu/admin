@@ -16,8 +16,8 @@ export const GET = withApiHandler(async (req) => {
 
   return {
     body: listBody(
-      members.map((m) => ({ id: m.id, display_name: m.displayName })),
-      { nextCursor: null, hasMore: false },
+      members.map((m) => ({ id: m.id, displayName: m.displayName })),
+      null,
     ),
   };
 });

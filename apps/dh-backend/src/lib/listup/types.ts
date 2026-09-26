@@ -1,11 +1,11 @@
 // SearchRun의 sources/filters/limits는 생성 후 바뀌지 않고 조인 대상도 아니라서 Json
-// 컬럼에 넣는다. 읽을 때 형태를 되찾기 위한 타입이며, 쓰기 경로에서는 zod 스키마가
-// 같은 형태를 강제한다.
+// 컬럼에 넣는다. 요청 본문을 받은 그대로(camelCase) 보관하고 그대로 내보내므로,
+// 이 타입이 저장 형태이자 wire 형태다 — 중첩 객체를 변환하는 코드를 두지 않는다.
 
 export type SourceConfig = {
   key: string;
   name: string;
-  entry_urls: string[];
+  entryUrls: string[];
   query: string | null;
 };
 
@@ -13,25 +13,25 @@ export type SearchFilters = {
   industries: string[];
   keywords: string[];
   regions: string[];
-  company_stages: string[];
-  excluded_company_ids: string[];
-  additional_conditions: string | null;
+  companyStages: string[];
+  excludedCompanyIds: string[];
+  additionalConditions: string | null;
 };
 
 export type SearchLimits = {
-  max_companies: number;
-  max_fit_followup_rounds: number;
-  max_contact_search_rounds: number;
+  maxCompanies: number;
+  maxFitFollowupRounds: number;
+  maxContactSearchRounds: number;
 };
 
-// FitAssessment.information_gaps도 같은 이유로 Json이다(스칼라 두 개, 조회 대상 아님).
+// FitAssessment.informationGaps도 같은 이유로 Json이다(스칼라 두 개, 조회 대상 아님).
 export type InformationGap = {
   question: string;
-  resolution_method: "public_research" | "company_confirmation";
+  resolutionMethod: "public_research" | "company_confirmation";
 };
 
-// ResearchTask.result_refs — 가리키는 리소스 종류가 섞여 있어 형태만 맞춘다.
+// ResearchTask.resultRefs — 가리키는 리소스 종류가 섞여 있어 형태만 맞춘다.
 export type ResultRef = {
-  resource_type: string;
-  resource_id: string;
+  resourceType: string;
+  resourceId: string;
 };

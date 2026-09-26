@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { findExclusionReason } from "@/lib/contactExclusion";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
@@ -13,9 +13,9 @@ export const PUT = withApiHandler<{ id: string }>(async (req, { member, params }
   const parsed = selectRecipientSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
   const {
-    expected_version: expectedVersion,
-    contact_id: contactId,
-    endpoint_id: endpointId,
+    expectedVersion,
+    contactId,
+    endpointId,
   } = parsed.data;
 
   return withIdempotency(req, member, "PUT /outreaches/:id/recipient", parsed.data, async (tx) => {
@@ -51,9 +51,7 @@ export const PUT = withApiHandler<{ id: string }>(async (req, { member, params }
       },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx)) };

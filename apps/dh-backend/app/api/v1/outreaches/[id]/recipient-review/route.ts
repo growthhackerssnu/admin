@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
@@ -11,7 +11,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
   const body = await req.json().catch(() => null);
   const parsed = recipientReviewSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
-  const expectedVersion = parsed.data.expected_version;
+  const expectedVersion = parsed.data.expectedVersion;
 
   return withIdempotency(req, member, "POST /outreaches/:id/recipient-review", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.id } });
@@ -22,9 +22,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
       data: { workStage: "recipient_selection", approvedRevision: null, version: { increment: 1 } },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx)) };

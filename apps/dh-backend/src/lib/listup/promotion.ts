@@ -27,7 +27,7 @@ export async function promoteChannelToOutreachContact(
   }
   if (evaluation.status !== "usable") {
     throw new ApiError("INVALID_STATE", "사용 가능으로 판정된 창구만 인계할 수 있습니다.", {
-      status: evaluation.status,
+      fieldErrors: { status: evaluation.status },
     });
   }
 

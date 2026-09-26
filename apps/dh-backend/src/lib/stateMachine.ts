@@ -6,19 +6,20 @@ import type { InternalDecision, Response, Route, WorkStage } from "@/generated/p
 // "지금 뭘 할 수 있는가"는 항상 이 함수를 거쳐 계산한다 — 엔드포인트마다 따로
 // 판단하면 allowedActions가 서로 어긋날 수 있다.
 
-// allowed_actions로 그대로 나가는 값이라 명세의 enum 표기(snake_case)를 따른다.
+// allowedActions로 그대로 나가는 값이다. v0.3이 이 값의 표기를 규정하지 않아,
+// 프론트가 처음 만들어진 기준인 camelCase를 유지한다(상태·판단 enum 값은 snake_case).
 export type OutreachAction =
-  | "approve_company"
-  | "skip_for_quarter"
-  | "exclude_company"
-  | "search_contacts"
-  | "select_recipient"
-  | "change_recipient"
-  | "generate_draft"
-  | "save_draft"
-  | "approve_draft"
-  | "manual_send_record"
-  | "save_response";
+  | "approveCompany"
+  | "skipForQuarter"
+  | "excludeCompany"
+  | "searchContacts"
+  | "selectRecipient"
+  | "changeRecipient"
+  | "generateDraft"
+  | "saveDraft"
+  | "approveDraft"
+  | "manualSendRecord"
+  | "saveResponse";
 
 export interface OutreachStateInput {
   route: Route;
@@ -63,35 +64,35 @@ export function computeOutreachState(o: OutreachStateInput): OutreachState {
       if (sameQuarterAlreadySent) {
         blockedReasons.push("이번 분기에 이미 발송했습니다. 담당자·채널을 바꿔도 추가 발송할 수 없습니다.");
       } else {
-        allowed.push("approve_company");
+        allowed.push("approveCompany");
       }
       // 신규 경로는 건너뛰기를 허용하지 않는다 (05 문서 §3 경로별 내부 결정 규칙).
-      if (o.route !== "new") allowed.push("skip_for_quarter");
-      allowed.push("exclude_company");
+      if (o.route !== "new") allowed.push("skipForQuarter");
+      allowed.push("excludeCompany");
       break;
     }
     case "recipient_selection": {
-      allowed.push("search_contacts", "select_recipient");
-      if (o.recipientContactId) allowed.push("change_recipient");
+      allowed.push("searchContacts", "selectRecipient");
+      if (o.recipientContactId) allowed.push("changeRecipient");
       if (!o.templateBound) {
         blockedReasons.push("경로별 지정 템플릿이 연결되지 않아 새 초안을 생성할 수 없습니다.");
       } else if (o.recipientContactId) {
-        allowed.push("generate_draft");
+        allowed.push("generateDraft");
       }
       break;
     }
     case "draft_review": {
-      allowed.push("save_draft", "change_recipient");
-      if (o.currentRevision != null) allowed.push("approve_draft");
+      allowed.push("saveDraft", "changeRecipient");
+      if (o.currentRevision != null) allowed.push("approveDraft");
       break;
     }
     case "ready_to_send": {
-      allowed.push("save_draft", "manual_send_record");
+      allowed.push("saveDraft", "manualSendRecord");
       break;
     }
     case "response_check": {
       // 과거 발송의 응답 기록은 분기와 무관하게 항상 가능하다.
-      allowed.push("save_response");
+      allowed.push("saveResponse");
       if (sameQuarterAlreadySent) {
         blockedReasons.push("응답 확인은 가능하지만, 이번 분기 추가 컨택은 할 수 없습니다.");
       }

@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 // GET /sends/{sendId} — 발송 당시 스냅샷, 읽기 전용
@@ -10,16 +10,16 @@ export const GET = withApiHandler<{ sendId: string }>(async (_req, { params }) =
   return {
     body: successBody({
       id: send.id,
-      outreach_id: send.outreachId,
-      quarter_id: send.quarterId,
+      outreachId: send.outreachId,
+      quarterId: send.quarterId,
       channel: send.channel,
       status: send.status,
-      recipient_name_snapshot: send.recipientNameSnapshot,
-      address_snapshot: send.addressSnapshot,
-      subject_snapshot: send.subjectSnapshot,
-      body_snapshot: send.bodySnapshot,
-      template_used: send.templateId ? { id: send.templateId, version: send.templateVersion } : null,
-      sent_at: send.sentAt.toISOString(),
+      recipientNameSnapshot: send.recipientNameSnapshot,
+      addressSnapshot: send.addressSnapshot,
+      subjectSnapshot: send.subjectSnapshot,
+      bodySnapshot: send.bodySnapshot,
+      templateUsed: send.templateId ? { id: send.templateId, version: send.templateVersion } : null,
+      sentAt: send.sentAt.toISOString(),
     }),
   };
 });

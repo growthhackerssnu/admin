@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { serializeSearchRun } from "@/lib/listup/serializers";
 import { prisma } from "@/lib/prisma";
 
@@ -38,16 +38,16 @@ export const GET = withApiHandler<{ searchRunId: string }>(async (_req, { params
 
   return {
     body: successBody({
-      search_run: serializeSearchRun(run),
+      searchRun: serializeSearchRun(run),
       counts: {
         candidates: byFit.reduce((sum, row) => sum + row._count._all, 0),
         fit: fitCount("fit"),
         unfit: fitCount("unfit"),
         pending: fitCount("pending"),
-        not_assessed: fitCount(null),
-        fit_with_available_contact: fitWithContact,
-        active_tasks: taskCount("queued") + taskCount("running"),
-        failed_tasks: taskCount("failed"),
+        notAssessed: fitCount(null),
+        fitWithAvailableContact: fitWithContact,
+        activeTasks: taskCount("queued") + taskCount("running"),
+        failedTasks: taskCount("failed"),
       },
     }),
   };

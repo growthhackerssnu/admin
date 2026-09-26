@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
@@ -22,8 +22,8 @@ export const GET = withApiHandler(async (req) => {
     include: { createdBy: quarterCreatorSelect },
   });
 
-  const { items, page } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeQuarter), page) };
+  const { items, nextCursor } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeQuarter), nextCursor) };
 });
 
 // POST /quarters — 담당자가 새 분기를 연다.
@@ -32,14 +32,14 @@ export const POST = withApiHandler(async (req, { member }) => {
   const parsed = createQuarterSchema.safeParse(body);
   if (!parsed.success) {
     throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.", {
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      fieldErrors: fieldErrorsOf(parsed.error.flatten().fieldErrors),
     });
   }
 
   return withIdempotency(req, member, "POST /quarters", parsed.data, async (tx) => {
     const duplicate = await tx.quarter.findUnique({ where: { label: parsed.data.label } });
     if (duplicate) {
-      throw new ApiError("INVALID_STATE", "이미 있는 분기입니다.", { label: parsed.data.label });
+      throw new ApiError("INVALID_STATE", "이미 있는 분기입니다.", { fieldErrors: { label: "이미 존재함" } });
     }
 
     const created = await tx.quarter.create({

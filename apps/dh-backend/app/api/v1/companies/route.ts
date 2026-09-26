@@ -17,11 +17,11 @@ const SORTABLE_FIELDS = new Set(["name", "updatedAt"]);
 // 05 문서가 제안한 대로 Company에 캐시 컬럼을 추가하는 걸 고려한다.
 export const GET = withApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
-  const quarterId = searchParams.get("quarter_id");
+  const quarterId = searchParams.get("quarterId");
   const lane = searchParams.get("lane") ?? "all";
   const route = searchParams.get("route") as Route | null;
   const stage = searchParams.get("stage") as WorkStage | null;
-  const ownerId = searchParams.get("owner_id");
+  const ownerId = searchParams.get("ownerId");
   const query = searchParams.get("query");
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -76,19 +76,19 @@ export const GET = withApiHandler(async (req) => {
   return {
     body: listBody(
       page.map((o) => ({
-        company_id: o.companyId,
-        outreach_id: o.id,
+        companyId: o.companyId,
+        outreachId: o.id,
         name: o.company.name,
         product: o.company.product,
         domain: o.company.domain,
         route: o.route,
-        work_stage: o.workStage,
-        response_status: o.responses[0]?.result ?? "unchecked",
-        last_sent_at: o.sentMessages[0]?.sentAt.toISOString() ?? null,
-        last_sent_quarter_id: o.lastSentQuarterId,
-        owner: { id: o.owner.id, display_name: o.owner.displayName },
+        workStage: o.workStage,
+        responseStatus: o.responses[0]?.result ?? "unchecked",
+        lastSentAt: o.sentMessages[0]?.sentAt.toISOString() ?? null,
+        lastSentQuarterId: o.lastSentQuarterId,
+        owner: { id: o.owner.id, displayName: o.owner.displayName },
       })),
-      { nextCursor: hasMore && last ? encodeCursor(last.id) : null, hasMore },
+      hasMore && last ? encodeCursor(last.id) : null,
     ),
   };
 });

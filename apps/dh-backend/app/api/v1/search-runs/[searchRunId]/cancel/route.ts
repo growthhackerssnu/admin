@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { serializeSearchRun } from "@/lib/listup/serializers";
 import { prisma } from "@/lib/prisma";
 
@@ -16,7 +16,7 @@ export const POST = withApiHandler<{ searchRunId: string }>(async (_req, { param
   if (!run) throw new ApiError("NOT_FOUND", "탐색을 찾을 수 없습니다.");
 
   if ((TERMINAL as readonly string[]).includes(run.status)) {
-    throw new ApiError("INVALID_STATE", "이미 종료된 탐색은 취소할 수 없습니다.", { status: run.status });
+    throw new ApiError("INVALID_STATE", "이미 종료된 탐색은 취소할 수 없습니다.", { fieldErrors: { status: run.status } });
   }
 
   const updated = await prisma.$transaction(async (tx) => {

@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
@@ -11,7 +11,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
   const body = await req.json().catch(() => null);
   const parsed = draftReviewSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
-  const { expected_version: expectedVersion, draft_id: draftId } = parsed.data;
+  const { expectedVersion, draftId } = parsed.data;
 
   if (draftId !== params.id) {
     throw new ApiError("VALIDATION_ERROR", "draft_id가 이 컨택 건과 일치하지 않습니다.");
@@ -29,9 +29,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
       data: { workStage: "draft_review", approvedRevision: null, version: { increment: 1 } },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx)) };

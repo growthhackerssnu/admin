@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
@@ -12,7 +12,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
   const body = await req.json().catch(() => null);
   const parsed = skipSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
-  const { expected_version: expectedVersion, quarter_id: quarterId, note } = parsed.data;
+  const { expectedVersion, quarterId, note } = parsed.data;
 
   return withIdempotency(req, member, "POST /outreaches/:id/skip", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.id } });
@@ -21,16 +21,15 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
     // 전역 "현재 분기"가 없으므로, 건너뛸 분기는 이 컨택 건이 실제로 속한 분기여야 한다.
     if (current.quarterId !== quarterId) {
       throw new ApiError("INVALID_STATE", "이 컨택 건의 분기가 아닙니다. 최신 내용을 다시 확인해주세요.", {
-        quarter_id: quarterId,
-        current_quarter_id: current.quarterId,
-      });
+        fieldErrors: { quarterId: "이 컨택 건의 분기가 아님" },
+        });
     }
     if (current.route === "new") {
       throw new ApiError("INVALID_STATE", "신규 경로는 건너뛰기를 지원하지 않습니다.");
     }
     if (current.route === "repeat_collaboration" && !note?.trim()) {
       throw new ApiError("VALIDATION_ERROR", "재협업을 진행하지 않는 사유가 필요합니다.", {
-        fields: { note: "필수" },
+        fieldErrors: { note: "필수" },
       });
     }
 
@@ -46,9 +45,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
       },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx)) };

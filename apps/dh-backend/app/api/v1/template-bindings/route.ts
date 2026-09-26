@@ -34,12 +34,12 @@ export const GET = withApiHandler(async (req) => {
     return {
       route,
       connected: Boolean(email),
-      template_id: email?.id ?? null,
-      template_version: email?.version ?? null,
-      required_variables: REQUIRED_VARIABLES,
+      templateId: email?.id ?? null,
+      templateVersion: email?.version ?? null,
+      requiredVariables: REQUIRED_VARIABLES,
     };
   });
 
   // 경로 4개 고정 목록이라 페이지네이션하지 않는다.
-  return { body: listBody(items, { nextCursor: null, hasMore: false }) };
+  return { body: listBody(items, null) };
 });

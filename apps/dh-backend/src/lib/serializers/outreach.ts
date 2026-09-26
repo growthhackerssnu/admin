@@ -5,7 +5,7 @@ import { computeOutreachState, type OutreachAction } from "../stateMachine";
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 // outreach 상세 조회와, 쓰기 엔드포인트가 변경 후 돌려주는 "갱신된 outreach" 응답이
-// 공유하는 직렬화 지점. response_status는 컬럼이 아니라 이 outreach의 최신
+// 공유하는 직렬화 지점. responseStatus는 컬럼이 아니라 이 outreach의 최신
 // Response.result에서 계산한다(없으면 "unchecked").
 //
 // company 하위 객체는 예전 GET /companies/{id}가 돌려주던 발송용 필드를 옮겨온 것이다.
@@ -52,33 +52,33 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
 
   return {
     id: outreach.id,
-    company_id: outreach.companyId,
-    quarter_id: outreach.quarterId,
+    companyId: outreach.companyId,
+    quarterId: outreach.quarterId,
     version: outreach.version,
     route: outreach.route,
-    work_stage: outreach.workStage,
-    internal_decision: outreach.internalDecision,
-    response_status: latestResponse?.result ?? "unchecked",
+    workStage: outreach.workStage,
+    internalDecision: outreach.internalDecision,
+    responseStatus: latestResponse?.result ?? "unchecked",
     company: {
       id: outreach.company.id,
       name: outreach.company.name,
       product: outreach.company.product,
       domain: outreach.company.domain,
       version: outreach.company.version,
-      permanently_excluded: outreach.company.permanentlyExcluded,
-      permanently_excluded_reason: outreach.company.permanentlyExcludedReason,
-      is_prelaunch_only: outreach.company.isPrelaunchOnly,
-      past_projects: outreach.company.pastProjects.map((p) => ({
+      permanentlyExcluded: outreach.company.permanentlyExcluded,
+      permanentlyExcludedReason: outreach.company.permanentlyExcludedReason,
+      isPrelaunchOnly: outreach.company.isPrelaunchOnly,
+      pastProjects: outreach.company.pastProjects.map((p) => ({
         id: p.id,
         title: p.title,
         summary: p.summary,
-        notion_url: p.notionUrl,
+        notionUrl: p.notionUrl,
       })),
     },
     recipient: outreach.recipientContactId
       ? {
-          contact_id: outreach.recipientContactId,
-          endpoint_id: outreach.recipientEndpointId,
+          contactId: outreach.recipientContactId,
+          endpointId: outreach.recipientEndpointId,
           name: outreach.recipientContact?.name ?? null,
           title: outreach.recipientContact?.title ?? null,
         }
@@ -89,26 +89,26 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
           topic: latestDraft.topic,
           subject: latestDraft.subject,
           body: latestDraft.body,
-          approved_revision: outreach.approvedRevision,
-          template_used: latestDraft.templateId
+          approvedRevision: outreach.approvedRevision,
+          templateUsed: latestDraft.templateId
             ? { id: latestDraft.templateId, version: latestDraft.templateVersion }
             : null,
         }
       : null,
-    latest_response: latestResponse
+    latestResponse: latestResponse
       ? {
           id: latestResponse.id,
           result: latestResponse.result,
           category: latestResponse.category,
           note: latestResponse.explanation,
-          revisit_condition: latestResponse.revisitCondition,
-          checked_at: latestResponse.checkedAt.toISOString(),
-          checked_by_id: latestResponse.checkedById,
+          revisitCondition: latestResponse.revisitCondition,
+          checkedAt: latestResponse.checkedAt.toISOString(),
+          checkedById: latestResponse.checkedById,
         }
       : null,
-    review_note: outreach.reviewNote,
-    condition_evidence: outreach.conditionEvidence,
-    allowed_actions: allowedActions satisfies OutreachAction[],
-    blocked_reasons: blockedReasons,
+    reviewNote: outreach.reviewNote,
+    conditionEvidence: outreach.conditionEvidence,
+    allowedActions: allowedActions satisfies OutreachAction[],
+    blockedReasons,
   };
 }

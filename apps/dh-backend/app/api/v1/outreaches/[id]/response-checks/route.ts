@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
@@ -13,18 +13,16 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
   const parsed = responseCheckSchema.safeParse(body);
   if (!parsed.success) {
     throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.", {
-      fields: Object.fromEntries(
-        Object.entries(parsed.error.flatten().fieldErrors).map(([k, v]) => [k, v?.[0] ?? ""]),
-      ),
+      fieldErrors: fieldErrorsOf(parsed.error.flatten().fieldErrors),
     });
   }
   const {
-    expected_version: expectedVersion,
-    send_id: sendId,
+    expectedVersion,
+    sendId,
     result,
     category,
     note,
-    revisit_condition: revisitCondition,
+    revisitCondition,
   } = parsed.data;
 
   return withIdempotency(req, member, "POST /outreaches/:id/response-checks", parsed.data, async (tx) => {
@@ -55,9 +53,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
       data: { version: { increment: 1 } },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 201, body: successBody(await serializeOutreachDetail(params.id, tx)) };

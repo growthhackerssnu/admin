@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 // GET /outreaches/{id}/contacts
@@ -45,22 +45,22 @@ export const GET = withApiHandler<{ id: string }>(async (_req, { params }) => {
     else if (alreadyContacted) excludedReason = "이전에 이미 연락한 관계자입니다.";
 
     return {
-      contact_id: c.id,
+      contactId: c.id,
       name: c.name,
       title: c.title,
       department: c.department,
-      linkedin_url: c.linkedinUrl,
+      linkedinUrl: c.linkedinUrl,
       endpoints: c.endpoints.map((e) => ({
-        endpoint_id: e.id,
+        endpointId: e.id,
         channel: e.channel,
         address: e.address,
         valid: e.valid,
       })),
       selectable: excludedReason === null,
-      excluded_reason: excludedReason,
+      excludedReason: excludedReason,
     };
   });
 
   // 기업 하나의 관계자 목록이라 페이지네이션하지 않는다.
-  return { body: listBody(items, { nextCursor: null, hasMore: false }) };
+  return { body: listBody(items, null) };
 });

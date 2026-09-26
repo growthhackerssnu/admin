@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { serializeResearchTask } from "@/lib/listup/serializers";
 import { prisma } from "@/lib/prisma";
 
@@ -18,13 +18,12 @@ export const POST = withApiHandler<{ taskId: string }>(async (_req, { params }) 
 
     if (task.status !== "failed" || task.errorRetryable !== true) {
       throw new ApiError("TASK_NOT_RETRYABLE", "재시도할 수 있는 상태가 아닙니다.", {
-        status: task.status,
-        retryable: task.errorRetryable ?? false,
-      });
+        fieldErrors: { status: task.status },
+        });
     }
     if (task.searchRun.status === "cancelled") {
       throw new ApiError("TASK_NOT_RETRYABLE", "취소된 탐색의 작업은 재개하지 않습니다.", {
-        search_run_status: task.searchRun.status,
+        fieldErrors: { searchRunStatus: task.searchRun.status },
       });
     }
 
@@ -33,7 +32,7 @@ export const POST = withApiHandler<{ taskId: string }>(async (_req, { params }) 
       (task.type === "contact_research" || task.type === "contact_verification");
     if (isAutomaticContactTask && task.candidate && task.candidate.effectiveFit !== "fit") {
       throw new ApiError("TASK_NOT_RETRYABLE", "적합이 아닌 후보의 자동 연락 조사는 재개하지 않습니다.", {
-        effective_fit: task.candidate.effectiveFit ?? "not_assessed",
+        fieldErrors: { effectiveFit: task.candidate.effectiveFit ?? "not_assessed" },
       });
     }
 

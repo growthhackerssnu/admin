@@ -1,53 +1,53 @@
 import { z } from "zod";
 
-// 요청 본문의 키는 명세 규약대로 snake_case다. DB 컬럼 이름(version 등)과는 무관하며,
-// 전환은 wire 레벨에서만 일어난다.
+// 요청 본문의 키는 camelCase다(v0.3 §7.1). DB 컬럼 이름과는 무관하며 변환은
+// Prisma가 맡는다.
 
 export const approvalSchema = z.object({
-  expected_version: z.number().int(),
-  review_note: z.string().trim().optional(),
-  condition_evidence: z.string().trim().optional(),
+  expectedVersion: z.number().int(),
+  reviewNote: z.string().trim().optional(),
+  conditionEvidence: z.string().trim().optional(),
 });
 
 export const skipSchema = z.object({
-  expected_version: z.number().int(),
-  quarter_id: z.string().min(1),
+  expectedVersion: z.number().int(),
+  quarterId: z.string().min(1),
   note: z.string().trim().optional(),
 });
 
 export const exclusionSchema = z.object({
-  expected_company_version: z.number().int(),
-  outreach_id: z.string().min(1),
-  expected_version: z.number().int(),
+  expectedCompanyVersion: z.number().int(),
+  outreachId: z.string().min(1),
+  expectedVersion: z.number().int(),
   note: z.string().trim().optional(),
 });
 
 export const selectRecipientSchema = z.object({
-  expected_version: z.number().int(),
-  contact_id: z.string().min(1),
-  endpoint_id: z.string().min(1),
+  expectedVersion: z.number().int(),
+  contactId: z.string().min(1),
+  endpointId: z.string().min(1),
 });
 
 export const recipientReviewSchema = z.object({
-  expected_version: z.number().int(),
+  expectedVersion: z.number().int(),
 });
 
 export const saveDraftSchema = z.object({
-  expected_version: z.number().int(),
-  expected_revision: z.number().int(),
+  expectedVersion: z.number().int(),
+  expectedRevision: z.number().int(),
   topic: z.string().trim().min(1),
   subject: z.string().trim().min(1),
   body: z.string().trim().min(1),
 });
 
 export const approveDraftSchema = z.object({
-  expected_version: z.number().int(),
-  expected_revision: z.number().int(),
+  expectedVersion: z.number().int(),
+  expectedRevision: z.number().int(),
 });
 
 export const draftReviewSchema = z.object({
-  expected_version: z.number().int(),
-  draft_id: z.string().min(1),
+  expectedVersion: z.number().int(),
+  draftId: z.string().min(1),
 });
 
 export const RESPONSE_RESULTS = ["no_reply", "discussing", "rejected", "deferred", "referred", "closed"] as const;
@@ -55,12 +55,12 @@ export const RESPONSE_CATEGORIES = ["resource_shortage", "not_interested", "no_p
 
 export const responseCheckSchema = z
   .object({
-    expected_version: z.number().int(),
-    send_id: z.string().min(1).optional(),
+    expectedVersion: z.number().int(),
+    sendId: z.string().min(1).optional(),
     result: z.enum(RESPONSE_RESULTS),
     category: z.enum(RESPONSE_CATEGORIES).optional(),
     note: z.string().trim().optional(),
-    revisit_condition: z.string().trim().optional(),
+    revisitCondition: z.string().trim().optional(),
   })
   .superRefine((data, ctx) => {
     if (["rejected", "deferred"].includes(data.result) && !data.category) {

@@ -1,49 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, errorBody, listBody, successBody } from "./errors";
+import { ApiError, errorBody, fieldErrorsOf, listBody, successBody } from "./errors";
 
 describe("응답 봉투", () => {
-  it("단건은 data만 싣는다 — 성공 응답에 request_id는 없다", () => {
+  // requestId는 withApiHandler가 응답 직전에 합치므로 이 함수들은 data만 만든다.
+  it("단건은 data를 감싼다", () => {
     expect(successBody({ id: "c1" })).toEqual({ data: { id: "c1" } });
   });
 
-  it("목록은 data 배열과 page를 snake_case로 싣는다", () => {
-    expect(listBody([{ id: "c1" }], { nextCursor: "abc", hasMore: true })).toEqual({
-      data: [{ id: "c1" }],
-      page: { next_cursor: "abc", has_more: true },
+  it("목록은 items와 nextCursor를 data 안에 감싼다", () => {
+    expect(listBody([{ id: "c1" }], "abc")).toEqual({
+      data: { items: [{ id: "c1" }], nextCursor: "abc" },
     });
   });
 
-  it("오류는 error 안에 request_id를 넣고, details는 있을 때만 붙인다", () => {
-    const withDetails = errorBody(
-      new ApiError("REVISION_CONFLICT", "충돌", { expected_revision: 3, current_revision: 4 }),
-      "req-1",
+  it("오류는 fieldErrors와 retryable을 싣는다", () => {
+    const body = errorBody(
+      new ApiError("VALIDATION_ERROR", "입력값 확인", { fieldErrors: { limit: "1 이상의 정수" } }),
+      "req-2",
     );
-    expect(withDetails).toEqual({
+    expect(body).toEqual({
       error: {
-        code: "REVISION_CONFLICT",
-        message: "충돌",
-        details: { expected_revision: 3, current_revision: 4 },
-        request_id: "req-1",
+        code: "VALIDATION_ERROR",
+        message: "입력값 확인",
+        fieldErrors: { limit: "1 이상의 정수" },
+        retryable: false,
       },
+      requestId: "req-2",
     });
-
-    const withoutDetails = errorBody(new ApiError("NOT_FOUND", "없음"), "req-2");
-    expect(withoutDetails.error).not.toHaveProperty("details");
   });
 });
 
 describe("에러 코드 → HTTP 상태", () => {
-  it("형식 오류는 400, 값 제약 위반은 422로 나뉜다", () => {
-    expect(new ApiError("INVALID_REQUEST", "x").status).toBe(400);
+  it("필드·쿼리·출처 문제는 전부 422다 — v0.3에는 400대 코드가 없다", () => {
     expect(new ApiError("VALIDATION_ERROR", "x").status).toBe(422);
     expect(new ApiError("UNSUPPORTED_SOURCE", "x").status).toBe(422);
   });
 
-  it("리스트업 전용 충돌 코드는 전부 409다", () => {
+  it("상태·충돌 계열은 409다", () => {
     for (const code of [
-      "REVISION_CONFLICT",
+      "VERSION_CONFLICT",
       "IDEMPOTENCY_CONFLICT",
       "INVALID_STATE",
+      "ALREADY_EXISTS",
       "FIT_REQUIRED",
       "NO_CONTACT_TO_VERIFY",
       "TASK_ALREADY_RUNNING",
@@ -51,5 +49,23 @@ describe("에러 코드 → HTTP 상태", () => {
     ] as const) {
       expect(new ApiError(code, "x").status).toBe(409);
     }
+  });
+});
+
+describe("retryable", () => {
+  it("한도·일시 장애만 기본 true다", () => {
+    expect(new ApiError("RATE_LIMITED", "x").retryable).toBe(true);
+    expect(new ApiError("SERVICE_UNAVAILABLE", "x").retryable).toBe(true);
+    expect(new ApiError("VALIDATION_ERROR", "x").retryable).toBe(false);
+    expect(new ApiError("VERSION_CONFLICT", "x").retryable).toBe(false);
+  });
+});
+
+describe("fieldErrorsOf", () => {
+  it("zod의 메시지 배열을 필드당 한 줄로 눌러 담는다", () => {
+    expect(fieldErrorsOf({ verdict: ["필수입니다", "무시됨"], reason: undefined })).toEqual({
+      verdict: "필수입니다",
+      reason: "",
+    });
   });
 });

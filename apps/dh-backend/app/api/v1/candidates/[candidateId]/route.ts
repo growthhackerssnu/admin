@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import {
   serializeCandidate,
   serializeCompanyResearch,
@@ -52,7 +52,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (_req, { params
     }),
     Promise.resolve({
       usable: candidate.usableContactCount,
-      needs_verification: candidate.needsVerificationContactCount,
+      needsVerification: candidate.needsVerificationContactCount,
       unusable: candidate.unusableContactCount,
     }),
   ]);
@@ -61,19 +61,19 @@ export const GET = withApiHandler<{ candidateId: string }>(async (_req, { params
     body: successBody({
       candidate: serializeCandidate(candidate),
       company: serializeCompany(candidate.company),
-      current_research: candidate.currentResearch
+      currentResearch: candidate.currentResearch
         ? serializeCompanyResearch(candidate.currentResearch)
         : null,
-      latest_system_assessment: candidate.latestSystemAssessment
+      latestSystemAssessment: candidate.latestSystemAssessment
         ? serializeFitAssessment(candidate.latestSystemAssessment)
         : null,
-      active_human_decision: candidate.activeHumanDecision
+      activeHumanDecision: candidate.activeHumanDecision
         ? serializeHumanFitDecision(candidate.activeHumanDecision)
         : null,
       evidence: evidence.map(serializeEvidence),
-      contact_counts: contactCounts,
-      active_tasks: activeTasks.map(serializeResearchTask),
-      latest_failed_task: latestFailedTask ? serializeResearchTask(latestFailedTask) : null,
+      contactCounts: contactCounts,
+      activeTasks: activeTasks.map(serializeResearchTask),
+      latestFailedTask: latestFailedTask ? serializeResearchTask(latestFailedTask) : null,
     }),
   };
 });

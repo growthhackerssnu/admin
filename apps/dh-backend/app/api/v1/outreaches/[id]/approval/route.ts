@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
@@ -12,9 +12,9 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
   const parsed = approvalSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
   const {
-    expected_version: expectedVersion,
-    review_note: reviewNote,
-    condition_evidence: conditionEvidence,
+    expectedVersion,
+    reviewNote,
+    conditionEvidence,
   } = parsed.data;
 
   return withIdempotency(req, member, "POST /outreaches/:id/approval", parsed.data, async (tx) => {
@@ -26,7 +26,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
     }
     if (current.route === "recontact" && !reviewNote?.trim()) {
       throw new ApiError("VALIDATION_ERROR", "재접촉 승인에는 사유가 필요합니다.", {
-        fields: { review_note: "필수" },
+        fieldErrors: { reviewNote: "필수" },
       });
     }
 
@@ -43,9 +43,7 @@ export const POST = withApiHandler<{ id: string }>(async (req, { member, params 
       },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.id, tx)) };

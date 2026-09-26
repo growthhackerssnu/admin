@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { serializeResearchTask } from "@/lib/listup/serializers";
 import { enqueueResearchTask } from "@/lib/listup/tasks";
@@ -16,7 +16,7 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
   const parsed = researchRequestSchema.safeParse(body);
   if (!parsed.success) {
     throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.", {
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      fieldErrors: fieldErrorsOf(parsed.error.flatten().fieldErrors),
     });
   }
   const input = parsed.data;
@@ -34,7 +34,7 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
         input.type === "contact_research" || input.type === "contact_verification";
       if (isContactWork && candidate.effectiveFit !== "fit") {
         throw new ApiError("FIT_REQUIRED", "적합으로 판단된 후보만 연락 조사를 요청할 수 있습니다.", {
-          effective_fit: candidate.effectiveFit ?? "not_assessed",
+          fieldErrors: { effectiveFit: candidate.effectiveFit ?? "not_assessed" },
         });
       }
 
@@ -50,7 +50,7 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
         candidateId: candidate.id,
         type: input.type,
         trigger: "human_request",
-        requestedInformation: input.requested_information,
+        requestedInformation: input.requestedInformation,
         // 연락 계열은 연락 가능성 평가까지 이어서 하고, 사실 보완은 거기서 멈춘다.
         followupPolicy: isContactWork ? "automatic" : "none",
       });

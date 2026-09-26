@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
 
 // GET /outreaches/{id}

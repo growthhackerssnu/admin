@@ -49,13 +49,13 @@ describe("withIdempotency", () => {
     vi.clearAllMocks();
   });
 
-  it("Idempotency-Key 헤더가 없으면 INVALID_REQUEST(400)", async () => {
+  it("Idempotency-Key 헤더가 없으면 VALIDATION_ERROR(422)", async () => {
     const code = await codeOf(
       withIdempotency(requestWithKey(null), member, ROUTE, PAYLOAD, async () => {
         throw new Error("호출되면 안 된다");
       }),
     );
-    expect(code).toBe("INVALID_REQUEST");
+    expect(code).toBe("VALIDATION_ERROR");
   });
 
   it("같은 키·경로·본문이면 저장된 응답을 그대로 재생하고 핸들러를 부르지 않는다", async () => {

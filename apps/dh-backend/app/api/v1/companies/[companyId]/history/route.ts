@@ -1,12 +1,12 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
 import { parseLimit } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 
 type HistoryEvent = {
   type: "sent" | "response" | "job";
   at: string;
-  actor_id: string | null;
+  actorId: string | null;
   ref: Record<string, unknown>;
 };
 
@@ -14,7 +14,7 @@ type HistoryEvent = {
 // responses + sent_messages + jobs를 합쳐 시간순 파생 타임라인으로 구성한다.
 export const GET = withApiHandler<{ companyId: string }>(async (req, { params }) => {
   const { searchParams } = new URL(req.url);
-  const quarterId = searchParams.get("quarter_id");
+  const quarterId = searchParams.get("quarterId");
   const limit = parseLimit(searchParams);
 
   const outreach = await prisma.outreach.findUnique({
@@ -42,25 +42,25 @@ export const GET = withApiHandler<{ companyId: string }>(async (req, { params })
     ...sends.map((s) => ({
       type: "sent" as const,
       at: s.sentAt.toISOString(),
-      actor_id: null,
-      ref: { send_id: s.id, channel: s.channel, subject: s.subjectSnapshot },
+      actorId: null,
+      ref: { sendId: s.id, channel: s.channel, subject: s.subjectSnapshot },
     })),
     ...responses.map((r) => ({
       type: "response" as const,
       at: r.checkedAt.toISOString(),
-      actor_id: r.checkedById,
-      ref: { response_id: r.id, result: r.result, category: r.category },
+      actorId: r.checkedById,
+      ref: { responseId: r.id, result: r.result, category: r.category },
     })),
     ...jobs.map((j) => ({
       type: "job" as const,
       at: (j.finishedAt ?? j.createdAt).toISOString(),
-      actor_id: null,
-      ref: { job_id: j.id, job_type: j.type, status: j.status },
+      actorId: null,
+      ref: { jobId: j.id, jobType: j.type, status: j.status },
     })),
   ].sort((a, b) => (a.at < b.at ? 1 : -1));
 
   // 세 출처를 합쳐 만든 파생 목록이라 커서를 발급하지 않는다(기존과 동일).
   return {
-    body: listBody(events.slice(0, limit), { nextCursor: null, hasMore: events.length > limit }),
+    body: listBody(events.slice(0, limit), null),
   };
 });

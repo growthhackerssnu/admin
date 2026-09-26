@@ -1,6 +1,6 @@
 import type { CandidateContactStatus, Channel, ContactPriority, Prisma } from "@/generated/prisma";
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
 import {
   serializeCandidateContact,
   serializeCompanyPerson,
@@ -25,13 +25,13 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
   const priority = searchParams.get("priority");
 
   if (status && !CONTACT_STATUSES.includes(status as CandidateContactStatus)) {
-    throw new ApiError("INVALID_REQUEST", "status 값이 올바르지 않습니다.", { status });
+    throw new ApiError("VALIDATION_ERROR", "status 값이 올바르지 않습니다.", { fieldErrors: { status: "허용되지 않는 값" } });
   }
   if (type && !CHANNEL_TYPES.includes(type as Channel)) {
-    throw new ApiError("INVALID_REQUEST", "type 값이 올바르지 않습니다.", { type });
+    throw new ApiError("VALIDATION_ERROR", "type 값이 올바르지 않습니다.", { fieldErrors: { type: "허용되지 않는 값" } });
   }
   if (priority && !PRIORITIES.includes(priority as ContactPriority)) {
-    throw new ApiError("INVALID_REQUEST", "priority 값이 올바르지 않습니다.", { priority });
+    throw new ApiError("VALIDATION_ERROR", "priority 값이 올바르지 않습니다.", { fieldErrors: { priority: "허용되지 않는 값" } });
   }
 
   const candidate = await prisma.candidate.findUnique({
@@ -55,7 +55,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
     include: { contactChannel: { include: { person: true } } },
   });
 
-  const { items, page } = buildPage(rows, limit);
+  const { items, nextCursor } = buildPage(rows, limit);
 
   const evidenceIds = new Set<string>();
   for (const item of items) {
@@ -87,7 +87,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
             .map(serializeEvidence),
         };
       }),
-      page,
+      nextCursor,
     ),
   };
 });

@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
 import { serializeFitAssessment } from "@/lib/listup/serializers";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +25,6 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
     include: { interventions: { orderBy: { id: "asc" } } },
   });
 
-  const { items, page } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeFitAssessment), page) };
+  const { items, nextCursor } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeFitAssessment), nextCursor) };
 });

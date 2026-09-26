@@ -305,18 +305,18 @@ async function main() {
       quarterId: currentQuarter.id,
       sourcePolicy: "allow_supplementary",
       sources: [
-        { key: "Google", name: "Google", entry_urls: [], query: "신규 구독 서비스 출시 기업" },
-        { key: "뉴스레터", name: "뉴스레터", entry_urls: [], query: null },
+        { key: "Google", name: "Google", entryUrls: [], query: "신규 구독 서비스 출시 기업" },
+        { key: "뉴스레터", name: "뉴스레터", entryUrls: [], query: null },
       ],
       filters: {
         industries: [],
         keywords: ["구독 서비스"],
         regions: [],
-        company_stages: [],
-        excluded_company_ids: [],
-        additional_conditions: null,
+        companyStages: [],
+        excludedCompanyIds: [],
+        additionalConditions: null,
       },
-      limits: { max_companies: 20, max_fit_followup_rounds: 1, max_contact_search_rounds: 2 },
+      limits: { maxCompanies: 20, maxFitFollowupRounds: 1, maxContactSearchRounds: 2 },
       status: "completed",
       duplicateExcludedCount: 2,
       createdById: jaewook.id,
@@ -381,7 +381,7 @@ async function main() {
       researchId: fitResearch.id,
       verdict: "fit",
       summary: "온보딩 이탈 구간에서 실험할 여지가 크다.",
-      informationGaps: [{ question: "해지율 수준", resolution_method: "company_confirmation" }],
+      informationGaps: [{ question: "해지율 수준", resolutionMethod: "company_confirmation" }],
       criteriaVersion: "2026-09",
       interventions: {
         create: [
@@ -478,7 +478,7 @@ async function main() {
       researchId: pendingResearch.id,
       verdict: "pending",
       summary: "수익 모델을 확인하지 못해 개입 가치를 판단할 수 없다.",
-      informationGaps: [{ question: "수익 모델", resolution_method: "public_research" }],
+      informationGaps: [{ question: "수익 모델", resolutionMethod: "public_research" }],
       criteriaVersion: "2026-09",
     },
   });

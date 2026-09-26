@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { assertRevisionMatch } from "@/lib/revision";
 import { prisma } from "@/lib/prisma";
@@ -16,13 +16,13 @@ export const GET = withApiHandler<{ outreachId: string }>(async (_req, { params 
   const latest = await getLatestRevisionOrThrow(params.outreachId);
   return {
     body: successBody({
-      outreach_id: params.outreachId,
+      outreachId: params.outreachId,
       revision: latest.revision,
       topic: latest.topic,
       subject: latest.subject,
       body: latest.body,
-      approved_revision: latest.outreach.approvedRevision,
-      template_used: latest.templateId ? { id: latest.templateId, version: latest.templateVersion } : null,
+      approvedRevision: latest.outreach.approvedRevision,
+      templateUsed: latest.templateId ? { id: latest.templateId, version: latest.templateVersion } : null,
     }),
   };
 });
@@ -35,8 +35,8 @@ export const PATCH = withApiHandler<{ outreachId: string }>(async (req, { member
   const parsed = saveDraftSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
   const {
-    expected_version: expectedVersion,
-    expected_revision: expectedRevision,
+    expectedVersion,
+    expectedRevision,
     topic,
     subject,
     body: draftBody,
@@ -47,10 +47,7 @@ export const PATCH = withApiHandler<{ outreachId: string }>(async (req, { member
     assertRevisionMatch(outreach, outreach?.version, expectedVersion);
 
     if (outreach.currentRevision !== expectedRevision) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 초안을 수정했습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedRevision,
-        current_revision: outreach.currentRevision,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 초안을 수정했습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     const nextRevision = (outreach.currentRevision ?? 0) + 1;
@@ -75,9 +72,7 @@ export const PATCH = withApiHandler<{ outreachId: string }>(async (req, { member
       },
     });
     if (updateResult.count !== 1) {
-      throw new ApiError("REVISION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.", {
-        expected_revision: expectedVersion,
-      });
+      throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
     return { status: 200, body: successBody(await serializeOutreachDetail(params.outreachId, tx)) };

@@ -1,5 +1,5 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import {
   serializeCandidate,
@@ -39,8 +39,8 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
     include: decidedBySelect,
   });
 
-  const { items, page } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeHumanFitDecision), page) };
+  const { items, nextCursor } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeHumanFitDecision), nextCursor) };
 });
 
 // POST /candidates/{id}/human-fit-decisions — 사람의 판단 직접 변경.
@@ -53,7 +53,7 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
   const parsed = humanFitDecisionSchema.safeParse(body);
   if (!parsed.success) {
     throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.", {
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+      fieldErrors: fieldErrorsOf(parsed.error.flatten().fieldErrors),
     });
   }
   const input = parsed.data;
@@ -68,16 +68,16 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
         where: { id: params.candidateId },
         include: { searchRun: { select: { limits: true } } },
       });
-      assertRevisionMatch(candidate, candidate?.revision, input.expected_revision);
+      assertRevisionMatch(candidate, candidate?.revision, input.expectedRevision);
 
-      if (input.based_on_assessment_id) {
+      if (input.basedOnAssessmentId) {
         const assessment = await tx.fitAssessment.findUnique({
-          where: { id: input.based_on_assessment_id },
+          where: { id: input.basedOnAssessmentId },
           select: { candidateId: true },
         });
         if (!assessment || assessment.candidateId !== candidate.id) {
-          throw new ApiError("INVALID_REQUEST", "근거로 지정한 판단이 이 후보의 것이 아닙니다.", {
-            based_on_assessment_id: input.based_on_assessment_id,
+          throw new ApiError("VALIDATION_ERROR", "근거로 지정한 판단이 이 후보의 것이 아닙니다.", {
+            fieldErrors: { basedOnAssessmentId: "이 후보의 판단이 아님" },
           });
         }
       }
@@ -87,8 +87,8 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
           candidateId: candidate.id,
           verdict: input.verdict,
           reason: input.reason ?? null,
-          interventionNote: input.intervention_note ?? null,
-          basedOnAssessmentId: input.based_on_assessment_id ?? null,
+          interventionNote: input.interventionNote ?? null,
+          basedOnAssessmentId: input.basedOnAssessmentId ?? null,
           decidedById: member.id,
         },
         include: decidedBySelect,
@@ -123,7 +123,7 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
 
 type FollowupResult = {
   action: "task_created" | "task_reused" | "contacts_reused" | "none";
-  task_id: string | null;
+  taskId: string | null;
   reason:
     | "fit_changed"
     | "existing_task"
@@ -145,11 +145,11 @@ async function applyFollowup(
 ): Promise<FollowupResult> {
   if (input.verdict !== "fit") {
     await cancelPendingFollowups(tx, input.candidateId);
-    return { action: "none", task_id: null, reason: "not_fit" };
+    return { action: "none", taskId: null, reason: "not_fit" };
   }
 
   if (input.usableContactCount > 0) {
-    return { action: "contacts_reused", task_id: null, reason: "existing_contacts" };
+    return { action: "contacts_reused", taskId: null, reason: "existing_contacts" };
   }
 
   const activeContactTask = await tx.researchTask.findFirst({
@@ -161,12 +161,12 @@ async function applyFollowup(
     orderBy: { createdAt: "desc" },
   });
   if (activeContactTask) {
-    return { action: "task_reused", task_id: activeContactTask.id, reason: "existing_task" };
+    return { action: "task_reused", taskId: activeContactTask.id, reason: "existing_task" };
   }
 
   const usedRounds = await countAutomaticContactRounds(tx, input.candidateId);
-  if (usedRounds >= input.limits.max_contact_search_rounds) {
-    return { action: "none", task_id: null, reason: "automatic_limit_reached" };
+  if (usedRounds >= input.limits.maxContactSearchRounds) {
+    return { action: "none", taskId: null, reason: "automatic_limit_reached" };
   }
 
   const { task } = await enqueueResearchTask(tx, {
@@ -176,5 +176,5 @@ async function applyFollowup(
     trigger: "fit_changed",
     followupPolicy: "automatic",
   });
-  return { action: "task_created", task_id: task.id, reason: "fit_changed" };
+  return { action: "task_created", taskId: task.id, reason: "fit_changed" };
 }

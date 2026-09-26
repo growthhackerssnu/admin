@@ -10,7 +10,7 @@ const WORKER_ENABLED = process.env.LISTUP_WORKER_ENABLED === "true";
 
 async function notifyWorker(_taskId: string) {
   if (!WORKER_ENABLED) return;
-  // 다음 단계: inngest.send({ name: "listup/task.queued", data: { task_id: taskId } })
+  // 다음 단계: inngest.send({ name: "listup/task.queued", data: { taskId: taskId } })
 }
 
 type EnqueueInput = {
@@ -54,9 +54,8 @@ export async function enqueueResearchTask(
         return { task: active, reused: true };
       }
       throw new ApiError("TASK_ALREADY_RUNNING", "같은 종류의 조사가 이미 진행 중입니다.", {
-        task_id: active.id,
-        type: input.type,
-      });
+        fieldErrors: { type: input.type },
+        });
     }
   }
 

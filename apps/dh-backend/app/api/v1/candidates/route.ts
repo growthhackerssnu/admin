@@ -1,6 +1,6 @@
 import type { ContactStatus, FitVerdict, Prisma, ResearchTask } from "@/generated/prisma";
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
 import { decisionSourceFilter, decisionSourceOf } from "@/lib/listup/state";
 import { serializeEffectiveFit, serializeResearchTask } from "@/lib/listup/serializers";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
@@ -22,25 +22,25 @@ export const GET = withApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
-  const searchRunId = searchParams.get("search_run_id");
-  const companyId = searchParams.get("company_id");
-  const effectiveFit = searchParams.get("effective_fit");
-  const contactStatus = searchParams.get("contact_status");
-  const decisionSource = searchParams.get("decision_source");
+  const searchRunId = searchParams.get("searchRunId");
+  const companyId = searchParams.get("companyId");
+  const effectiveFit = searchParams.get("effectiveFit");
+  const contactStatus = searchParams.get("contactStatus");
+  const decisionSource = searchParams.get("decisionSource");
   const q = searchParams.get("q");
   const sort = searchParams.get("sort") ?? "created_at_desc";
 
   if (effectiveFit && !(FIT_FILTERS as readonly string[]).includes(effectiveFit)) {
-    throw new ApiError("INVALID_REQUEST", "effective_fit 값이 올바르지 않습니다.", { effective_fit: effectiveFit });
+    throw new ApiError("VALIDATION_ERROR", "effective_fit 값이 올바르지 않습니다.", { fieldErrors: { effectiveFit: "허용되지 않는 값" } });
   }
   if (contactStatus && !CONTACT_STATUSES.includes(contactStatus as ContactStatus)) {
-    throw new ApiError("INVALID_REQUEST", "contact_status 값이 올바르지 않습니다.", { contact_status: contactStatus });
+    throw new ApiError("VALIDATION_ERROR", "contact_status 값이 올바르지 않습니다.", { fieldErrors: { contactStatus: "허용되지 않는 값" } });
   }
   if (decisionSource && !(DECISION_SOURCES as readonly string[]).includes(decisionSource)) {
-    throw new ApiError("INVALID_REQUEST", "decision_source 값이 올바르지 않습니다.", { decision_source: decisionSource });
+    throw new ApiError("VALIDATION_ERROR", "decision_source 값이 올바르지 않습니다.", { fieldErrors: { decisionSource: "허용되지 않는 값" } });
   }
   if (sort !== "created_at_desc" && sort !== "updated_at_desc") {
-    throw new ApiError("INVALID_REQUEST", "sort 값이 올바르지 않습니다.", { sort });
+    throw new ApiError("VALIDATION_ERROR", "sort 값이 올바르지 않습니다.", { fieldErrors: { sort: "허용되지 않는 값" } });
   }
 
   const where: Prisma.CandidateWhereInput = {
@@ -72,7 +72,7 @@ export const GET = withApiHandler(async (req) => {
     },
   });
 
-  const { items, page } = buildPage(rows, limit);
+  const { items, nextCursor } = buildPage(rows, limit);
   const candidateIds = items.map((c) => c.id);
 
   // 후보마다 따로 조회하지 않고 두 번에 나눠 가져와 N+1을 피한다.
@@ -116,29 +116,29 @@ export const GET = withApiHandler(async (req) => {
 
         return {
           id: candidate.id,
-          search_run_id: candidate.searchRunId,
+          searchRunId: candidate.searchRunId,
           revision: candidate.revision,
           company: serializeCompany(candidate.company),
           fit: {
-            effective_verdict: serializeEffectiveFit(candidate.effectiveFit),
-            decision_source: source,
-            system_verdict: candidate.latestSystemAssessment?.verdict ?? null,
-            human_verdict: candidate.activeHumanDecision?.verdict ?? null,
+            effectiveVerdict: serializeEffectiveFit(candidate.effectiveFit),
+            decisionSource: source,
+            systemVerdict: candidate.latestSystemAssessment?.verdict ?? null,
+            humanVerdict: candidate.activeHumanDecision?.verdict ?? null,
             summary,
           },
           contacts: {
             status: candidate.contactStatus,
-            usable_count: candidate.usableContactCount,
-            needs_verification_count: candidate.needsVerificationContactCount,
+            usableCount: candidate.usableContactCount,
+            needsVerificationCount: candidate.needsVerificationContactCount,
           },
-          active_tasks: (activeByCandidate.get(candidate.id) ?? []).map(serializeResearchTask),
-          latest_failed_task: latestFailedByCandidate.has(candidate.id)
+          activeTasks: (activeByCandidate.get(candidate.id) ?? []).map(serializeResearchTask),
+          latestFailedTask: latestFailedByCandidate.has(candidate.id)
             ? serializeResearchTask(latestFailedByCandidate.get(candidate.id)!)
             : null,
-          updated_at: candidate.updatedAt.toISOString(),
+          updatedAt: candidate.updatedAt.toISOString(),
         };
       }),
-      page,
+      nextCursor,
     ),
   };
 });
