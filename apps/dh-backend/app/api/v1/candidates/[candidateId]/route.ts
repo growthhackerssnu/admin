@@ -1,5 +1,6 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { successBody } from "@/lib/listup/errors";
 import {
   serializeCandidate,
   serializeCompanyResearch,
@@ -13,7 +14,7 @@ import { serializeCompany } from "@/lib/serializers/company";
 
 // GET /candidates/{id} — 후보 상세.
 // 연락처 전체는 /candidates/{id}/contacts에서 따로 가져간다.
-export const GET = withApiHandler<{ candidateId: string }>(async (_req, { params }) => {
+export const GET = withListupApiHandler<{ candidateId: string }>(async (_req, { params }) => {
   const candidate = await prisma.candidate.findUnique({
     where: { id: params.candidateId },
     include: {

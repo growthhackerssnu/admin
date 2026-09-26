@@ -1,7 +1,8 @@
 import { withApiHandler } from "@/lib/apiHandler";
 import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
-import { assertRevisionMatch } from "@/lib/revision";
+import { assertVersionMatch } from "@/lib/revision";
+import { assertCanModify } from "@/lib/permissions";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
 import { approveDraftSchema } from "@/lib/validation/outreach";
 
@@ -14,7 +15,9 @@ export const POST = withApiHandler<{ outreachId: string }>(async (req, { member,
 
   return withIdempotency(req, member, "POST /drafts/:outreachId/approval", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.outreachId } });
-    assertRevisionMatch(current, current?.version, expectedVersion);
+    assertVersionMatch(current, current?.version, expectedVersion);
+    // 본인 담당 업무만 변경할 수 있다(P-23). 조회는 막지 않는다.
+    assertCanModify(member, current.ownerId);
 
     if (current.currentRevision !== expectedRevision) {
       throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 초안을 수정했습니다. 최신 내용을 다시 확인해주세요.");

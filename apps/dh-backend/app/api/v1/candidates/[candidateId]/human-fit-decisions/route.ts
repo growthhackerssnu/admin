@@ -1,5 +1,6 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, listBody, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { listBody, successBody } from "@/lib/listup/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import {
   serializeCandidate,
@@ -16,11 +17,12 @@ import { humanFitDecisionSchema } from "@/lib/listup/validation";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { assertRevisionMatch } from "@/lib/revision";
+import { assertCanModify } from "@/lib/permissions";
 
 const decidedBySelect = { decidedBy: { select: { id: true, displayName: true } } } as const;
 
 // GET /candidates/{id}/human-fit-decisions — 사람 판단 이력(append-only).
-export const GET = withApiHandler<{ candidateId: string }>(async (req, { params }) => {
+export const GET = withListupApiHandler<{ candidateId: string }>(async (req, { params }) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -39,8 +41,8 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
     include: decidedBySelect,
   });
 
-  const { items, nextCursor } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeHumanFitDecision), nextCursor) };
+  const { items, nextCursor, hasMore } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeHumanFitDecision), { nextCursor, hasMore }) };
 });
 
 // POST /candidates/{id}/human-fit-decisions — 사람의 판단 직접 변경.
@@ -48,7 +50,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
 // 사람 판단이 시스템 판단보다 우선하고, 시스템 재판단을 만들지 않는다. 판단 저장이
 // 성공하면 후속 조사가 접수되지 않아도 201이다 — 자동 한도 소진은 오류가 아니라
 // followup.reason으로 알린다(명세 §6.4).
-export const POST = withApiHandler<{ candidateId: string }>(async (req, { member, params }) => {
+export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { member, params }) => {
   const body = await req.json().catch(() => null);
   const parsed = humanFitDecisionSchema.safeParse(body);
   if (!parsed.success) {
@@ -66,9 +68,11 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
     async (tx) => {
       const candidate = await tx.candidate.findUnique({
         where: { id: params.candidateId },
-        include: { originSearchRun: { select: { conditionsSnapshot: true } } },
+        include: { originSearchRun: { select: { conditionsSnapshot: true, assignedMemberId: true } } },
       });
       assertRevisionMatch(candidate, candidate?.revision, input.expectedRevision);
+      // 조사 단계의 담당자는 원발견 배치의 담당자다(v0.4 §6.1).
+      assertCanModify(member, candidate.originSearchRun.assignedMemberId);
 
       if (input.basedOnAssessmentId) {
         const assessment = await tx.fitAssessment.findUnique({

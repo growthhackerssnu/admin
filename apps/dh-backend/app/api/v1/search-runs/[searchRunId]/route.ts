@@ -1,11 +1,12 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { successBody } from "@/lib/listup/errors";
 import { serializeSearchRun } from "@/lib/listup/serializers";
 import { prisma } from "@/lib/prisma";
 
 // GET /search-runs/{id} — 조건·상태와 집계.
 // 집계는 현재 유효 판단 기준이라, 탐색이 끝난 뒤 사람이 판단을 바꾸면 값도 달라진다.
-export const GET = withApiHandler<{ searchRunId: string }>(async (_req, { params }) => {
+export const GET = withListupApiHandler<{ searchRunId: string }>(async (_req, { params }) => {
   const run = await prisma.searchRun.findUnique({
     where: { id: params.searchRunId },
     include: {

@@ -1,7 +1,8 @@
 import { withApiHandler } from "@/lib/apiHandler";
 import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
-import { assertRevisionMatch } from "@/lib/revision";
+import { assertVersionMatch } from "@/lib/revision";
+import { assertCanModify } from "@/lib/permissions";
 import { exclusionSchema } from "@/lib/validation/outreach";
 
 // POST /companies/{companyId}/exclusion — 영구 제외. 자동 복귀 없음(§6 확정
@@ -23,8 +24,10 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
       tx.company.findUnique({ where: { id: params.companyId } }),
       tx.outreach.findUnique({ where: { id: outreachId } }),
     ]);
-    assertRevisionMatch(company, company?.version, expectedCompanyVersion);
-    assertRevisionMatch(outreach, outreach?.version, expectedVersion);
+    assertVersionMatch(company, company?.version, expectedCompanyVersion);
+    assertVersionMatch(outreach, outreach?.version, expectedVersion);
+    // 영구 제외도 업무 변경이라 담당자만 할 수 있다(P-23).
+    assertCanModify(member, outreach.ownerId);
     if (outreach.companyId !== params.companyId) {
       throw new ApiError("VALIDATION_ERROR", "컨택 건이 이 기업에 속하지 않습니다.");
     }

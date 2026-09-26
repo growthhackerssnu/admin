@@ -41,13 +41,14 @@ export function takeWithLookahead(limit: number): number {
   return limit + 1;
 }
 
-// 봉투에는 nextCursor만 싣는다(v0.3 §7.1). null이면 다음 페이지가 없다는 뜻이다.
+// 두 봉투가 쓰는 값을 모두 돌려준다. 리스트업은 { nextCursor, hasMore }를 page에
+// 그대로 싣고, 기존 발송 봉투는 nextCursor만 쓴다(v0.4 §6.1).
 export function buildPage<T extends { id: string }>(
   rows: T[],
   limit: number,
-): { items: T[]; nextCursor: string | null } {
+): { items: T[]; nextCursor: string | null; hasMore: boolean } {
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
   const last = items[items.length - 1];
-  return { items, nextCursor: hasMore && last ? encodeCursor(last.id) : null };
+  return { items, nextCursor: hasMore && last ? encodeCursor(last.id) : null, hasMore };
 }

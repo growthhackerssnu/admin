@@ -2,7 +2,8 @@ import { withApiHandler } from "@/lib/apiHandler";
 import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { findExclusionReason } from "@/lib/contactExclusion";
 import { withIdempotency } from "@/lib/idempotency";
-import { assertRevisionMatch } from "@/lib/revision";
+import { assertVersionMatch } from "@/lib/revision";
+import { assertCanModify } from "@/lib/permissions";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
 import { selectRecipientSchema } from "@/lib/validation/outreach";
 
@@ -20,7 +21,9 @@ export const PUT = withApiHandler<{ id: string }>(async (req, { member, params }
 
   return withIdempotency(req, member, "PUT /outreaches/:id/recipient", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.id } });
-    assertRevisionMatch(current, current?.version, expectedVersion);
+    assertVersionMatch(current, current?.version, expectedVersion);
+    // 본인 담당 업무만 변경할 수 있다(P-23). 조회는 막지 않는다.
+    assertCanModify(member, current.ownerId);
 
     if (current.workStage !== "recipient_selection") {
       throw new ApiError("INVALID_STATE", "지금은 수신자를 선택할 수 있는 단계가 아닙니다.");

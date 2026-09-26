@@ -1,7 +1,9 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { successBody } from "@/lib/listup/errors";
 import { serializeSearchRun } from "@/lib/listup/serializers";
 import { prisma } from "@/lib/prisma";
+import { assertCanModify } from "@/lib/permissions";
 
 const TERMINAL = ["completed", "partially_completed", "failed"] as const;
 
@@ -11,9 +13,10 @@ const TERMINAL = ["completed", "partially_completed", "failed"] as const;
 //
 // 대기 중인 작업만 취소로 바꾼다. 실행 중인 작업은 여기서 멈출 수단이 없어서(워커가
 // 아직 없다) 탐색 상태만 남기고, 워커가 생기면 단계 사이에서 이 상태를 확인하게 한다.
-export const POST = withApiHandler<{ searchRunId: string }>(async (_req, { params }) => {
+export const POST = withListupApiHandler<{ searchRunId: string }>(async (_req, { member, params }) => {
   const run = await prisma.searchRun.findUnique({ where: { id: params.searchRunId } });
   if (!run) throw new ApiError("NOT_FOUND", "탐색을 찾을 수 없습니다.");
+  assertCanModify(member, run.assignedMemberId);
 
   if ((TERMINAL as readonly string[]).includes(run.status)) {
     throw new ApiError("INVALID_STATE", "이미 종료된 탐색은 취소할 수 없습니다.", { fieldErrors: { status: run.status } });

@@ -1,11 +1,12 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { successBody } from "@/lib/listup/errors";
 import { serializeCompanyResearch } from "@/lib/listup/serializers";
 import { prisma } from "@/lib/prisma";
 
 // GET /company-research/{id} — 특정 기업 조사 버전.
 // 과거 판단이 참조하는 research_id를 그대로 열어볼 수 있게 하는 경로다.
-export const GET = withApiHandler<{ researchId: string }>(async (_req, { params }) => {
+export const GET = withListupApiHandler<{ researchId: string }>(async (_req, { params }) => {
   const research = await prisma.companyResearch.findUnique({
     where: { id: params.researchId },
     include: { claims: { orderBy: { id: "asc" } } },

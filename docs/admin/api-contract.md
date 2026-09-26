@@ -2,9 +2,9 @@
 
 `apps/dh-backend`가 내려주는 응답의 공통 규약이다. **저장소에서 이 문서가 API 표기의 유일한 기준이다.**
 
-> **표기 확정 (2026-09-26).** 리스트업–컨택 통합 명세 **v0.3 §7.1**을 따른다: HTTP DTO는 **camelCase**, 봉투는 `{ data, requestId }`.
+> **기준 문서: v0.4** (`리스트업_통합_데이터스키마_API명세_v0.4.md`). 표기는 **camelCase**이고, **봉투는 기능마다 두 벌**이다.
 >
-> 짧은 기간 snake_case + `{ data }` 봉투로 구현했던 적이 있다(v0.1 명세 기준). v0.3이 camelCase를 요구하고 프론트 자체 모델도 camelCase라서 되돌렸다. **더 이상 뒤집지 않는다** — 표기를 바꾸려면 이 문서를 먼저 고치고 합의한다.
+> v0.4 §8.3이 "v0.1 응답 봉투와 기존 대협봇 응답 봉투를 표기법 변경에 편승해 통합하지 않는다"고 명시했다. 한때 하나로 합쳤다가 되돌렸으니 **다시 합치지 말 것.**
 >
 > 같은 날 **차수(cycle) 개념을 없애고 분기(quarter)로 바꿨다.** 자세한 내용은 §5.
 
@@ -19,32 +19,36 @@
 - 이력·작업을 만드는 모든 POST에 `Idempotency-Key` 헤더가 필요하다.
 - 동시 수정이 있는 리소스는 기대 버전을 같이 보낸다(`expectedVersion` 또는 `expectedRevision`).
 
-### 성공 응답
+### 성공 응답 — 봉투가 둘이다
+
+기능마다 포장이 다르다(v0.4 §6.1). 표기법 예외가 아니라 **호환 경계**이고, 프론트 API 계층에서 정규화한다.
 
 ```jsonc
-// 단건
-{ "data": { "id": "clx...", "legalName": null, "canonicalDomain": "example.com" },
-  "requestId": "dc5f19a1-..." }
+// 리스트업(신규): /search-runs, /candidates, /tasks, /target-quarters, /company-research, /evidence
+{ "data": { "id": "clx...", "effectiveFit": "not_assessed" } }
+{ "data": [ ... ], "page": { "nextCursor": "Y2x4...", "hasMore": true } }
 
-// 목록
-{ "data": { "items": [ { "id": "clx...", "effectiveFit": "fit" } ], "nextCursor": "Y2x4..." },
-  "requestId": "dc5f19a1-..." }
+// 발송(기존): /companies, /outreaches, /drafts, /sends, /members, /template-bindings, /search-options
+{ "data": { ... }, "requestId": "dc5f19a1-..." }
+{ "data": { "items": [ ... ], "nextCursor": null }, "requestId": "dc5f19a1-..." }
 ```
 
-`nextCursor`가 null이면 다음 페이지가 없다. 별도의 `hasMore`는 두지 않는다. 목록은 `limit` 기본 20 · 최대 100이고, `cursor`는 서버가 발급하는 불투명 문자열이라 클라이언트가 해석하지 않는다. 필터를 바꾸면 이전 커서를 재사용하지 않는다.
+리스트업 봉투는 성공에 `requestId`가 없다(오류 안에만 있다). 목록은 `limit` 기본 20·최대 100이고 `cursor`는 서버가 발급하는 불투명 문자열이다.
 
-### 오류 응답
+### 오류 응답 — 역시 둘이다
 
 ```jsonc
-{ "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "effectiveFit 값이 올바르지 않습니다.",
-    "fieldErrors": { "effectiveFit": "허용되지 않는 값" },
-    "retryable": false },
-  "requestId": "dc5f19a1-..." }
+// 리스트업: details, requestId가 error 안
+{ "error": { "code": "FIT_REQUIRED", "message": "...",
+             "details": { "effectiveFit": "pending" }, "requestId": "..." } }
+
+// 발송: fieldErrors·retryable, requestId가 바깥
+{ "error": { "code": "VALIDATION_ERROR", "message": "...",
+             "fieldErrors": { "limit": "1 이상의 정수" }, "retryable": false },
+  "requestId": "..." }
 ```
 
-`fieldErrors`는 필드당 한 줄이고 없을 수도 있다. `retryable`은 클라이언트가 같은 요청을 그대로 다시 보내도 되는지를 뜻하며, 한도·일시 장애에만 true다.
+구현은 `src/lib/errors.ts`(발송)와 `src/lib/listup/errors.ts`(리스트업)로 나뉘어 있고, 래퍼도 `withApiHandler` / `withListupApiHandler`로 갈린다. 오류 "값"(코드 테이블)은 한 벌을 공유한다.
 
 ## 2. 오류 코드
 
@@ -53,7 +57,8 @@
 | `UNAUTHENTICATED` | 401 | 토큰이 없거나 유효하지 않음 |
 | `FORBIDDEN` | 403 | 권한 없음 |
 | `NOT_FOUND` | 404 | 리소스 없음 또는 접근 불가 |
-| `VERSION_CONFLICT` | 409 | 기대 버전 불일치. 최신 상세를 다시 읽는다 |
+| `REVISION_CONFLICT` | 409 | **조사 기록**(`expectedRevision`) 불일치 |
+| `VERSION_CONFLICT` | 409 | **컨택 건·기업**(`expectedVersion`) 불일치 |
 | `IDEMPOTENCY_CONFLICT` | 409 | 같은 키에 다른 경로·다른 본문 |
 | `INVALID_STATE` | 409 | 지금 상태에서 허용되지 않는 동작 |
 | `ALREADY_EXISTS` | 409 | 유일해야 하는 값의 중복(분기 라벨 등) |
@@ -129,13 +134,29 @@
 
 > `/companies/{id}`는 **기업 식별 정보**(이름·별칭·도메인)를 돌려준다. 발송용 필드(`product`, 제외 플래그, 과거 협업 등)는 `/outreaches/{id}` 응답의 `company` 하위 객체에 있다.
 
-## 4. 동시 수정
+## 4. 권한 (P-23)
+
+**조회는 누구에게나 열려 있고, 변경만 담당자로 제한한다.**
+
+- 팀원은 본인 담당 업무만 변경한다. 타인 업무는 조회만 가능하다.
+- 팀장은 전체를 변경한다. 지금 저장소의 역할 중 `admin`이 팀장이다.
+- 담당자 판정: 컨택 건이 있으면 `Outreach.ownerId`, 아직 조사 단계면 원발견 배치의 `SearchRun.assignedMemberId`. 탐색을 시작한 사람이 첫 전송까지 담당하며(P-02) 보완 조사·분기 이동으로 바뀌지 않는다.
+- 담당자를 모르는 과거 행은 소유권을 추정하지 않고 팀장만 변경한다.
+- 권한 없는 단건 변경은 **403 `FORBIDDEN`**.
+- 역할·사용자 ID는 서버가 인증 정보에서만 읽는다. 요청 본문에 `role`이나 `ownerId`를 넣어도 권한을 얻거나 담당자를 덮어쓸 수 없다.
+- 응답의 `allowedActions`는 UI 안내일 뿐이고 권한 검사의 대체물이 아니다. 변경 요청마다 서버가 다시 확인한다.
+
+새로 만드는 두 동작에는 담당자 검사가 없다 — 대조할 담당자가 아직 없기 때문이다. `POST /search-runs`(시작한 사람이 담당자가 된다)와 `POST /target-quarters`(팀 공용 라벨)가 그렇다.
+
+구현은 `src/lib/permissions.ts`다. `src/lib/auth.ts`의 capability 표는 **역할** 축이라 이 규칙과 별개이며 여전히 미사용이다.
+
+## 5. 동시 수정
 
 - 컨택 건·기업은 `version` 컬럼을 쓰고 요청에 `expectedVersion`을 보낸다.
 - 리스트업 후보는 `revision` 컬럼을 쓰고 `expectedRevision`을 보낸다. 후보의 `revision`은 사용자에게 보이는 상태(판단·연락 상태·창구 수)가 바뀔 때 올라간다.
 - 어긋나면 둘 다 `VERSION_CONFLICT`다. 클라이언트는 최신 상세를 다시 읽고, 사람의 변경을 임의로 덮어쓰지 않는다.
 
-## 5. 차수 → 분기
+## 6. 차수 → 분기
 
 - `cycles` → `quarters`. 라벨(`2026-Q4`)은 **담당자가 직접 정한다** — 달력에서 계산하지 않는다.
 - **전역 "현재 분기"는 없다.** 각 컨택 건·탐색이 자기 분기를 들고 있다. 예전 요청 필드 `expectedActiveCycleId`와 오류 코드 `ACTIVE_CYCLE_CHANGED`는 사라졌다.
@@ -144,7 +165,7 @@
 
 > v0.3은 기존 `Cycle`을 남기고 `targetQuarters`(연도·분기 정수, 달력 분기 실적과 별도 축)를 새로 추가하라고 한다. 우리 구현과 다르며 **아직 합의되지 않았다**(§6).
 
-## 6. 아직 합의가 필요한 것
+## 7. 아직 합의가 필요한 것
 
 - **목표 분기 모델.** v0.3의 `target_quarters`(year/quarter 정수) vs 현재의 `quarters`(라벨 문자열). 발송 실적을 `sentAt`의 달력 분기로 세는 축도 아직 없다.
 - **연락처 테이블.** v0.3은 기존 `contacts`/`contactEndpoints` 확장을 요구하지만, 현재는 별도 테이블(`companyPersons`/`contactChannels`/`candidateContacts`)로 구현돼 있다.

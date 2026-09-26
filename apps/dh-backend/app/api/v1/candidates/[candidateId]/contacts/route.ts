@@ -1,6 +1,7 @@
 import type { CandidateContactStatus, Channel, Prisma } from "@/generated/prisma";
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, listBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError } from "@/lib/errors";
+import { listBody } from "@/lib/listup/errors";
 import {
   serializeContactEndpoint,
   serializeContactOptionAssessment,
@@ -18,7 +19,7 @@ const CHANNEL_TYPES: Channel[] = ["email", "linkedin"];
 // 연락 선택지 평가와 그 근거를 함께 돌려준다(v0.4 §6.7). `usable`은 실제 수신·답장이
 // 아니라 "공개 정보나 사람의 확인상 쓸 수 있다"는 평가다. 자동 채널 선택은 없다 —
 // 수신자와 채널은 사람이 고른다(P-09).
-export const GET = withApiHandler<{ candidateId: string }>(async (req, { params }) => {
+export const GET = withListupApiHandler<{ candidateId: string }>(async (req, { params }) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -59,7 +60,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
     },
   });
 
-  const { items, nextCursor } = buildPage(rows, limit);
+  const { items, nextCursor, hasMore } = buildPage(rows, limit);
 
   const evidenceIds = new Set<string>();
   for (const item of items) {
@@ -89,7 +90,7 @@ export const GET = withApiHandler<{ candidateId: string }>(async (req, { params 
             .map(serializeEvidence),
         };
       }),
-      nextCursor,
+      { nextCursor, hasMore },
     ),
   };
 });

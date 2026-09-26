@@ -1,6 +1,7 @@
 import type { Prisma, SearchRunStatus } from "@/generated/prisma";
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, listBody, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { listBody, successBody } from "@/lib/listup/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { isSupportedSourceKey } from "@/lib/listup/sources";
 import { serializeResearchTask, serializeSearchRun } from "@/lib/listup/serializers";
@@ -30,7 +31,7 @@ const SEARCH_RUN_STATUSES: SearchRunStatus[] = [
 ];
 
 // GET /search-runs?targetQuarterId&assignedMemberId&status&cursor&limit
-export const GET = withApiHandler(async (req) => {
+export const GET = withListupApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -54,13 +55,16 @@ export const GET = withApiHandler(async (req) => {
     include: runInclude,
   });
 
-  const { items, nextCursor } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeSearchRun), nextCursor) };
+  const { items, nextCursor, hasMore } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeSearchRun), { nextCursor, hasMore }) };
 });
 
+// 담당자 검사가 없는 것은 의도적이다: 새로 만드는 동작이라 대조할 담당자가 아직 없고,
+// 로그인한 팀원이면 누구나 탐색을 시작할 수 있다(P-02). 시작한 사람이 그대로 담당자가
+// 되며, 그 뒤의 변경부터 P-23이 적용된다.
 // POST /search-runs — 탐색 조건을 저장하고 최초 company_discovery 작업을 만든다.
 // 실제 수집은 워커의 몫이라 여기서는 접수만 하고 202를 돌려준다.
-export const POST = withApiHandler(async (req, { member }) => {
+export const POST = withListupApiHandler(async (req, { member }) => {
   const body = await req.json().catch(() => null);
   const parsed = createSearchRunSchema.safeParse(body);
   if (!parsed.success) {

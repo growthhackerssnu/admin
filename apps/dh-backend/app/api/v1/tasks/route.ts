@@ -1,6 +1,7 @@
 import type { ResearchTaskStatus, ResearchTaskType } from "@/generated/prisma";
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { listBody } from "@/lib/listup/errors";
 import { serializeResearchTask } from "@/lib/listup/serializers";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +16,7 @@ const TASK_TYPES: ResearchTaskType[] = [
 const TASK_STATUSES: ResearchTaskStatus[] = ["queued", "running", "succeeded", "failed", "cancelled"];
 
 // GET /tasks?search_run_id&candidate_id&type&status&cursor&limit
-export const GET = withApiHandler(async (req) => {
+export const GET = withListupApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -43,6 +44,6 @@ export const GET = withApiHandler(async (req) => {
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
   });
 
-  const { items, nextCursor } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeResearchTask), nextCursor) };
+  const { items, nextCursor, hasMore } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeResearchTask), { nextCursor, hasMore }) };
 });

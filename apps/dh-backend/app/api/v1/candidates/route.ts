@@ -1,6 +1,7 @@
 import type { ContactStatus, FitVerdict, Prisma, ResearchTask } from "@/generated/prisma";
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, listBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { listBody } from "@/lib/listup/errors";
 import { decisionSourceFilter, decisionSourceOf } from "@/lib/listup/state";
 import { serializeEffectiveFit, serializeResearchTask } from "@/lib/listup/serializers";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
@@ -18,7 +19,7 @@ const CONTACT_STATUSES: ContactStatus[] = [
 const DECISION_SOURCES = ["system", "human", "none"] as const;
 
 // GET /candidates — 결과 화면의 주 목록. 필터는 전부 AND로 적용한다.
-export const GET = withApiHandler(async (req) => {
+export const GET = withListupApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -72,7 +73,7 @@ export const GET = withApiHandler(async (req) => {
     },
   });
 
-  const { items, nextCursor } = buildPage(rows, limit);
+  const { items, nextCursor, hasMore } = buildPage(rows, limit);
   const candidateIds = items.map((c) => c.id);
 
   // 후보마다 따로 조회하지 않고 두 번에 나눠 가져와 N+1을 피한다.
@@ -138,7 +139,7 @@ export const GET = withApiHandler(async (req) => {
           updatedAt: candidate.updatedAt.toISOString(),
         };
       }),
-      nextCursor,
+      { nextCursor, hasMore },
     ),
   };
 });

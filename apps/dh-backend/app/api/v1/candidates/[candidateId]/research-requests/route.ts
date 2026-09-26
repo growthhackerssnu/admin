@@ -1,17 +1,19 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { successBody } from "@/lib/listup/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { serializeResearchTask } from "@/lib/listup/serializers";
 import { enqueueResearchTask } from "@/lib/listup/tasks";
 import { researchRequestSchema } from "@/lib/listup/validation";
 import { prisma } from "@/lib/prisma";
+import { assertCanModify } from "@/lib/permissions";
 
 // POST /candidates/{id}/research-requests — 사람이 요청하는 추가 조사.
 //
 // 자동 한도를 다 쓴 뒤에도 명시적 요청 1회로 실행할 수 있다. 사실 정보 보완
 // (company_research)은 followup_policy=none으로 돌려서 시스템 재판단을 자동으로
 // 부르지 않는다 — 사람이 보고 판단하는 것이 이 워크플로의 전제다(명세 §3.11).
-export const POST = withApiHandler<{ candidateId: string }>(async (req, { member, params }) => {
+export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { member, params }) => {
   const body = await req.json().catch(() => null);
   const parsed = researchRequestSchema.safeParse(body);
   if (!parsed.success) {
@@ -27,8 +29,13 @@ export const POST = withApiHandler<{ candidateId: string }>(async (req, { member
     "POST /candidates/:id/research-requests",
     input,
     async (tx) => {
-      const candidate = await tx.candidate.findUnique({ where: { id: params.candidateId } });
-      if (!candidate) throw new ApiError("NOT_FOUND", "후보를 찾을 수 없습니다.");
+      const candidate = await tx.candidate.findUnique({
+        where: { id: params.candidateId },
+        include: { originSearchRun: { select: { assignedMemberId: true } } },
+      });
+      if (!candidate) throw new ApiError("NOT_FOUND", "조사 기록을 찾을 수 없습니다.");
+      // 추가 조사도 담당자의 작업이다(P-22, P-23).
+      assertCanModify(member, candidate.originSearchRun.assignedMemberId);
 
       const isContactWork =
         input.type === "contact_research" || input.type === "contact_verification";

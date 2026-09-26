@@ -1,5 +1,6 @@
-import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, fieldErrorsOf, listBody, successBody } from "@/lib/errors";
+import { withListupApiHandler } from "@/lib/listup/apiHandler";
+import { ApiError, fieldErrorsOf } from "@/lib/errors";
+import { listBody, successBody } from "@/lib/listup/errors";
 import { withIdempotency } from "@/lib/idempotency";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
@@ -7,7 +8,7 @@ import { serializeTargetQuarter } from "@/lib/serializers/targetQuarter";
 import { createTargetQuarterSchema } from "@/lib/validation/targetQuarter";
 
 // GET /target-quarters?limit=&cursor=  — 최근 분기부터(v0.4 §6.4)
-export const GET = withApiHandler(async (req) => {
+export const GET = withListupApiHandler(async (req) => {
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
@@ -18,12 +19,14 @@ export const GET = withApiHandler(async (req) => {
     orderBy: [{ year: "desc" }, { quarter: "desc" }],
   });
 
-  const { items, nextCursor } = buildPage(rows, limit);
-  return { body: listBody(items.map(serializeTargetQuarter), nextCursor) };
+  const { items, nextCursor, hasMore } = buildPage(rows, limit);
+  return { body: listBody(items.map(serializeTargetQuarter), { nextCursor, hasMore }) };
 });
 
+// 담당자 검사 없음: 분기는 특정 팀원의 업무가 아니라 팀 공용 라벨이다. v0.4도 생성
+// 주체를 제한하지 않는다.
 // POST /target-quarters — 분기 추가. 탐색이나 Cycle을 자동 생성하지 않는다.
-export const POST = withApiHandler(async (req, { member }) => {
+export const POST = withListupApiHandler(async (req, { member }) => {
   const body = await req.json().catch(() => null);
   const parsed = createTargetQuarterSchema.safeParse(body);
   if (!parsed.success) {
