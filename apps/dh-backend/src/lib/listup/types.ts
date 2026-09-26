@@ -25,7 +25,19 @@ export type SearchLimits = {
 };
 
 // ResearchTask.resultRefs — 가리키는 리소스 종류가 섞여 있어 형태만 맞춘다(v0.4 §5.2).
-export type ResultRef = {
-  type: "companyResearch" | "fitAssessment" | "contactEndpoint" | "draftRevision";
-  id: string;
-};
+export type ResultRef =
+  | {
+      type: "companyResearch" | "fitAssessment" | "contactEndpoint" | "draftRevision" | "candidate" | "evidence";
+      id: string;
+    }
+  | {
+      type: "source";
+      sourceKey: string;
+      status: "succeeded" | "failed";
+      foundCount: number;
+      acceptedCount: number;
+      webSearchCallCount?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      errorMessage?: string;
+    };

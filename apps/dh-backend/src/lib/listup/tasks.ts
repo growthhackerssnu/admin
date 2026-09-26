@@ -1,25 +1,22 @@
-import type { Prisma, ResearchTask, ResearchTaskType } from "@/generated/prisma";
+import type {
+  Prisma,
+  ResearchTask,
+  ResearchTaskTrigger,
+  ResearchTaskType,
+} from "@/generated/prisma";
 import { ApiError } from "../errors";
 
 // 조사 작업을 만드는 유일한 지점이다. 중복 판정과 (나중의) 워커 통지가 여기 모인다.
 //
-// 워커는 아직 없다. 다음 단계에서 app/api/inngest/route.ts와 src/inngest/를 추가하고,
-// 아래 notifyWorker에서 `listup/task.queued` 이벤트를 발행하면 된다 — 라우트는
-// inngest를 직접 import하지 않으므로 그때도 라우트 코드는 바뀌지 않는다.
-const WORKER_ENABLED = process.env.LISTUP_WORKER_ENABLED === "true";
-
-async function notifyWorker(_taskId: string) {
-  if (!WORKER_ENABLED) return;
-  // 다음 단계: inngest.send({ name: "listup/task.queued", data: { taskId: taskId } })
-}
-
+// This module owns transactional task creation only. The caller publishes an
+// Inngest event after its transaction commits.
 type EnqueueInput = {
   searchRunId: string;
   candidateId?: string | null;
   parentTaskId?: string | null;
   type: ResearchTaskType;
   // v0.4 §6.7: 배치가 만든 작업(searchRun)과 사람이 요청한 작업(userRequest)만 구분한다.
-  trigger: "searchRun" | "userRequest";
+  trigger: ResearchTaskTrigger;
   requestedInformation?: string[];
   followupPolicy: "automatic" | "none";
 };
@@ -54,9 +51,13 @@ export async function enqueueResearchTask(
       if (sameRequest(active.requestedInformation, requestedInformation)) {
         return { task: active, reused: true };
       }
-      throw new ApiError("TASK_ALREADY_RUNNING", "같은 종류의 조사가 이미 진행 중입니다.", {
-        fieldErrors: { type: input.type },
-        });
+      throw new ApiError(
+        "TASK_ALREADY_RUNNING",
+        "같은 종류의 조사가 이미 진행 중입니다.",
+        {
+          fieldErrors: { type: input.type },
+        },
+      );
     }
   }
 
@@ -72,7 +73,6 @@ export async function enqueueResearchTask(
     },
   });
 
-  await notifyWorker(task.id);
   return { task, reused: false };
 }
 
@@ -94,7 +94,10 @@ export async function countAutomaticContactRounds(
 // 후보가 부적합·보류로 바뀌면 대기 중인 자동 후속 작업을 취소한다. 실행 중인 작업은
 // 여기서 멈출 수 없으므로(워커가 없다) 상태만 남기고, 워커가 생기면 단계 사이에서
 // 협조적으로 확인하게 한다.
-export async function cancelPendingFollowups(tx: Prisma.TransactionClient, candidateId: string) {
+export async function cancelPendingFollowups(
+  tx: Prisma.TransactionClient,
+  candidateId: string,
+) {
   await tx.researchTask.updateMany({
     where: {
       candidateId,
@@ -104,4 +107,79 @@ export async function cancelPendingFollowups(tx: Prisma.TransactionClient, candi
     },
     data: { status: "cancelled", finishedAt: new Date() },
   });
+}
+
+export type FitFollowupResult = {
+  action: "task_created" | "task_reused" | "contacts_reused" | "none";
+  taskId: string | null;
+  reason:
+    | "fit_changed"
+    | "existing_task"
+    | "existing_contacts"
+    | "automatic_limit_reached"
+    | "not_fit";
+};
+
+// Human and system fit decisions use the same contact follow-up rules. Keeping
+// them here prevents the two paths from creating different queued work.
+export async function applyFitFollowup(
+  tx: Prisma.TransactionClient,
+  input: {
+    candidateId: string;
+    searchRunId: string;
+    verdict: "fit" | "unfit" | "pending";
+    usableContactCount: number;
+    maxContactSearchRounds: number;
+  },
+): Promise<FitFollowupResult> {
+  if (input.verdict !== "fit") {
+    await cancelPendingFollowups(tx, input.candidateId);
+    return { action: "none", taskId: null, reason: "not_fit" };
+  }
+
+  if (input.usableContactCount > 0) {
+    return {
+      action: "contacts_reused",
+      taskId: null,
+      reason: "existing_contacts",
+    };
+  }
+
+  const activeContactTask = await tx.researchTask.findFirst({
+    where: {
+      candidateId: input.candidateId,
+      type: { in: ["contact_research", "contact_verification"] },
+      status: { in: ["queued", "running"] },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (activeContactTask) {
+    return {
+      action: "task_reused",
+      taskId: activeContactTask.id,
+      reason: "existing_task",
+    };
+  }
+
+  const usedRounds = await countAutomaticContactRounds(tx, input.candidateId);
+  if (usedRounds >= input.maxContactSearchRounds) {
+    return { action: "none", taskId: null, reason: "automatic_limit_reached" };
+  }
+
+  const { task, reused } = await enqueueResearchTask(tx, {
+    searchRunId: input.searchRunId,
+    candidateId: input.candidateId,
+    type: "contact_research",
+    trigger: "fit_changed",
+    requestedInformation: [
+      "contact_search_round:1",
+      "contact_strategy:executive",
+    ],
+    followupPolicy: "automatic",
+  });
+  return {
+    action: reused ? "task_reused" : "task_created",
+    taskId: task.id,
+    reason: reused ? "existing_task" : "fit_changed",
+  };
 }

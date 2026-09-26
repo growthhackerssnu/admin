@@ -12,15 +12,17 @@
     "test": "vitest run",
     "format": "prettier --write app src prisma/seed.ts",
     "db:generate": "prisma generate",
-    "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts"
+    "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
+    "past-projects:import": "dotenv -e .env.local -- tsx prisma/importPastProjects.ts"
   },
   "dependencies": {
     "@dhbot/auth": "*",
+    "@notionhq/client": "^2.3.0",
     "@prisma/client": "^5.22.0",
     "@supabase/supabase-js": "^2.45.0",
     "inngest": "^3.28.0",
     "next": "^14.2.15",
-    "openai": "^4.68.0",
+    "openai": "^7.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zod": "^3.23.8"

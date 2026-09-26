@@ -3,16 +3,18 @@ import { withListupApiHandler } from "@/lib/listup/apiHandler";
 import { ApiError, fieldErrorsOf } from "@/lib/errors";
 import { listBody, successBody } from "@/lib/listup/errors";
 import { withIdempotency } from "@/lib/idempotency";
-import { isSupportedSourceKey } from "@/lib/listup/sources";
+import { invalidSourceEntryUrl, isSourceAvailable, isSupportedSourceKey, sourceUnavailableReason } from "@/lib/listup/sources";
 import { serializeResearchTask, serializeSearchRun } from "@/lib/listup/serializers";
 import { enqueueResearchTask } from "@/lib/listup/tasks";
+import { notifyWorker } from "@/inngest/client";
 import { createSearchRunSchema } from "@/lib/listup/validation";
 import { buildPage, parseCursor, parseLimit, takeWithLookahead } from "@/lib/pagination";
 import {
   LISTUP_EXECUTION_VERSION,
-  listupExecution,
+  createListupExecution,
   type ConditionsSnapshot,
 } from "@/config/listupExecution";
+import { getFitCriteriaSnapshot } from "@/config/fitCriteria";
 import { prisma } from "@/lib/prisma";
 
 const runInclude = {
@@ -78,8 +80,26 @@ export const POST = withListupApiHandler(async (req, { member }) => {
   if (unsupported.length > 0) {
     throw new ApiError("UNSUPPORTED_SOURCE", "지원하지 않는 탐색 소스입니다.", { fieldErrors: { sources: unsupported.join(", ") } });
   }
+  const unavailable = input.sources.filter((source) => !isSourceAvailable(source.key));
+  if (unavailable.length > 0) {
+    throw new ApiError("UNSUPPORTED_SOURCE", "현재 사용할 수 없는 탐색 소스입니다.", {
+      fieldErrors: {
+        sources: unavailable.map((source) => sourceUnavailableReason(source.key) ?? source.key).join(" "),
+      },
+    });
+  }
+  const invalidEntryUrls = input.sources.flatMap((source) =>
+    source.entryUrls
+      .map((url) => invalidSourceEntryUrl(source.key, url))
+      .filter((message): message is string => Boolean(message)),
+  );
+  if (invalidEntryUrls.length > 0) {
+    throw new ApiError("VALIDATION_ERROR", "소스 직접 URL을 확인해주세요.", {
+      fieldErrors: { sources: invalidEntryUrls.join(" ") },
+    });
+  }
 
-  return withIdempotency(req, member, "POST /search-runs", input, async (tx) => {
+  const result = await withIdempotency(req, member, "POST /search-runs", input, async (tx) => {
     const quarter = await tx.targetQuarter.findUnique({ where: { id: input.targetQuarterId } });
     if (!quarter) throw new ApiError("NOT_FOUND", "목표 분기를 찾을 수 없습니다.");
 
@@ -87,9 +107,11 @@ export const POST = withListupApiHandler(async (req, { member }) => {
     // 나중에 config를 바꿔도 이 배치가 어떤 상한으로 돌았는지는 남는다.
     const conditionsSnapshot: ConditionsSnapshot = {
       schemaVersion: LISTUP_EXECUTION_VERSION,
+      // 기준은 코드의 시스템 프롬프트로 관리하되, 이 배치가 실제 사용한 원문을 고정한다.
+      fitCriteria: getFitCriteriaSnapshot(),
       sources: input.sources,
       filters: input.filters,
-      execution: listupExecution,
+      execution: createListupExecution(input.maxCompanies),
     };
 
     const run = await tx.searchRun.create({
@@ -117,8 +139,13 @@ export const POST = withListupApiHandler(async (req, { member }) => {
         initialTask: serializeResearchTask(task),
       }),
     };
-  }).then((result) => ({
+  });
+
+  const taskId = (result.body as { data: { initialTask: { id: string } } }).data.initialTask.id;
+  await notifyWorker(taskId);
+
+  return {
     ...result,
     headers: { Location: `/api/v1/search-runs/${(result.body as { data: { searchRun: { id: string } } }).data.searchRun.id}` },
-  }));
+  };
 });

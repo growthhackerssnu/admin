@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Batch, Company, Fit, ListupState } from "./model";
 import { canHandoff, fitLabel, quarterLabel, quarters } from "./model";
 
+const sourceOptions: { key: string; available: boolean; reason?: string }[] = [
+  { key: "Google", available: true },
+  { key: "뉴스레터", available: true },
+  { key: "혁신의 숲", available: false, reason: "계약 API 필요" },
+];
+
 function BatchCheckbox({
   label,
   eligible,
@@ -105,30 +111,28 @@ function SearchDialog({
         <div className="lu-field">
           <strong>검색 소스</strong>
           <div className="lu-source-options">
-            {["Google", "뉴스레터", "혁신의 숲"].map((source) => (
-              <label key={source}>
+            {sourceOptions.map((source) => (
+              <label key={source.key}>
                 <input
                   type="checkbox"
-                  checked={sources.includes(source)}
-                  onChange={() => toggle(source)}
+                  checked={sources.includes(source.key)}
+                  disabled={!source.available}
+                  onChange={() => toggle(source.key)}
                 />{" "}
-                {source}
+                {source.key}{source.reason ? ` (${source.reason})` : ""}
               </label>
             ))}
           </div>
         </div>
         <label className="lu-field">
           탐색 규모
-          <select
+          <input
+            type="number"
+            min={1}
+            max={30}
             value={limit}
-            onChange={(event) => setLimit(Number(event.target.value))}
-          >
-            {[10, 20, 30].map((item) => (
-              <option key={item} value={item}>
-                {item}개 기업
-              </option>
-            ))}
-          </select>
+            onChange={(event) => setLimit(Math.max(1, Math.min(30, Number(event.target.value) || 1)))}
+          />
         </label>
         <p className="lu-callout">
           샘플 데이터에서만 기업을 추가합니다. 실제 검색 API는 연결되지 않았고,

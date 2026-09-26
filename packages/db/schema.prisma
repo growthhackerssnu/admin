@@ -530,12 +530,22 @@ model Response {
 // ---------- 과거 협업 ----------
 
 model PastProject {
-  id         String  @id @default(cuid())
-  companyId  String  @map("company_id")
-  company    Company @relation(fields: [companyId], references: [id])
-  title      String
-  summary    String?
-  notionUrl  String? @map("notion_url")
+  id                 String  @id @default(cuid())
+  companyId          String  @map("company_id")
+  company            Company @relation(fields: [companyId], references: [id])
+  // Notion row identity. Nullable for the one-time migration of legacy rows;
+  // all imported rows must set it and use it as the upsert key.
+  notionPageId       String? @unique @map("notion_page_id")
+  // One-line project description. `summary` remains temporarily for legacy seed/data.
+  title              String
+  summary            String?
+  year               Int?
+  quarter            Int?
+  technologyCategory String? @map("technology_category")
+  industryCategory   String? @map("industry_category")
+  notionUrl          String? @map("notion_url")
+
+  @@index([companyId, year, quarter])
 
   @@map("past_projects")
   @@schema("dh")

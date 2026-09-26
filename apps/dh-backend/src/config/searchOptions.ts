@@ -10,6 +10,11 @@ export const searchOptions = {
   productTypes: ["앱", "웹", "SaaS"],
   companySizeRanges: ["1-10", "11-50", "51+"],
   sources: ["Google", "뉴스레터", "혁신의 숲"],
+  sourceAvailability: {
+    Google: { available: true },
+    "뉴스레터": { available: true },
+    "혁신의 숲": { available: false, reason: "혁신의숲 계약 API 자격증명이 필요합니다." },
+  },
   channelTypes: ["email", "linkedin"],
   exclusions: ["하드웨어", "자율주행", "신약 개발"],
 };

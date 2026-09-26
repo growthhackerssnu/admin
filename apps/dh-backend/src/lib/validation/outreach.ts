@@ -28,6 +28,14 @@ export const selectRecipientSchema = z.object({
   endpointId: z.string().min(1),
 });
 
+export const startOutreachSchema = z.object({
+  expectedRevision: z.number().int().positive(),
+});
+
+export const generateDraftSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+});
+
 export const recipientReviewSchema = z.object({
   expectedVersion: z.number().int(),
 });
@@ -50,8 +58,20 @@ export const draftReviewSchema = z.object({
   draftId: z.string().min(1),
 });
 
-export const RESPONSE_RESULTS = ["no_reply", "discussing", "rejected", "deferred", "referred", "closed"] as const;
-export const RESPONSE_CATEGORIES = ["resource_shortage", "not_interested", "no_problem_demand", "other"] as const;
+export const RESPONSE_RESULTS = [
+  "no_reply",
+  "discussing",
+  "rejected",
+  "deferred",
+  "referred",
+  "closed",
+] as const;
+export const RESPONSE_CATEGORIES = [
+  "resource_shortage",
+  "not_interested",
+  "no_problem_demand",
+  "other",
+] as const;
 
 export const responseCheckSchema = z
   .object({
@@ -64,9 +84,17 @@ export const responseCheckSchema = z
   })
   .superRefine((data, ctx) => {
     if (["rejected", "deferred"].includes(data.result) && !data.category) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["category"], message: "거절·보류는 사유 카테고리가 필수입니다." });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["category"],
+        message: "거절·보류는 사유 카테고리가 필수입니다.",
+      });
     }
     if (data.category === "other" && !data.note?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["note"], message: "'기타' 사유는 설명이 필수입니다." });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["note"],
+        message: "'기타' 사유는 설명이 필수입니다.",
+      });
     }
   });
