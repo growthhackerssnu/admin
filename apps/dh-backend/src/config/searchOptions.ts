@@ -9,7 +9,7 @@ export const searchOptions = {
   domains: ["교육", "커머스", "금융", "여행"],
   productTypes: ["앱", "웹", "SaaS"],
   companySizeRanges: ["1-10", "11-50", "51+"],
-  sources: ["등록 소스 A", "등록 소스 B"],
+  sources: ["Google", "뉴스레터", "혁신의 숲"],
   channelTypes: ["email", "linkedin"],
   exclusions: ["하드웨어", "자율주행", "신약 개발"],
 };

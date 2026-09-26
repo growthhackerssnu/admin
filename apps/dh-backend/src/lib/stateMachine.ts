@@ -6,9 +6,11 @@ import type { InternalDecision, Response, Route, WorkStage } from "@/generated/p
 // "지금 뭘 할 수 있는가"는 항상 이 함수를 거쳐 계산한다 — 엔드포인트마다 따로
 // 판단하면 allowedActions가 서로 어긋날 수 있다.
 
+// allowedActions로 그대로 나가는 값이다. v0.3이 이 값의 표기를 규정하지 않아,
+// 프론트가 처음 만들어진 기준인 camelCase를 유지한다(상태·판단 enum 값은 snake_case).
 export type OutreachAction =
   | "approveCompany"
-  | "skipForCycle"
+  | "skipForQuarter"
   | "excludeCompany"
   | "searchContacts"
   | "selectRecipient"
@@ -23,8 +25,8 @@ export interface OutreachStateInput {
   route: Route;
   workStage: WorkStage;
   internalDecision: InternalDecision;
-  currentCycleId: string;
-  lastSentCycleId: string | null;
+  currentTargetQuarterId: string;
+  lastSentQuarterId: string | null;
   recipientContactId: string | null;
   currentRevision: number | null;
   approvedRevision: number | null;
@@ -44,28 +46,28 @@ export function computeOutreachState(o: OutreachStateInput): OutreachState {
   if (o.companyPermanentlyExcluded || o.internalDecision === "excluded_permanently") {
     return { allowedActions: [], blockedReasons: ["영구 제외된 기업입니다."] };
   }
-  if (o.internalDecision === "skipped_for_cycle") {
+  if (o.internalDecision === "skipped_for_quarter") {
     return {
       allowedActions: [],
-      blockedReasons: ["이번 차수 건너뛰기 처리됨. 다음 차수에 검토 대상으로 복귀합니다."],
+      blockedReasons: ["이번 분기 건너뛰기 처리됨. 다음 분기에 검토 대상으로 복귀합니다."],
     };
   }
   if (o.latestResponse?.result === "discussing") {
     return { allowedActions: [], blockedReasons: ["현재 논의 중 — 리스트업에서 제외됩니다."] };
   }
 
-  const sameCycleAlreadySent = o.lastSentCycleId === o.currentCycleId;
+  const sameQuarterAlreadySent = o.lastSentQuarterId === o.currentTargetQuarterId;
   const allowed: OutreachAction[] = [];
 
   switch (o.workStage) {
     case "company_review": {
-      if (sameCycleAlreadySent) {
-        blockedReasons.push("이번 차수에 이미 발송했습니다. 담당자·채널을 바꿔도 추가 발송할 수 없습니다.");
+      if (sameQuarterAlreadySent) {
+        blockedReasons.push("이번 분기에 이미 발송했습니다. 담당자·채널을 바꿔도 추가 발송할 수 없습니다.");
       } else {
         allowed.push("approveCompany");
       }
       // 신규 경로는 건너뛰기를 허용하지 않는다 (05 문서 §3 경로별 내부 결정 규칙).
-      if (o.route !== "new") allowed.push("skipForCycle");
+      if (o.route !== "new") allowed.push("skipForQuarter");
       allowed.push("excludeCompany");
       break;
     }
@@ -89,10 +91,10 @@ export function computeOutreachState(o: OutreachStateInput): OutreachState {
       break;
     }
     case "response_check": {
-      // 과거 발송의 응답 기록은 활성 차수와 무관하게 항상 가능하다.
+      // 과거 발송의 응답 기록은 분기와 무관하게 항상 가능하다.
       allowed.push("saveResponse");
-      if (sameCycleAlreadySent) {
-        blockedReasons.push("응답 확인은 가능하지만, 이번 차수 추가 컨택은 할 수 없습니다.");
+      if (sameQuarterAlreadySent) {
+        blockedReasons.push("응답 확인은 가능하지만, 이번 분기 추가 컨택은 할 수 없습니다.");
       }
       break;
     }

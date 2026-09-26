@@ -1,25 +1,33 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
-import { assertVersionMatch } from "@/lib/optimisticLock";
+import { assertVersionMatch } from "@/lib/revision";
+import { assertCanModify } from "@/lib/permissions";
 import { exclusionSchema } from "@/lib/validation/outreach";
 
-// #18 POST /companies/{companyId}/exclusion — 영구 제외. 자동 복귀 없음(§6 확정
+// POST /companies/{companyId}/exclusion — 영구 제외. 자동 복귀 없음(§6 확정
 // 정책). repeat_collaboration 경로는 제외 사유가 필수. 회사·컨택 건 둘 다 버전
 // 검사 후 함께 갱신한다 — 제외 복구(un-exclude) API는 정책 미정이라 만들지 않는다.
-export const POST = withApiHandler<{ companyId: string }>(async (req, { member, params, requestId }) => {
+export const POST = withApiHandler<{ companyId: string }>(async (req, { member, params }) => {
   const body = await req.json().catch(() => null);
   const parsed = exclusionSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
-  const { expectedCompanyVersion, outreachId, expectedVersion, note } = parsed.data;
+  const {
+    expectedCompanyVersion,
+    outreachId,
+    expectedVersion,
+    note,
+  } = parsed.data;
 
-  const result = await withIdempotency(req, member, "POST /companies/:id/exclusion", parsed.data, async (tx) => {
+  return withIdempotency(req, member, "POST /companies/:id/exclusion", parsed.data, async (tx) => {
     const [company, outreach] = await Promise.all([
       tx.company.findUnique({ where: { id: params.companyId } }),
       tx.outreach.findUnique({ where: { id: outreachId } }),
     ]);
-    assertVersionMatch(company, expectedCompanyVersion);
-    assertVersionMatch(outreach, expectedVersion);
+    assertVersionMatch(company, company?.version, expectedCompanyVersion);
+    assertVersionMatch(outreach, outreach?.version, expectedVersion);
+    // 영구 제외도 업무 변경이라 담당자만 할 수 있다(P-23).
+    assertCanModify(member, outreach.ownerId);
     if (outreach.companyId !== params.companyId) {
       throw new ApiError("VALIDATION_ERROR", "컨택 건이 이 기업에 속하지 않습니다.");
     }
@@ -62,20 +70,19 @@ export const POST = withApiHandler<{ companyId: string }>(async (req, { member, 
 
     return {
       status: 200,
-      body: successBody(
-        {
-          company: {
-            id: updatedCompany!.id,
-            version: updatedCompany!.version,
-            permanentlyExcluded: updatedCompany!.permanentlyExcluded,
-            permanentlyExcludedReason: updatedCompany!.permanentlyExcludedReason,
-          },
-          outreach: { id: updatedOutreach!.id, version: updatedOutreach!.version, internalDecision: updatedOutreach!.internalDecision },
+      body: successBody({
+        company: {
+          id: updatedCompany!.id,
+          version: updatedCompany!.version,
+          permanentlyExcluded: updatedCompany!.permanentlyExcluded,
+          permanentlyExcludedReason: updatedCompany!.permanentlyExcludedReason,
         },
-        requestId,
-      ),
+        outreach: {
+          id: updatedOutreach!.id,
+          version: updatedOutreach!.version,
+          internalDecision: updatedOutreach!.internalDecision,
+        },
+      }),
     };
   });
-
-  return result;
 });

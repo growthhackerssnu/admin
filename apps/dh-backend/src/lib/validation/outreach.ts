@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// 요청 본문의 키는 camelCase다(v0.3 §7.1). DB 컬럼 이름과는 무관하며 변환은
+// Prisma가 맡는다.
+
 export const approvalSchema = z.object({
   expectedVersion: z.number().int(),
   reviewNote: z.string().trim().optional(),
@@ -8,7 +11,7 @@ export const approvalSchema = z.object({
 
 export const skipSchema = z.object({
   expectedVersion: z.number().int(),
-  cycleId: z.string().min(1),
+  quarterId: z.string().min(1),
   note: z.string().trim().optional(),
 });
 
