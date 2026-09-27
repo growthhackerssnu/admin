@@ -134,14 +134,33 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 | 테이블 | 내용 | 프론트 직접 조회 |
 |---|---|---|
-| `cycles`, `cycle_start_intents`, `search_runs` | 수주 차수와 탐색 실행 | 미정 |
+| `quarters` | 수주 분기. 라벨(`2026-Q4`)은 담당자가 정한다 | 미정 |
 | `companies`, `contacts`, `contact_endpoints`, `prelaunch_contacts` | 기업과 관계자 | **예정** (§6) |
 | `outreaches` | 컨택 건 (기업당 1건) | **예정** (§6) |
 | `templates`, `message_draft_revisions` | 템플릿과 초안 리비전 | 미정 |
 | `sent_messages`, `responses` | 발송 기록과 응답 확인 | 미정 |
 | `past_projects` | 과거 협업 이력 | 미정 |
-| `jobs` | 비동기 작업 | 아니오 |
+| `jobs` | 비동기 작업(발송 쪽) | 아니오 |
 | `idempotency_keys` | 멱등성 키. `dh` 스키마 전용이며 portal 것과 별개다 (§4.1) | 아니오 |
+
+#### 리스트업(기업 발견·판단·연락처)
+
+| 테이블 | 내용 | 프론트 직접 조회 |
+|---|---|---|
+| `search_runs` | 탐색 실행. 소스·필터·한도는 생성 후 불변이라 Json 컬럼이다 | 미정 |
+| `evidence` | 수집 근거. append-only이며 지우지 않는다 | 아니오 (출처 URL·발췌) |
+| `company_researches`, `research_claims` | 기업 조사 버전과 그 안의 주장 | 미정 |
+| `candidates` | 탐색별 기업 상태. `effective_fit`·`contact_status`·창구 카운터는 저장 컬럼이다 | 미정 |
+| `fit_assessments`, `intervention_assessments` | 시스템의 적합 판단과 개입 영역별 평가 | 미정 |
+| `human_fit_decisions` | 사람의 판단 이력. append-only | 미정 |
+| `company_persons`, `contact_channels`, `candidate_contacts` | 관계자·연락 창구·후보별 창구 평가 | 아니오 (연락처) |
+| `research_tasks` | 비동기 조사 작업. error는 재시도 필터를 위해 세 컬럼으로 펴뒀다 | 미정 |
+
+**`companies`의 컬럼 소유권은 둘로 나뉜다.** 발견 쪽은 `name`, `legal_name`, `aliases`, `website_url`, `canonical_domain`, `created_at`, `updated_at`만 읽고 쓴다. 발송 쪽은 `product`, `domain`, `permanently_excluded*`, `is_prelaunch_only`, `version`을 쓴다. 서로 상대 영역을 건드리지 않는다. `product`·`domain`은 발견 단계에서 채울 수 없어 nullable이다.
+
+**evidence 참조는 FK가 아니라 `text[]`다.** `research_claims.evidence_ids`, `candidates.discovery_evidence_ids`, `intervention_assessments.*_evidence_ids`, `company_persons.employment_evidence_ids`, `contact_channels.evidence_ids`가 그렇다. 구조가 같은 join 테이블 다섯 개를 만들 값이 없고 읽기는 항상 id 목록으로 한 번에 가져오기 때문이며, `evidence`가 append-only라 끊긴 참조가 생기지 않는다. **참조 무결성은 DB가 아니라 앱이 보장한다.**
+
+`companies.aliases`의 GIN 인덱스(`companies_aliases_idx`)는 Prisma 스키마로 표현할 수 없어 마이그레이션 SQL에 직접 썼다(§7.3). `prisma migrate diff`는 이 인덱스를 지우려 하니 생성문을 그대로 붙여넣지 말 것.
 
 "프론트 직접 조회" 칸은 실제로 열 때 **뷰 이름과 함께** 갱신한다. 프론트가 어느 데이터에 직접 닿는지가 곧 공격 표면이라, 이 칸이 보안 검토의 시작점이 된다.
 

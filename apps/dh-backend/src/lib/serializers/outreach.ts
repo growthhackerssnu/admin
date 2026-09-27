@@ -4,10 +4,12 @@ import { computeOutreachState, type OutreachAction } from "../stateMachine";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
-// outreach 상세 조회(#06)와, 쓰기 엔드포인트(#16~29)가 변경 후 돌려주는 "갱신된
-// outreach" 응답이 공유하는 직렬화 지점. responseStatus는 컬럼이 아니라 이
-// outreach의 최신 Response.result에서 계산한다 (없으면 "unchecked") — 05 문서의
-// response_result 축과 api-contract.md의 responseStatus 필드를 잇는 지점.
+// outreach 상세 조회와, 쓰기 엔드포인트가 변경 후 돌려주는 "갱신된 outreach" 응답이
+// 공유하는 직렬화 지점. responseStatus는 컬럼이 아니라 이 outreach의 최신
+// Response.result에서 계산한다(없으면 "unchecked").
+//
+// company 하위 객체는 예전 GET /companies/{id}가 돌려주던 발송용 필드를 옮겨온 것이다.
+// 그 경로는 이제 명세의 "기업 식별 정보"만 돌려준다.
 //
 // 쓰기 엔드포인트는 db에 트랜잭션 클라이언트(tx)를 넘겨서, 방금 커밋 전인
 // 변경사항을 같은 트랜잭션 안에서 그대로 읽어 응답을 만든다.
@@ -15,7 +17,7 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
   const outreach = await db.outreach.findUnique({
     where: { id: outreachId },
     include: {
-      company: true,
+      company: { include: { pastProjects: true } },
       recipientContact: true,
       recipientEndpoint: true,
       responses: { orderBy: { checkedAt: "desc" }, take: 1 },
@@ -38,8 +40,8 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
     route: outreach.route,
     workStage: outreach.workStage,
     internalDecision: outreach.internalDecision,
-    currentCycleId: outreach.currentCycleId,
-    lastSentCycleId: outreach.lastSentCycleId,
+    currentTargetQuarterId: outreach.currentTargetQuarterId,
+    lastSentQuarterId: outreach.lastSentQuarterId,
     recipientContactId: outreach.recipientContactId,
     currentRevision: outreach.currentRevision,
     approvedRevision: outreach.approvedRevision,
@@ -51,12 +53,28 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
   return {
     id: outreach.id,
     companyId: outreach.companyId,
-    cycleId: outreach.currentCycleId,
+    currentTargetQuarterId: outreach.currentTargetQuarterId,
     version: outreach.version,
     route: outreach.route,
     workStage: outreach.workStage,
     internalDecision: outreach.internalDecision,
     responseStatus: latestResponse?.result ?? "unchecked",
+    company: {
+      id: outreach.company.id,
+      name: outreach.company.name,
+      product: outreach.company.product,
+      domain: outreach.company.domain,
+      version: outreach.company.version,
+      permanentlyExcluded: outreach.company.permanentlyExcluded,
+      permanentlyExcludedReason: outreach.company.permanentlyExcludedReason,
+      isPrelaunchOnly: outreach.company.isPrelaunchOnly,
+      pastProjects: outreach.company.pastProjects.map((p) => ({
+        id: p.id,
+        title: p.title,
+        summary: p.summary,
+        notionUrl: p.notionUrl,
+      })),
+    },
     recipient: outreach.recipientContactId
       ? {
           contactId: outreach.recipientContactId,

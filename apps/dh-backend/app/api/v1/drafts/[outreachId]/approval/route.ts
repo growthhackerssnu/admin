@@ -1,20 +1,23 @@
 import { withApiHandler } from "@/lib/apiHandler";
-import { ApiError, successBody } from "@/lib/errors";
+import { ApiError, fieldErrorsOf, successBody } from "@/lib/errors";
 import { withIdempotency } from "@/lib/idempotency";
-import { assertVersionMatch } from "@/lib/optimisticLock";
+import { assertVersionMatch } from "@/lib/revision";
+import { assertCanModify } from "@/lib/permissions";
 import { serializeOutreachDetail } from "@/lib/serializers/outreach";
 import { approveDraftSchema } from "@/lib/validation/outreach";
 
-// #25 POST /drafts/{outreachId}/approval — 지금 리비전을 승인하고 발송 준비 단계로.
-export const POST = withApiHandler<{ outreachId: string }>(async (req, { member, params, requestId }) => {
+// POST /drafts/{outreachId}/approval — 지금 리비전을 승인하고 발송 준비 단계로.
+export const POST = withApiHandler<{ outreachId: string }>(async (req, { member, params }) => {
   const body = await req.json().catch(() => null);
   const parsed = approveDraftSchema.safeParse(body);
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "입력값을 확인하세요.");
   const { expectedVersion, expectedRevision } = parsed.data;
 
-  const result = await withIdempotency(req, member, "POST /drafts/:outreachId/approval", parsed.data, async (tx) => {
+  return withIdempotency(req, member, "POST /drafts/:outreachId/approval", parsed.data, async (tx) => {
     const current = await tx.outreach.findUnique({ where: { id: params.outreachId } });
-    assertVersionMatch(current, expectedVersion);
+    assertVersionMatch(current, current?.version, expectedVersion);
+    // 본인 담당 업무만 변경할 수 있다(P-23). 조회는 막지 않는다.
+    assertCanModify(member, current.ownerId);
 
     if (current.currentRevision !== expectedRevision) {
       throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 초안을 수정했습니다. 최신 내용을 다시 확인해주세요.");
@@ -35,8 +38,6 @@ export const POST = withApiHandler<{ outreachId: string }>(async (req, { member,
       throw new ApiError("VERSION_CONFLICT", "다른 곳에서 먼저 변경됐습니다. 최신 내용을 다시 확인해주세요.");
     }
 
-    return { status: 200, body: successBody(await serializeOutreachDetail(params.outreachId, tx), requestId) };
+    return { status: 200, body: successBody(await serializeOutreachDetail(params.outreachId, tx)) };
   });
-
-  return result;
 });

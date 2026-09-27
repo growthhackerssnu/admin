@@ -16,10 +16,6 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
-  // npm workspaces가 @prisma/client를 루트 node_modules로 hoist하는데, 이
-  // 저장소엔 스키마가 다른 Prisma Client가 두 개(이 앱 + apps/portal-backend)
-  // 있다 — 같은 위치로 generate하면 나중에 실행한 쪽이 다른 쪽 타입을 덮어쓴다.
-  // 앱마다 생성 위치를 분리해서 서로 건드리지 않게 한다.
   output = "../src/generated/prisma"
 }
 
@@ -65,10 +61,13 @@ enum WorkStage {
   @@schema("dh")
 }
 
+// skipped_for_cycle은 차수 개념을 폐지하면서 쓰지 않는다. enum 값은 추가만 가능하고
+// 삭제할 수 없어서(conventions §8) 자리만 남겨두고 skipped_for_quarter를 쓴다.
 enum InternalDecision {
   active
   skipped_for_cycle
   excluded_permanently
+  skipped_for_quarter
   @@schema("dh")
 }
 
@@ -135,12 +134,14 @@ model Member {
   createdAt      DateTime @default(now()) @map("created_at")
   lastLoginAt    DateTime? @map("last_login_at")
 
-  startedCycles       Cycle[]              @relation("CycleStartedBy")
+  quarterChanges      OutreachTargetQuarterChange[] @relation("QuarterChangedBy")
+  confirmedContacts   ContactOptionAssessment[]     @relation("ContactConfirmedBy")
+  assignedSearchRuns  SearchRun[]          @relation("SearchRunAssignee")
   ownedOutreaches     Outreach[]           @relation("OutreachOwner")
   decidedOutreaches   Outreach[]           @relation("OutreachDecidedBy")
-  triggeredSearchRuns SearchRun[]
   checkedResponses    Response[]
-  cycleStartIntents   CycleStartIntent[]
+  createdSearchRuns   SearchRun[]          @relation("SearchRunCreatedBy")
+  fitDecisions        HumanFitDecision[]   @relation("FitDecisionDecidedBy")
   idempotencyKeys     IdempotencyKey[]
   claimedPersonEntry  PeopleDirectory?
 
@@ -202,111 +203,152 @@ model SignupRequest {
   @@schema("core")
 }
 
-// ---------- 차수·탐색 ----------
+// ---------- 목표 분기 ----------
 
-model Cycle {
-  id            String    @id @default(cuid())
-  name          String
-  startedAt     DateTime  @map("started_at")
-  startedById   String    @map("started_by_id")
-  startedBy     Member    @relation("CycleStartedBy", fields: [startedById], references: [id])
-  endedAt       DateTime? @map("ended_at")
+// 수주 목표 분기 — 컨택을 추진할 시기의 라벨이다(P-01).
+//
+// **실제 발송 시기가 아니다.** 4분기를 목표로 잡은 기업에 9월에 보냈다면 운영 지표는
+// 3분기로 집계한다(P-15). 지표는 sent_messages.sent_at을 한국 달력 분기로 변환해
+// 세며, 이 테이블은 거기에 관여하지 않는다.
+//
+// 전역 "현재 분기" 상태는 두지 않는다. 각 컨택 건·탐색이 자기 분기를 들고 있다.
+model TargetQuarter {
+  id        String   @id @default(cuid())
+  year      Int
+  quarter   Int
+  createdAt DateTime @default(now()) @map("created_at")
 
-  searchRuns          SearchRun[]
-  currentOutreaches    Outreach[] @relation("OutreachCurrentCycle")
-  lastSentOutreaches   Outreach[] @relation("OutreachLastSentCycle")
-  skipOutreaches       Outreach[] @relation("OutreachSkipCycle")
-  sentMessages        SentMessage[]
+  currentOutreaches  Outreach[]                   @relation("OutreachQuarter")
+  lastSentOutreaches Outreach[]                   @relation("OutreachLastSentQuarter")
+  skipOutreaches     Outreach[]                   @relation("OutreachSkipQuarter")
+  sentMessages       SentMessage[]
+  searchRuns         SearchRun[]
+  changedFrom        OutreachTargetQuarterChange[] @relation("QuarterChangeFrom")
+  changedTo          OutreachTargetQuarterChange[] @relation("QuarterChangeTo")
 
-  @@map("cycles")
+  @@unique([year, quarter])
+  @@index([year(sort: Desc), quarter(sort: Desc)])
+  @@map("target_quarters")
   @@schema("dh")
 }
 
-// 서버가 "새 기업 탐색" 버튼의 클릭 의도·시각을 먼저 기록해두는 짧은 수명 레코드.
-// #12 cycle-start-intents. 차수 자체는 아니며, 취소되면 차수를 만들지 않는다.
-model CycleStartIntent {
-  id           String   @id @default(cuid())
-  openedAt     DateTime @default(now()) @map("opened_at")
-  expiresAt    DateTime @map("expires_at")
-  openedById   String   @map("opened_by_id")
-  openedBy     Member   @relation(fields: [openedById], references: [id])
-  consumedAt   DateTime? @map("consumed_at")
+// 발송 전 목표 분기 이동의 감사 이력(P-16). 현재 분기 변경과 같은 트랜잭션에서
+// append-only로 쌓는다. 원발견 배치와 당시 분기는 바뀌지 않는다.
+model OutreachTargetQuarterChange {
+  id                  String        @id @default(cuid())
+  outreachId          String        @map("outreach_id")
+  outreach            Outreach      @relation(fields: [outreachId], references: [id])
+  fromTargetQuarterId String        @map("from_target_quarter_id")
+  fromTargetQuarter   TargetQuarter @relation("QuarterChangeFrom", fields: [fromTargetQuarterId], references: [id])
+  toTargetQuarterId   String        @map("to_target_quarter_id")
+  toTargetQuarter     TargetQuarter @relation("QuarterChangeTo", fields: [toTargetQuarterId], references: [id])
+  changedById         String        @map("changed_by_id")
+  changedBy           Member        @relation("QuarterChangedBy", fields: [changedById], references: [id])
+  changedAt           DateTime      @default(now()) @map("changed_at")
+  reason              String?
 
-  @@map("cycle_start_intents")
-  @@schema("dh")
-}
-
-model SearchRun {
-  id                  String   @id @default(cuid())
-  cycleId             String   @map("cycle_id")
-  cycle               Cycle    @relation(fields: [cycleId], references: [id])
-  conditionsSnapshot  Json     @map("conditions_snapshot")
-  triggeredById       String   @map("triggered_by_id")
-  triggeredBy         Member   @relation(fields: [triggeredById], references: [id])
-  jobId               String   @unique @map("job_id")
-  job                 Job      @relation(fields: [jobId], references: [id])
-  createdAt           DateTime @default(now()) @map("created_at")
-
-  @@map("search_runs")
+  @@index([outreachId, changedAt(sort: Desc)])
+  @@map("outreach_target_quarter_changes")
   @@schema("dh")
 }
 
 // ---------- 기업 ----------
 
+// 발견(리스트업)과 발송(컨택)이 공유하는 기업 식별 정보다. 컬럼 소유권을 나눠 쓴다:
+//   발견 쪽 — name, legal_name, aliases, website_url, canonical_domain, created_at, updated_at
+//   발송 쪽 — product, domain, permanently_excluded*, is_prelaunch_only, version
+// 서로 상대 영역의 컬럼을 쓰지 않는다. product/domain은 발견 단계에서 채울 수 없어서
+// nullable이다 — 발송 화면이 쓰던 값이라 비어 있을 수 있다는 뜻이다.
 model Company {
   id                        String    @id @default(cuid())
   name                      String
-  product                   String
-  domain                    String
+  legalName                 String?   @map("legal_name")
+  aliases                   String[]  @default([])
+  websiteUrl                String?   @map("website_url")
+  canonicalDomain           String?   @map("canonical_domain")
+  product                   String?
+  domain                    String?
   version                   Int       @default(1)
   permanentlyExcluded       Boolean   @default(false) @map("permanently_excluded")
   permanentlyExcludedReason String?   @map("permanently_excluded_reason")
   permanentlyExcludedAt     DateTime? @map("permanently_excluded_at")
   isPrelaunchOnly           Boolean   @default(false) @map("is_prelaunch_only")
   createdAt                 DateTime  @default(now()) @map("created_at")
+  updatedAt                 DateTime  @updatedAt @map("updated_at")
 
   contacts           Contact[]
   contactEndpoints   ContactEndpoint[]
   prelaunchContacts  PrelaunchContact[]
   outreaches         Outreach[]
   pastProjects       PastProject[]
+  evidence           Evidence[]
+  researches         CompanyResearch[]
+  candidates         Candidate[]
 
+  @@index([canonicalDomain])
   @@map("companies")
   @@schema("dh")
 }
 
+// 기업 관계자. 발견(리스트업)과 발송(컨택)이 같은 행을 쓴다 — 명세 v0.4 §8.4가
+// "이미 있는 물리 모델에 같은 목적의 새 테이블을 중복 생성하지 않는다"고 못박았다.
+// 재직 여부와 그 확인 근거는 연락 가능성 판단에 쓰고, 같은 이름이라고 자동으로
+// 합치지 않는다.
 model Contact {
-  id           String   @id @default(cuid())
-  companyId    String   @map("company_id")
-  company      Company  @relation(fields: [companyId], references: [id])
-  name         String
-  title        String?
-  department   String?
-  linkedinUrl  String?  @map("linkedin_url")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id                  String           @id @default(cuid())
+  companyId           String           @map("company_id")
+  company             Company          @relation(fields: [companyId], references: [id])
+  name                String
+  title               String?
+  role                String?
+  department          String?
+  jobFunction         JobFunction      @default(unknown) @map("job_function")
+  seniority           Seniority        @default(unknown)
+  employmentStatus    EmploymentStatus @default(unknown) @map("employment_status")
+  employmentCheckedAt DateTime?        @map("employment_checked_at")
+  evidenceIds         String[]         @default([]) @map("evidence_ids")
+  // linkedinUrl은 endpoint와 중복이라 신규 쓰기를 중단한다. 기존 값은 이관 후 읽기 전용.
+  linkedinUrl         String?          @map("linkedin_url")
+  createdAt           DateTime         @default(now()) @map("created_at")
 
   endpoints             ContactEndpoint[]
   recipientOnOutreaches Outreach[]        @relation("OutreachRecipientContact")
   recipientOnSends      SentMessage[]     @relation("SentMessageRecipientContact")
 
+  @@index([companyId])
   @@map("contacts")
   @@schema("dh")
 }
 
+// 연락 수단. 개인·팀·대표 메일을 모두 표현한다(P-10).
+// valid 불리언 하나로는 "프로필은 찾았지만 이 사람 것인지 모름"과 "형식은 맞지만
+// 실제 도달은 미확인"을 구분할 수 없어서, 소유·형식·도달을 따로 기록한다.
 model ContactEndpoint {
-  id         String   @id @default(cuid())
-  companyId  String   @map("company_id")
-  company    Company  @relation(fields: [companyId], references: [id])
-  contactId  String?  @map("contact_id")
-  contact    Contact? @relation(fields: [contactId], references: [id])
-  channel    Channel
-  address    String
-  valid      Boolean  @default(true)
-  createdAt  DateTime @default(now()) @map("created_at")
+  id                 String             @id @default(cuid())
+  companyId          String             @map("company_id")
+  company            Company            @relation(fields: [companyId], references: [id])
+  contactId          String?            @map("contact_id")
+  contact            Contact?           @relation(fields: [contactId], references: [id])
+  ownerType          ChannelOwnerType   @default(person) @map("owner_type")
+  channel            Channel
+  address            String
+  discoveryMethod    DiscoveryMethod    @default(public_source) @map("discovery_method")
+  ownershipStatus    OwnershipStatus    @default(uncertain) @map("ownership_status")
+  validationStatus   ValidationStatus   @default(not_checked) @map("validation_status")
+  reachabilityStatus ReachabilityStatus @default(unknown) @map("reachability_status")
+  linkedinMethods    LinkedinMethod[]   @map("linkedin_methods")
+  evidenceIds        String[]           @default([]) @map("evidence_ids")
+  checkedAt          DateTime?          @map("checked_at")
+  // 레거시. ownershipStatus/validationStatus로 점진 대체한다.
+  valid              Boolean            @default(true)
+  createdAt          DateTime           @default(now()) @map("created_at")
 
-  recipientOnOutreaches Outreach[]    @relation("OutreachRecipientEndpoint")
-  recipientOnSends      SentMessage[] @relation("SentMessageRecipientEndpoint")
+  optionAssessments     ContactOptionAssessment[]
+  recipientOnOutreaches Outreach[]                @relation("OutreachRecipientEndpoint")
+  recipientOnSends      SentMessage[]             @relation("SentMessageRecipientEndpoint")
 
+  @@unique([companyId, channel, address])
+  @@index([companyId])
   @@map("contact_endpoints")
   @@schema("dh")
 }
@@ -328,7 +370,7 @@ model PrelaunchContact {
 
 // ---------- 컨택 건 ----------
 // 기업당 진행 중인 건은 하나다(unique companyId). 분기가 바뀌어도 새 행을 만들지
-// 않고 currentCycleId만 갱신한다 — 05_데이터 모델 제안.md에서 이미 확정.
+// 않고 quarterId만 갱신한다 — 05_데이터 모델 제안.md에서 이미 확정.
 
 model Outreach {
   id                    String            @id @default(cuid())
@@ -336,8 +378,8 @@ model Outreach {
   company               Company           @relation(fields: [companyId], references: [id])
   ownerId               String            @map("owner_id")
   owner                 Member            @relation("OutreachOwner", fields: [ownerId], references: [id])
-  currentCycleId        String            @map("current_cycle_id")
-  currentCycle          Cycle             @relation("OutreachCurrentCycle", fields: [currentCycleId], references: [id])
+  currentTargetQuarterId String           @map("current_target_quarter_id")
+  currentTargetQuarter  TargetQuarter     @relation("OutreachQuarter", fields: [currentTargetQuarterId], references: [id])
 
   route                 Route
   workStage             WorkStage         @map("work_stage")
@@ -349,8 +391,8 @@ model Outreach {
   recipientEndpointId   String?           @map("recipient_endpoint_id")
   recipientEndpoint     ContactEndpoint?  @relation("OutreachRecipientEndpoint", fields: [recipientEndpointId], references: [id])
 
-  lastSentCycleId       String?           @map("last_sent_cycle_id")
-  lastSentCycle         Cycle?            @relation("OutreachLastSentCycle", fields: [lastSentCycleId], references: [id])
+  lastSentQuarterId     String?           @map("last_sent_quarter_id")
+  lastSentQuarter       TargetQuarter?          @relation("OutreachLastSentQuarter", fields: [lastSentQuarterId], references: [id])
 
   reviewNote            String?           @map("review_note")
   conditionEvidence     String?           @map("condition_evidence")
@@ -360,19 +402,30 @@ model Outreach {
   decidedAt             DateTime?         @map("decided_at")
 
   skipNote              String?           @map("skip_note")
-  skipCycleId           String?           @map("skip_cycle_id")
-  skipCycle             Cycle?            @relation("OutreachSkipCycle", fields: [skipCycleId], references: [id])
+  skipQuarterId         String?           @map("skip_quarter_id")
+  skipQuarter           TargetQuarter?          @relation("OutreachSkipQuarter", fields: [skipQuarterId], references: [id])
 
   currentRevision       Int?              @map("current_revision")
   approvedRevision      Int?              @map("approved_revision")
 
+  // 원발견 배치는 불변이다. 목표 분기를 옮겨도 "언제 처음 찾았는지"는 바뀌지 않는다(P-16).
+  originSearchRunId     String?           @map("origin_search_run_id")
+  originSearchRun       SearchRun?        @relation(fields: [originSearchRunId], references: [id])
+  // 사람이 고른 채널. 사람이 수신자를 골랐다는 이유로 서버가 채널을 정하지 않는다(P-09).
+  selectedChannel       Channel?          @map("selected_channel")
+  // 수신자·채널이 바뀌면 증가한다. 이메일 최종 확인 결과를 무효화하는 기준이다.
+  selectionVersion      Int               @default(0) @map("selection_version")
+  currentDraftRevision  Int?              @map("current_draft_revision")
+
   createdAt             DateTime          @default(now()) @map("created_at")
   updatedAt             DateTime          @updatedAt @map("updated_at")
 
-  draftRevisions   MessageDraftRevision[]
-  sentMessages     SentMessage[]
-  responses        Response[]
+  draftRevisions        MessageDraftRevision[]
+  sentMessages          SentMessage[]
+  responses             Response[]
+  targetQuarterChanges  OutreachTargetQuarterChange[]
 
+  @@index([currentTargetQuarterId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("outreaches")
   @@schema("dh")
 }
@@ -425,8 +478,8 @@ model SentMessage {
   id                     String      @id @default(cuid())
   outreachId             String      @map("outreach_id")
   outreach               Outreach    @relation(fields: [outreachId], references: [id])
-  cycleId                String      @map("cycle_id")
-  cycle                  Cycle       @relation(fields: [cycleId], references: [id])
+  targetQuarterId        String      @map("target_quarter_id")
+  targetQuarter          TargetQuarter @relation(fields: [targetQuarterId], references: [id])
   channel                Channel
   recipientContactId     String      @map("recipient_contact_id")
   recipientContact       Contact     @relation("SentMessageRecipientContact", fields: [recipientContactId], references: [id])
@@ -496,16 +549,24 @@ model Job {
   finishedAt  DateTime? @map("finished_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  searchRun SearchRun?
-
   @@map("jobs")
   @@schema("dh")
 }
 
 // ---------- 멱등성 ----------
 
-// POST/PUT/PATCH 업무 변경 요청의 Idempotency-Key를 기록한다. 같은 키로 재시도가 오면
+// POST/PUT/PATCH 변경 요청의 Idempotency-Key를 기록한다. 같은 키로 재시도가 오면
 // 새 버전 검사보다 먼저 이 테이블을 조회해 이전에 성공한 응답을 그대로 재반환한다.
+//
+// 이건 공유 도메인 데이터가 아니라 각 앱의 내부 구현 디테일이라, 스키마마다 자기
+// 테이블을 갖는다(conventions.md §4.1). 한 테이블을 공유하면 서로 다른 앱의 키가
+// 한 네임스페이스에 섞여서, 우연히 같은 Idempotency-Key를 받으면 남의 응답을
+// 돌려주거나 IDEMPOTENCY_CONFLICT가 난다.
+//
+// 물리 테이블 이름(idempotency_keys)은 같고 스키마만 다르다 — 이게 multiSchema의
+// 용도다. 각 앱의 schema.prisma에는 자기 것 하나만 IdempotencyKey라는 이름으로
+// 선언하므로, 앱 코드(src/lib/idempotency.ts)는 이 분리를 알 필요가 없다.
+
 model IdempotencyKey {
   key             String   @id
   actorMemberId   String   @map("actor_member_id")
@@ -517,5 +578,452 @@ model IdempotencyKey {
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@map("idempotency_keys")
+  @@schema("dh")
+}
+
+
+// ---------- 리스트업(기업 발견·판단·연락처) ----------
+//
+// 리스트업_데이터스키마_API명세_v0.1.md의 논리 스키마를 물리 테이블로 옮긴 것이다.
+// 명세의 workspace_id는 도입하지 않는다 — GH SNU 단일 조직이라 칸막이가 필요 없다.
+//
+// evidence 참조는 join 테이블 대신 String[]로 둔다. 구조가 같은 join 테이블이 다섯 개
+// 생길 만한 값이 없고, 읽기는 항상 id 목록으로 한 번에 가져온다. evidence는 append-only라
+// 끊긴 참조가 생기지 않으며, 참조 무결성은 앱이 보장한다(conventions.md §4에 기록).
+//
+// enum 타입 이름은 Postgres 스키마 안에서 전역 유일해야 한다. queued/running 같은 값은
+// 기존 JobStatus·SendStatus에도 있어서, 새 enum은 전부 이름을 구분해서 붙였다.
+
+enum SearchRunStatus {
+  queued
+  running
+  completed
+  partially_completed
+  failed
+  cancelled
+  @@schema("dh")
+}
+
+enum ClaimCategory {
+  product_service
+  target_customer
+  revenue_model
+  user_journey
+  operations
+  recent_change
+  public_challenge
+  @@schema("dh")
+}
+
+enum ClaimBasis {
+  reported_fact
+  inference
+  @@schema("dh")
+}
+
+enum FitVerdict {
+  fit
+  unfit
+  pending
+  @@schema("dh")
+}
+
+enum ContactStatus {
+  not_started
+  searching
+  available
+  needs_verification
+  not_found
+  @@schema("dh")
+}
+
+enum CriterionVerdict {
+  supported
+  unsupported
+  unknown
+  @@schema("dh")
+}
+
+enum JobFunction {
+  executive
+  business_development
+  product
+  data
+  other
+  unknown
+  @@schema("dh")
+}
+
+enum Seniority {
+  c_level
+  manager
+  individual_contributor
+  unknown
+  @@schema("dh")
+}
+
+enum EmploymentStatus {
+  current
+  former
+  unknown
+  @@schema("dh")
+}
+
+enum ChannelOwnerType {
+  person
+  team
+  company
+  @@schema("dh")
+}
+
+enum DiscoveryMethod {
+  public_source
+  user_provided
+  inferred
+  @@schema("dh")
+}
+
+enum OwnershipStatus {
+  supported
+  uncertain
+  contradicted
+  @@schema("dh")
+}
+
+enum ValidationStatus {
+  not_checked
+  valid_format
+  invalid
+  @@schema("dh")
+}
+
+enum ReachabilityStatus {
+  unknown
+  confirmed
+  unavailable
+  @@schema("dh")
+}
+
+enum LinkedinMethod {
+  connection_request
+  direct_message
+  inmail
+  @@schema("dh")
+}
+
+enum CandidateContactStatus {
+  usable
+  needs_verification
+  unusable
+  @@schema("dh")
+}
+
+enum DecisionAuthority {
+  supported
+  unknown
+  @@schema("dh")
+}
+
+enum ResearchTaskType {
+  company_discovery
+  company_research
+  fit_assessment
+  contact_research
+  contact_verification
+  @@schema("dh")
+}
+
+// v0.4 §6.7: 배치가 만든 작업과 사람이 요청한 작업만 구분한다.
+// 기존 기업 재발견·분기 변경·시간 경과로는 자동 요청하지 않는다(P-08).
+enum ResearchTaskTrigger {
+  initial
+  auto_followup
+  human_request
+  fit_changed
+  searchRun
+  userRequest
+  @@schema("dh")
+}
+
+enum FollowupPolicy {
+  automatic
+  none
+  @@schema("dh")
+}
+
+enum ResearchTaskStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+  @@schema("dh")
+}
+
+// 탐색 배치.
+//
+// conditionsSnapshot은 생성 당시의 업무 입력(sources·filters)과 **실제 실행 설정**을
+// 함께 얼려둔다(v0.4 §6.4). 실행 설정을 서버 config에서 읽어 여기에 복사하는 이유는,
+// 나중에 config를 바꿔도 과거 배치가 "어떤 상한으로 돌았는지"가 남아야 하기 때문이다.
+// API 읽기 모델은 이 스냅샷에서 sources·filters를 펼쳐 제공한다.
+//
+// 실행 설정의 뜻(2026-09-26 확정):
+//   maxCompanies       조사 **상한**이지 확보 목표가 아니다. 10개를 요청해도 적합·연락
+//                      가능이 6개면 그대로 끝낸다.
+//   maxDiscoveryRounds 상한을 못 채웠을 때 추가 발견을 시도하는 횟수. 채울 때까지
+//                      반복하지 않고 이 횟수에서 멈춘다(부분 완료).
+// 기술적 재시도는 이 횟수와 별개이며 한도는 아직 미정이다(v0.4 §0.2).
+//
+// 담당자(assignedMember)는 실행 책임자이고 AI 판단의 승인자가 아니다(P-02).
+// duplicateExcludedCount는 화면의 "중복 N개 제외" 표시용이다.
+model SearchRun {
+  id                     String             @id @default(cuid())
+  targetQuarterId        String             @map("target_quarter_id")
+  targetQuarter          TargetQuarter      @relation(fields: [targetQuarterId], references: [id])
+  conditionsSnapshot     Json               @map("conditions_snapshot")
+  status                 SearchRunStatus    @default(queued)
+  duplicateExcludedCount Int                @default(0) @map("duplicate_excluded_count")
+  finishReason           String?            @map("finish_reason")
+  assignedMemberId       String             @map("assigned_member_id")
+  assignedMember         Member             @relation("SearchRunAssignee", fields: [assignedMemberId], references: [id])
+  createdById            String             @map("created_by_id")
+  createdBy              Member             @relation("SearchRunCreatedBy", fields: [createdById], references: [id])
+  createdAt              DateTime           @default(now()) @map("created_at")
+  startedAt              DateTime?          @map("started_at")
+  finishedAt             DateTime?          @map("finished_at")
+
+  candidates Candidate[]
+  evidence   Evidence[]
+  researches CompanyResearch[]
+  tasks      ResearchTask[]
+  outreaches Outreach[]
+
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([targetQuarterId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("search_runs")
+  @@schema("dh")
+}
+
+// 수집 근거. 수집 시점의 기록으로 보존하며 지우지 않는다. 같은 URL이라도 수집 시점과
+// 발췌가 다르면 다른 행이다.
+model Evidence {
+  id          String             @id @default(cuid())
+  companyId   String             @map("company_id")
+  company     Company            @relation(fields: [companyId], references: [id])
+  searchRunId String?            @map("search_run_id")
+  searchRun   SearchRun?         @relation(fields: [searchRunId], references: [id])
+  url         String
+  sourceKey   String             @map("source_key")
+  title       String?
+  excerpt     String?
+  publishedAt DateTime?          @map("published_at")
+  retrievedAt DateTime           @default(now()) @map("retrieved_at")
+
+  @@index([companyId, retrievedAt(sort: Desc)])
+  @@map("evidence")
+  @@schema("dh")
+}
+
+// 기업 조사의 한 버전. 새 조사는 새 행으로 쌓이고, 과거 판단은 당시 쓰던 버전을
+// 계속 참조한다.
+model CompanyResearch {
+  id                 String    @id @default(cuid())
+  companyId          String    @map("company_id")
+  company            Company   @relation(fields: [companyId], references: [id])
+  originSearchRunId  String    @map("origin_search_run_id")
+  originSearchRun    SearchRun @relation(fields: [originSearchRunId], references: [id])
+  taskId             String?   @map("task_id")
+  missingInformation String[]  @map("missing_information")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  claims               ResearchClaim[]
+  fitAssessments       FitAssessment[]
+  currentForCandidates Candidate[]     @relation("CandidateCurrentResearch")
+
+  @@index([companyId, createdAt(sort: Desc)])
+  @@map("company_researches")
+  @@schema("dh")
+}
+
+// 조사에서 나온 주장 하나. 명세가 claim마다 id를 주기 때문에 Json이 아니라 테이블이다.
+// basis=reported_fact면 evidence_ids가 최소 하나 있어야 한다(앱이 검증).
+model ResearchClaim {
+  id          String          @id @default(cuid())
+  researchId  String          @map("research_id")
+  research    CompanyResearch @relation(fields: [researchId], references: [id])
+  category    ClaimCategory
+  content     String
+  basis       ClaimBasis
+  evidenceIds String[]        @map("evidence_ids")
+
+  @@index([researchId])
+  @@map("research_claims")
+  @@schema("dh")
+}
+
+// 탐색별 기업 상태. effective_fit과 contact_status는 저장 컬럼이다 — 목록이 두 값을
+// 동시에 필터하면서 커서 페이지네이션을 해야 해서 읽기 시점 계산으로는 안 된다.
+// null인 effective_fit은 wire에서 "not_assessed"로 나간다.
+model Candidate {
+  id                            String            @id @default(cuid())
+  originSearchRunId             String            @map("origin_search_run_id")
+  originSearchRun               SearchRun         @relation(fields: [originSearchRunId], references: [id])
+  companyId                     String            @map("company_id")
+  company                       Company           @relation(fields: [companyId], references: [id])
+  discoveryEvidenceIds          String[]          @map("discovery_evidence_ids")
+  currentResearchId             String?           @map("current_research_id")
+  currentResearch               CompanyResearch?  @relation("CandidateCurrentResearch", fields: [currentResearchId], references: [id])
+  latestSystemAssessmentId      String?           @map("latest_system_assessment_id")
+  latestSystemAssessment        FitAssessment?    @relation("CandidateLatestAssessment", fields: [latestSystemAssessmentId], references: [id])
+  activeHumanDecisionId         String?           @map("active_human_decision_id")
+  activeHumanDecision           HumanFitDecision? @relation("CandidateActiveDecision", fields: [activeHumanDecisionId], references: [id])
+  effectiveFit                  FitVerdict?       @map("effective_fit")
+  contactResearchStatus         ContactStatus     @default(not_started) @map("contact_research_status")
+  usableContactCount            Int               @default(0) @map("usable_contact_count")
+  needsVerificationContactCount Int               @default(0) @map("needs_verification_contact_count")
+  unusableContactCount          Int               @default(0) @map("unusable_contact_count")
+  revision                      Int               @default(1)
+  createdAt                     DateTime          @default(now()) @map("created_at")
+  updatedAt                     DateTime          @updatedAt @map("updated_at")
+
+  fitAssessments    FitAssessment[]    @relation("CandidateAssessments")
+  humanFitDecisions HumanFitDecision[] @relation("CandidateDecisions")
+  contactOptions    ContactOptionAssessment[]
+  tasks             ResearchTask[]
+
+  @@unique([companyId])
+  @@index([originSearchRunId, effectiveFit, contactResearchStatus, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([originSearchRunId, updatedAt(sort: Desc), id(sort: Desc)])
+  @@index([companyId])
+  @@map("candidates")
+  @@schema("dh")
+}
+
+// 시스템 판단 이력. 판단 지침이 바뀌어도 과거 행과 당시 criteria_version은 그대로 둔다.
+model FitAssessment {
+  id              String          @id @default(cuid())
+  candidateId     String          @map("candidate_id")
+  candidate       Candidate       @relation("CandidateAssessments", fields: [candidateId], references: [id])
+  researchId      String          @map("research_id")
+  research        CompanyResearch @relation(fields: [researchId], references: [id])
+  verdict         FitVerdict
+  summary         String
+  informationGaps String[]        @default([]) @map("information_gaps")
+  criteriaVersion String          @map("criteria_version")
+  modelVersion    String?         @map("model_version")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  interventions       InterventionAssessment[]
+  latestForCandidates Candidate[]              @relation("CandidateLatestAssessment")
+  basedOnDecisions    HumanFitDecision[]       @relation("DecisionBasedOnAssessment")
+
+  @@index([candidateId, createdAt(sort: Desc)])
+  @@map("fit_assessments")
+  @@schema("dh")
+}
+
+// 개입 영역별 가능성·가치 평가. "같은 영역에서 둘 다 supported면 fit" 규칙을 DB에서
+// 그대로 검사할 수 있도록 Json이 아니라 평탄한 테이블로 둔다.
+model InterventionAssessment {
+  id                     String           @id @default(cuid())
+  assessmentId           String           @map("assessment_id")
+  assessment             FitAssessment    @relation(fields: [assessmentId], references: [id])
+  area                   String
+  possibilityVerdict     CriterionVerdict @map("possibility_verdict")
+  possibilityReason      String           @map("possibility_reason")
+  possibilityEvidenceIds String[]         @map("possibility_evidence_ids")
+  prerequisites          String[]         @map("prerequisites")
+  valueVerdict           CriterionVerdict @map("value_verdict")
+  valueReason            String           @map("value_reason")
+  valueEvidenceIds       String[]         @map("value_evidence_ids")
+  targetBusinessOutcome  String           @map("target_business_outcome")
+
+  @@index([assessmentId])
+  @@map("intervention_assessments")
+  @@schema("dh")
+}
+
+// 사람의 판단 이력. append-only이고 과거 행을 고치지 않는다. 시스템 재판단을
+// 요구하지 않으며, 후보의 활성 판단 참조만 바뀐다.
+model HumanFitDecision {
+  id                  String         @id @default(cuid())
+  candidateId         String         @map("candidate_id")
+  candidate           Candidate      @relation("CandidateDecisions", fields: [candidateId], references: [id])
+  verdict             FitVerdict
+  reason              String?
+  interventionNote    String?        @map("intervention_note")
+  basedOnAssessmentId String?        @map("based_on_assessment_id")
+  basedOnAssessment   FitAssessment? @relation("DecisionBasedOnAssessment", fields: [basedOnAssessmentId], references: [id])
+  decidedById         String         @map("decided_by_id")
+  decidedBy           Member         @relation("FitDecisionDecidedBy", fields: [decidedById], references: [id])
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  activeForCandidates Candidate[] @relation("CandidateActiveDecision")
+
+  @@index([candidateId, createdAt(sort: Desc)])
+  @@map("human_fit_decisions")
+  @@schema("dh")
+}
+
+// 후보별 연락 선택지 평가. 관계자·연락 수단 자체는 기존 contacts/contact_endpoints에
+// 있고(§8.4), 여기에는 "이 조사 건에서 이 창구를 쓸 수 있는가"만 남긴다.
+//
+// usable은 조사 또는 사람의 확인상 쓸 수 있다는 평가이고 실제 수신·답장을 보장하지
+// 않는다. 자동 채널 선택(preferred/alternative)은 두지 않는다 — 수신자와 채널은
+// 사람이 고른다(P-09). 사람이 직접 확인해 등록한 창구는 confirmedBy와 확인 근거를
+// 남기고 즉시 usable이 될 수 있다(P-19). 조사가 만든 평가는 confirmedBy=null이다.
+model ContactOptionAssessment {
+  id                String                 @id @default(cuid())
+  candidateId       String                 @map("candidate_id")
+  candidate         Candidate              @relation(fields: [candidateId], references: [id])
+  endpointId        String                 @map("endpoint_id")
+  endpoint          ContactEndpoint        @relation(fields: [endpointId], references: [id])
+  status            CandidateContactStatus
+  roleRelevance     String?                @map("role_relevance")
+  decisionAuthority DecisionAuthority      @default(unknown) @map("decision_authority")
+  reason            String?
+  sourceUrl         String?                @map("source_url")
+  confirmedById     String?                @map("confirmed_by_id")
+  confirmedBy       Member?                @relation("ContactConfirmedBy", fields: [confirmedById], references: [id])
+  checkedAt         DateTime               @default(now()) @map("checked_at")
+
+  @@unique([candidateId, endpointId])
+  @@index([candidateId, status, checkedAt(sort: Desc), id(sort: Desc)])
+  @@map("contact_option_assessments")
+  @@schema("dh")
+}
+
+// 비동기 조사 작업. error를 Json이 아니라 세 컬럼으로 펴둔 이유는 재시도가
+// status=failed AND retryable=true로 걸러야 하고, 연락 상태 계산도 활성 작업을
+// 인덱스로 찾아야 하기 때문이다.
+model ResearchTask {
+  id                   String              @id @default(cuid())
+  searchRunId          String              @map("search_run_id")
+  searchRun            SearchRun           @relation(fields: [searchRunId], references: [id])
+  jobId                String?             @map("job_id")
+  candidateId          String?             @map("candidate_id")
+  candidate            Candidate?          @relation(fields: [candidateId], references: [id])
+  parentTaskId         String?             @map("parent_task_id")
+  parentTask           ResearchTask?       @relation("ResearchTaskChildren", fields: [parentTaskId], references: [id])
+  type                 ResearchTaskType
+  trigger              ResearchTaskTrigger
+  requestedInformation String[]            @map("requested_information")
+  followupPolicy       FollowupPolicy      @map("followup_policy")
+  status               ResearchTaskStatus  @default(queued)
+  attempt              Int                 @default(1)
+  resultRefs           Json                @default("[]") @map("result_refs")
+  errorCode            String?             @map("error_code")
+  errorMessage         String?             @map("error_message")
+  errorRetryable       Boolean?            @map("error_retryable")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  startedAt            DateTime?           @map("started_at")
+  finishedAt           DateTime?           @map("finished_at")
+
+  childTasks ResearchTask[] @relation("ResearchTaskChildren")
+
+  @@index([candidateId, type, status])
+  @@index([searchRunId, status])
+  @@index([status, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("research_tasks")
   @@schema("dh")
 }
