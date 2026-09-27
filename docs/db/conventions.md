@@ -474,6 +474,28 @@ RLS 정책, 뷰, 함수, 부분 유니크 인덱스는 Prisma 스키마 문법�
 
 마이그레이션 폴더는 `git mv`로 옮긴다. 어디까지 적용했는지는 DB 안의 `_prisma_migrations` 테이블이 갖고 있어서 **파일 위치와 무관하다.** 옮긴 뒤 `packages/db`에서 `prisma migrate status`를 돌려 "up to date"가 나오면 정상이다.
 
+### 7.5 리셋 프롬프트가 뜨면 `y`를 누르지 않는다
+
+`npm run db:migrate`(= `prisma migrate dev`)를 돌렸을 때 이런 창이 뜰 수 있다.
+
+```
+Drift detected: Your database schema is not in sync with your migration history.
+We need to reset the "core, dh" schemas at "aws-0-ap-northeast-2.pooler.supabase.com"
+Do you want to continue? All data will be lost. > (y/N)
+```
+
+**`y`를 누르면 `DROP SCHEMA ... CASCADE`가 실행된다.** 회원·기업·컨택·발송 이력이 전부 사라지고 마이그레이션이 처음부터 다시 실행돼 빈 테이블만 남는다. 개발용 DB를 따로 두지 않기로 했으므로(§12) 이 DB가 곧 운영 데이터다 — 되돌리는 방법은 백업 복원뿐이다.
+
+이 프롬프트는 **레포의 마이그레이션 폴더 목록과 DB의 `_prisma_migrations` 기록이 어긋날 때** 뜬다. 2026-09-27에 실제로 겪었다: `nut` 스키마의 마이그레이션 세 개가 DB에는 적용돼 있는데 `packages/db/migrations`에는 없어서(다른 브랜치에만 있었다) Prisma가 이력이 갈라졌다고 판단했다. 원인은 §7.2를 안 지킨 것이다 — **DB에 적용한 마이그레이션 파일은 반드시 `packages/db`에 있어야 하고, 그 폴더가 곧 DB 이력이다.**
+
+떴을 때 할 일:
+
+1. **`N`을 누른다.** 이 프롬프트는 어떤 경우에도 정답이 아니다.
+2. `npm run db:status`로 무엇이 어긋났는지 본다. `The migrations from the database are not found locally`가 있으면 누군가의 마이그레이션 파일이 레포에 없는 것이다 — 그 브랜치를 찾아 main에 합친다(누구에게 알리는지는 §9.4).
+3. 이미 만들어진 마이그레이션을 적용만 하려면 `npm run db:deploy`(= `prisma migrate deploy`)를 쓴다. deploy는 드리프트 검사도, 리셋도 하지 않고 미적용 마이그레이션만 순서대로 적용한다. DB에만 있는 이력은 경고만 남기고 넘어간다.
+
+한 Postgres를 여러 앱이 나눠 쓰는 동안은(§2) `migrate dev`보다 **§7.3처럼 폴더를 직접 만들고 `db:deploy`로 적용하는 쪽이 안전하다** — 자기 스키마만 아는 `migrate dev`가 남의 테이블을 삭제 대상으로 볼 일이 없다.
+
 ---
 
 ## 8. 네이밍 규칙
@@ -559,6 +581,7 @@ Postgres 쪽 이름은 전부 `snake_case`다. Prisma 모델은 camelCase로 쓰
 | `public` 스키마에 새 테이블 만들기 | 소유자가 불분명하고, Data API 기본 노출 대상이다 |
 | 다른 앱의 업무 스키마를 직접 SELECT | 보이지 않는 의존이 생긴다 (§3.1) |
 | `apps/*` 안에서 `prisma migrate` 실행 | 앱 스키마는 DB 전체를 모른다 — 남의 테이블을 삭제 대상으로 판단한다 (§7.2) |
+| 드리프트를 `migrate dev`의 리셋으로 "해결" | `All data will be lost` 프롬프트다. `N`을 누르고 §7.5를 따른다 |
 | `prisma db push` | 마이그레이션 이력 없이 DB를 바꾼다. 무엇이 왜 바뀌었는지 기록이 안 남는다 |
 | `packages/auth`를 우회한 `member.update()` | 인증 정책이 다시 여러 벌이 된다 (§5.2) |
 | `core.members`에 앱 전용 컬럼 추가 | 자기 스키마의 별도 테이블로 (§5.3) |
