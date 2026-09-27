@@ -1,3 +1,5 @@
+import type { FitCriteriaSnapshot } from "@/config/fitCriteria";
+
 // 탐색 배치의 실행 설정. 사용자가 요청 본문으로 보내지 않고(v0.4 §6.4) 서버가 정한 뒤
 // 생성 시점에 SearchRun.conditionsSnapshot으로 복사한다. 여기 값을 나중에 바꿔도 과거
 // 배치가 어떤 상한으로 돌았는지는 스냅샷에 남는다.
@@ -18,21 +20,29 @@
 //
 // 아직 미정(v0.4 §0.2): 기술적 재시도 한도, 시간·비용 상한. 워커를 붙일 때 정한다.
 // 기술적 재시도(네트워크 오류 등)는 위 조사 라운드와 별개로 센다.
-export const LISTUP_EXECUTION_VERSION = "2026-09-26";
+// fitCriteria 스냅샷 필드를 추가하면서 conditionsSnapshot 구조를 올렸다.
+export const LISTUP_EXECUTION_VERSION = "2026-09-26.2";
 
-export const listupExecution = {
-  maxCompanies: 10,
+const fixedListupExecution = {
   maxDiscoveryRounds: 3,
   maxResearchFollowupRounds: 3,
   maxContactSearchRounds: 3,
 };
 
-export type ListupExecution = typeof listupExecution;
+export function createListupExecution(maxCompanies: number) {
+  return { maxCompanies, ...fixedListupExecution };
+}
+
+export const listupExecution = createListupExecution(10);
+
+export type ListupExecution = ReturnType<typeof createListupExecution>;
 
 // conditionsSnapshot에 저장하는 형태. schemaVersion은 나중에 스냅샷 구조가 바뀌어도
 // 과거 행을 어떻게 읽어야 하는지 구분하기 위한 것이다.
 export type ConditionsSnapshot = {
   schemaVersion: string;
+  // DB의 별도 기준 레코드가 아니라, 배치 시작 시점의 agent 프롬프트를 고정한다.
+  fitCriteria: FitCriteriaSnapshot;
   sources: { key: string; name: string; entryUrls: string[]; query: string | null }[];
   filters: {
     industries: string[];

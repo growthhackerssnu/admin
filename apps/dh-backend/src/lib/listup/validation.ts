@@ -27,6 +27,7 @@ export const createSearchRunSchema = z
     targetQuarterId: z.string().min(1),
     sources: z.array(sourceConfigSchema).min(1),
     filters: searchFiltersSchema,
+    maxCompanies: z.number().int().min(1).max(30),
   })
   .superRefine((data, ctx) => {
     const keys = data.sources.map((s) => s.key);

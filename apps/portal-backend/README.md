@@ -33,16 +33,30 @@
 | API | 설명 |
 |---|---|
 | `GET /api/v1/me` | `{userId, email, displayName, role, redirectPath}`. `redirectPath`는 role로 고정 결정(admin→`/admin`, acting→`/dh`, alumni→`/hr`) — 프론트가 로그인 직후 이 값으로만 리다이렉트하면 된다 |
-| `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, active, createdAt, lastLoginAt |
-| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting"\|"alumni"}` — 일괄 role 변경. admin 대상 포함 시 전체 거부 |
+| `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, opsRole, active, createdAt, lastLoginAt |
+| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", opsRole}` 또는 `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. admin 대상 포함 시 전체 거부 |
 | `POST /api/v1/admin/members/deactivate` | (admin 전용) `{memberIds}` — 일괄 비활성화("삭제", 실제 행은 안 지움). admin 대상·본인 계정 거부 |
 | `POST /api/v1/admin/members/reactivate` | (admin 전용) `{memberIds}` — 비활성화를 되돌림 |
 
 쓰기 API(role/deactivate/reactivate)는 `Idempotency-Key` 헤더가 필수다.
 
+## 운영팀 직책 (`opsRole`)
+
+`acting`에게는 운영팀 직책이 반드시 있고, `alumni`·`admin`에게는 없다(`null`). 두 값은 항상 같이 움직인다 — `alumni`로 내리면 직책이 지워지고, `alumni`를 `acting`으로 올릴 때는 직책을 반드시 지정해야 한다. 값 목록과 한국어 이름은 `src/lib/opsRoles.ts` 한 곳에 있다(`core.OpsRole` enum과 같은 값).
+
+| 그룹 | 값 | 인원 |
+|---|---|---|
+| 임원 | `president`(회장), `vice_president`(부회장), `treasurer`(총무) | 각 1명 |
+| 팀장 | `external_lead`(대외협력), `hr_lead`(HR), `pr_lead`(PR), `edu_lead`(에듀) | 각 1명 |
+| 팀원 | `external_member`, `hr_member`, `pr_member` | 여러 명 |
+
+"각 1명"은 DB의 부분 유니크 인덱스(`members_ops_role_singleton_key`)와 API 양쪽에서 막는다. 자리를 비우려면 지금 그 직책인 회원을 다른 직책으로 옮기거나 `alumni`로 내린다 — 비활성(`active: false`) 회원도 자리를 차지한다(비활성화는 role을 바꾸지 않기 때문이다).
+
+`ops_role` 컬럼이 생기기 전에 등록된 `acting` 회원은 직책이 `null`이고, 어드민 화면에 "미지정"으로 보인다. 백필은 하지 않았다 — 누가 어느 팀인지 DB가 지어낼 수 없어서, 관리자가 화면에서 지정해줘야 채워진다.
+
 ## 접근 제어
 
-화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, 이 앱의 CLI(`npm run members:add`)로 수동 등록한다. `admin`으로의 승격은 API로 불가 — CLI로만.
+화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, 이 앱의 CLI(`npm run members:add`)로 수동 등록한다(`acting`으로 등록할 때는 운영팀 직책 인자가 필수 — `... acting hr_lead`). `admin`으로의 승격은 API로 불가 — CLI로만.
 
 ## CORS
 

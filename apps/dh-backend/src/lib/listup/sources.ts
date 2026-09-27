@@ -8,6 +8,30 @@
 // 정한다. 명세 §9.1의 미확정 항목이다.
 export const SUPPORTED_SOURCE_KEYS = ["Google", "뉴스레터", "혁신의 숲"] as const;
 
+const UNAVAILABLE_SOURCE_REASONS: Partial<Record<(typeof SUPPORTED_SOURCE_KEYS)[number], string>> = {
+  "혁신의 숲": "혁신의숲 계약 API 자격증명이 필요합니다.",
+};
+
 export function isSupportedSourceKey(key: string): boolean {
   return (SUPPORTED_SOURCE_KEYS as readonly string[]).includes(key);
+}
+
+export function isSourceAvailable(key: string): boolean {
+  return isSupportedSourceKey(key) && !(key in UNAVAILABLE_SOURCE_REASONS);
+}
+
+export function sourceUnavailableReason(key: string): string | null {
+  return UNAVAILABLE_SOURCE_REASONS[key as keyof typeof UNAVAILABLE_SOURCE_REASONS] ?? null;
+}
+
+export function invalidSourceEntryUrl(key: string, value: string): string | null {
+  if (key !== "뉴스레터") return "직접 URL 수집은 뉴스레터 소스에서만 지원합니다.";
+  try {
+    const host = new URL(value).hostname;
+    return host === "startuprecipe.co.kr" || host === "www.startuprecipe.co.kr"
+      ? null
+      : "뉴스레터 직접 URL은 startuprecipe.co.kr 이어야 합니다.";
+  } catch {
+    return "올바른 URL이 아닙니다.";
+  }
 }

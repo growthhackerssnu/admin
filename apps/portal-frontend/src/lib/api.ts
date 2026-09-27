@@ -77,16 +77,36 @@ export function getMe(token: string) {
 
 // --- 관리자: 회원 관리 ---
 
+// 운영팀 직책. 백엔드 core.OpsRole enum과 같은 값이며, 한국어 이름은 화면
+// 쪽(AdminMembers)이 갖고 있다 — role 라벨도 같은 방식이다.
+export type OpsRole =
+  | "president"
+  | "vice_president"
+  | "treasurer"
+  | "external_lead"
+  | "hr_lead"
+  | "pr_lead"
+  | "edu_lead"
+  | "external_member"
+  | "hr_member"
+  | "pr_member";
+
 export interface AdminMember {
   id: string;
   displayName: string;
   cohort: string | null;
   email: string;
   role: "admin" | "acting" | "alumni";
+  /** acting에게만 값이 있다. acting인데 null이면 아직 직책을 지정하지 않은 회원. */
+  opsRole: OpsRole | null;
   active: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 }
+
+// role과 운영팀 직책은 항상 같이 바뀐다 — acting이면 직책이 필수고, alumni가
+// 되면 직책은 사라진다. 그 규칙을 타입으로 그대로 옮긴다.
+export type RoleChange = { role: "acting"; opsRole: OpsRole } | { role: "alumni" };
 
 export function listAdminMembers(token: string) {
   return request<{ items: AdminMember[]; nextCursor: string | null }>(
@@ -95,13 +115,16 @@ export function listAdminMembers(token: string) {
   );
 }
 
-export function changeMemberRole(token: string, memberIds: string[], role: "acting" | "alumni") {
-  return request<{ items: { id: string; role: string }[] }>("/api/v1/admin/members/role", {
-    method: "PATCH",
-    token,
-    headers: { "Idempotency-Key": idempotencyKey() },
-    body: JSON.stringify({ memberIds, role }),
-  });
+export function changeMemberRole(token: string, memberIds: string[], change: RoleChange) {
+  return request<{ items: { id: string; role: string; opsRole: OpsRole | null }[] }>(
+    "/api/v1/admin/members/role",
+    {
+      method: "PATCH",
+      token,
+      headers: { "Idempotency-Key": idempotencyKey() },
+      body: JSON.stringify({ memberIds, ...change }),
+    },
+  );
 }
 
 export function deactivateMembers(token: string, memberIds: string[]) {

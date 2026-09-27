@@ -4,7 +4,11 @@ import { successBody } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/v1/admin/members — 회원 명단(admin 전용). 관리 화면용으로
-// role·활성여부·가입일·최근 접속일·기수(있으면)까지 전부 내려준다.
+// role·운영팀 직책·활성여부·가입일·최근 접속일·기수(있으면)까지 전부 내려준다.
+//
+// opsRole은 acting에게만 값이 있다. acting인데 null인 행은 ops_role 컬럼이
+// 생기기 전에 등록된 회원이다 — 화면에서 "미지정"으로 보이고, 관리자가 직책을
+// 지정해주면 채워진다.
 export const GET = withApiHandler(async (req, { member, requestId }) => {
   requireAdmin(member);
 
@@ -31,6 +35,7 @@ export const GET = withApiHandler(async (req, { member, requestId }) => {
           cohort: m.claimedPersonEntry?.cohort ?? null,
           email: m.email,
           role: m.role,
+          opsRole: m.opsRole,
           active: m.active,
           createdAt: m.createdAt.toISOString(),
           lastLoginAt: m.lastLoginAt?.toISOString() ?? null,

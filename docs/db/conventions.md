@@ -1,6 +1,6 @@
-# DB 공유 규칙 — portal · dh · hr
+# DB 공유 규칙 — portal · dh · hr · nut
 
-기준일: 2026-09-23. `admin.ghsnu.com` 아래 세 앱(portal·dh·hr)이 **Supabase 프로젝트 하나, Postgres 하나**를 같이 쓴다. 이 문서는 그 DB에서 어느 테이블이 누구 것이고, 누가 무엇을 바꿀 수 있고, 바꿀 때 어떤 절차를 밟는지를 정한다.
+기준일: 2026-09-23. `admin.ghsnu.com` 아래 네 앱(portal·dh·hr·nut)이 **Supabase 프로젝트 하나, Postgres 하나**를 같이 쓴다. 이 문서는 그 DB에서 어느 테이블이 누구 것이고, 누가 무엇을 바꿀 수 있고, 바꿀 때 어떤 절차를 밟는지를 정한다.
 
 앱을 어떻게 나누고 경로로 연결하는지는 [라우팅 구조](../admin/routing.md)에, 업무 정책은 [docs/admin](../admin/README.md)에 있다. 이 문서는 **데이터 계층만** 다룬다.
 
@@ -52,7 +52,7 @@ Postgres의 **스키마(schema)**로 앱별 영역을 나눈다. 테이블 이�
 ```
 Supabase Postgres (프로젝트 1개)
 │
-├── core   ← 세 앱이 공유하는 신원·회원 데이터.  소유자: portal
+├── core   ← 네 앱이 공유하는 신원·회원 데이터.  소유자: portal
 │           members, people_directory, signup_requests
 │           ※ Data API에 노출하지 않는다 (§6.6)
 │
@@ -63,6 +63,10 @@ Supabase Postgres (프로젝트 1개)
 ├── hr     ← 그핵드인 업무 데이터.              소유자: hr
 │           스키마는 만들어져 있고 테이블은 아직 없다.
 │           hr 담당자가 정의를 가져오면 채운다.
+│
+├── nut    ← NUT 내부 운영팀 재무 데이터.       소유자: nut
+│           예산안, 회계 시트, 프로젝트·운영팀별 회계, 청구·세금
+│           ※ 프론트 직접 조회하지 않고 백엔드 API만 사용
 │
 ├── public ← 쓰지 않는다. 새 테이블을 여기 만들지 않는다.
 └── auth   ← Supabase가 소유. 직접 건드리지 않는다.
@@ -91,7 +95,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | 대상 | 규칙 |
 |---|---|
 | **자기 스키마** (dh → `dh.*`) | 읽기·쓰기·구조 변경 전부 자유. 다른 앱에 알릴 필요 없음. |
-| **`core` 스키마** | **읽기는 세 앱 모두 자유.** 쓰기는 §5의 제한을 따른다. 구조 변경은 portal 담당자 리뷰 필수. |
+| **`core` 스키마** | **읽기는 네 앱 모두 자유.** 쓰기는 §5의 제한을 따른다. 구조 변경은 portal 담당자 리뷰 필수. |
 | **남의 업무 스키마** (dh ↔ hr) | **접근하지 않는다.** 읽기도 안 된다. 필요하면 §3.2를 따른다. |
 
 여기서 "앱"은 프론트와 백엔드를 묶은 단위다. `apps/dh-frontend`가 `dh` 스키마를 읽는 건 자기 스키마 접근이라 문제없다 — 다만 브라우저에서 직접 읽는 것은 경로가 달라서 §6의 추가 규칙을 탄다.
@@ -122,7 +126,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 | 테이블 | 내용 | 쓰기 | 읽기 | 개인정보 |
 |---|---|---|---|---|
-| `members` | 접근 허용 회원 화이트리스트. role·활성 여부 | portal (§5) | portal, dh, hr 백엔드 | 이메일, 이름 |
+| `members` | 접근 허용 회원 화이트리스트. role·운영팀 직책(`ops_role`, acting에게만)·활성 여부 | portal (§5) | portal, dh, hr 백엔드 | 이메일, 이름 |
 | `people_directory` | 노션 People DB에서 동기화한 "신뢰 이메일" 원장. 가입 시 본인 확인용 | portal | portal, dh, hr 백엔드 | 이메일, 기수, 이름 |
 | `signup_requests` | 가입 신청 + OTP 상태. 수명이 짧은 레코드 | portal | portal | 이메일, OTP 해시 |
 
@@ -164,6 +168,29 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 "프론트 직접 조회" 칸은 실제로 열 때 **뷰 이름과 함께** 갱신한다. 프론트가 어느 데이터에 직접 닿는지가 곧 공격 표면이라, 이 칸이 보안 검토의 시작점이 된다.
 
+### nut — 소유자: nut
+
+NUT 내부 운영팀의 재무 데이터. `admin`/`acting` 백엔드 API가 소유하며, 프론트에서
+Supabase Data API로 직접 노출하지 않는다. 현재 11개 테이블은 다음과 같다.
+
+| 테이블 | 내용 | 프론트 직접 조회 |
+|---|---|---|
+| `finance_periods` | 운영팀 임기·회계연도와 예산/실제 합계 | 아니오 |
+| `finance_buckets` | 비과세 수익·과세 수익·손금산입/불산입 비용·세금 bucket | 아니오 |
+| `budget_nodes` | 엑셀 예산안의 대/중/소분류 | 아니오 |
+| `budget_parameters` | 산출식에 사용하는 환경설정 변수 | 아니오 |
+| `income_lines` | 진행안 수입 항목과 결산안 실제 수입 | 아니오 |
+| `monthly_flows` | 월별 진행안·결산안 흐름 | 아니오 |
+| `ledger_entries` | 회계 상세 행 | 아니오 |
+| `accounting_details` | 프로젝트별·운영팀별 상세 회계 | 아니오 |
+| `accounting_summaries` | 프로젝트별·운영팀별 요약 회계 | 아니오 |
+| `tax_summaries` | 법인세·원천징수세·부가세 계산 결과 | 아니오 |
+| `claims` | Slack 청구서 요청과 상태 | 아니오 |
+
+모든 `nut` 테이블은 생성 마이그레이션에서 RLS를 활성화하고, 현재는 백엔드 API만
+접근한다. 프론트 직접 조회를 열게 되면 `v_` 뷰와 `core.current_member_role()` 정책을
+먼저 추가한다.
+
 ### hr — 소유자: hr
 
 미정. hr 구현 시작 시 이 표를 채운다. 테이블을 만들 때마다 한 줄씩 추가한다.
@@ -178,18 +205,18 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 ## 5. `members` 특별 규칙
 
-`members`는 세 앱이 모두 만지는 유일한 테이블이라 별도로 정한다.
+`members`는 네 앱이 모두 만지는 유일한 테이블이라 별도로 정한다.
 
 ### 5.1 무엇을 누가 하나
 
 | 동작 | 누가 | 비고 |
 |---|---|---|
-| **읽기** (`findUnique` 등) | portal, dh, hr **백엔드** 전부 | 요청마다 "이 사람이 명단에 있나"를 확인해야 하므로 직접 읽는다 |
-| `role` 변경, `active` 변경, 행 생성·삭제 | **portal만** | 회원 관리 화면. dh/hr은 이 코드를 아예 갖지 않는다 |
-| `last_login_at`, `supabase_user_id` 갱신 | 세 앱 전부 | 단, **`packages/auth` 공유 코드를 통해서만** (§5.2) |
+| **읽기** (`findUnique` 등) | portal, dh, hr, nut **백엔드** 전부 | 요청마다 "이 사람이 명단에 있나"를 확인해야 하므로 직접 읽는다 |
+| `role` 변경, `active` 변경, 행 생성·삭제 | **portal만** | 회원 관리 화면. dh/hr/nut은 이 코드를 아예 갖지 않는다 |
+| `last_login_at`, `supabase_user_id` 갱신 | 네 앱 전부 | 단, **`packages/auth` 공유 코드를 통해서만** (§5.2) |
 | 브라우저에서 직접 조회 | **아무도 안 함** | 자기 정보는 `GET /api/v1/me`로 받는다 (§6.6) |
 
-읽기를 막지 않는 이유는, 매 요청마다 portal에 HTTP를 한 번 더 날리면 느려지고 portal이 죽으면 dh·hr도 같이 죽기 때문이다. 3개 앱 규모에서 그 비용은 얻는 것보다 크다.
+읽기를 막지 않는 이유는, 매 요청마다 portal에 HTTP를 한 번 더 날리면 느려지고 portal이 죽으면 dh·hr·nut도 같이 죽기 때문이다. 4개 앱 규모에서 그 비용은 얻는 것보다 크다.
 
 ### 5.2 인증 로직은 한 벌만 존재한다
 
@@ -235,7 +262,7 @@ core.members  ←─ 참조 ─  dh.member_preferences  (dh 소유)
               ←─ 참조 ─  hr.member_profiles     (hr 소유)
 ```
 
-이렇게 하면 dh가 자기 컬럼을 마음대로 추가·삭제해도 portal·hr은 영향받지 않는다. `core.members`는 **세 앱이 모두 의미를 합의한 필드만** 갖는다.
+이렇게 하면 dh가 자기 컬럼을 마음대로 추가·삭제해도 portal·hr·nut은 영향받지 않는다. `core.members`는 **네 앱이 모두 의미를 합의한 필드만** 갖는다.
 
 FK 방향은 항상 **업무 스키마 → core**다. `core`에서 `dh`나 `hr`을 참조하는 FK는 만들지 않는다 — 공유 영역이 특정 앱에 의존하게 되면 그 앱 없이는 core를 못 고친다.
 
@@ -291,8 +318,8 @@ FK 방향은 항상 **업무 스키마 → core**다. `core`에서 `dh`나 `hr`�
 alter table dh.companies enable row level security;
 ```
 
-**현재 `core`·`dh`의 19개 테이블은 전부 RLS가 켜져 있고 정책은 하나도 없다**
-(`packages/db/migrations/20260923052424_enable_rls/`). 즉 비특권 역할에는 전부
+**현재 `core`·`dh`의 19개 테이블과 `nut`의 11개 테이블은 전부 RLS가 켜져 있고 정책은 하나도 없다**
+(`packages/db/migrations/20260923052424_enable_rls/` 및 NUT 생성 migration들). 즉 비특권 역할에는 전부
 거부다. 아직 노출한 스키마가 없어서 지금 달라지는 동작은 없지만, 나중에 열 때
 테이블 하나를 빠뜨려 생기는 사고를 미리 막아둔 것이다. 앱은 영향받지 않는다 —
 접속 역할 `postgres`가 `rolbypassrls`이고 모든 테이블의 소유자다.
@@ -447,6 +474,28 @@ RLS 정책, 뷰, 함수, 부분 유니크 인덱스는 Prisma 스키마 문법�
 
 마이그레이션 폴더는 `git mv`로 옮긴다. 어디까지 적용했는지는 DB 안의 `_prisma_migrations` 테이블이 갖고 있어서 **파일 위치와 무관하다.** 옮긴 뒤 `packages/db`에서 `prisma migrate status`를 돌려 "up to date"가 나오면 정상이다.
 
+### 7.5 리셋 프롬프트가 뜨면 `y`를 누르지 않는다
+
+`npm run db:migrate`(= `prisma migrate dev`)를 돌렸을 때 이런 창이 뜰 수 있다.
+
+```
+Drift detected: Your database schema is not in sync with your migration history.
+We need to reset the "core, dh" schemas at "aws-0-ap-northeast-2.pooler.supabase.com"
+Do you want to continue? All data will be lost. > (y/N)
+```
+
+**`y`를 누르면 `DROP SCHEMA ... CASCADE`가 실행된다.** 회원·기업·컨택·발송 이력이 전부 사라지고 마이그레이션이 처음부터 다시 실행돼 빈 테이블만 남는다. 개발용 DB를 따로 두지 않기로 했으므로(§12) 이 DB가 곧 운영 데이터다 — 되돌리는 방법은 백업 복원뿐이다.
+
+이 프롬프트는 **레포의 마이그레이션 폴더 목록과 DB의 `_prisma_migrations` 기록이 어긋날 때** 뜬다. 2026-09-27에 실제로 겪었다: `nut` 스키마의 마이그레이션 세 개가 DB에는 적용돼 있는데 `packages/db/migrations`에는 없어서(다른 브랜치에만 있었다) Prisma가 이력이 갈라졌다고 판단했다. 원인은 §7.2를 안 지킨 것이다 — **DB에 적용한 마이그레이션 파일은 반드시 `packages/db`에 있어야 하고, 그 폴더가 곧 DB 이력이다.**
+
+떴을 때 할 일:
+
+1. **`N`을 누른다.** 이 프롬프트는 어떤 경우에도 정답이 아니다.
+2. `npm run db:status`로 무엇이 어긋났는지 본다. `The migrations from the database are not found locally`가 있으면 누군가의 마이그레이션 파일이 레포에 없는 것이다 — 그 브랜치를 찾아 main에 합친다(누구에게 알리는지는 §9.4).
+3. 이미 만들어진 마이그레이션을 적용만 하려면 `npm run db:deploy`(= `prisma migrate deploy`)를 쓴다. deploy는 드리프트 검사도, 리셋도 하지 않고 미적용 마이그레이션만 순서대로 적용한다. DB에만 있는 이력은 경고만 남기고 넘어간다.
+
+한 Postgres를 여러 앱이 나눠 쓰는 동안은(§2) `migrate dev`보다 **§7.3처럼 폴더를 직접 만들고 `db:deploy`로 적용하는 쪽이 안전하다** — 자기 스키마만 아는 `migrate dev`가 남의 테이블을 삭제 대상으로 볼 일이 없다.
+
 ---
 
 ## 8. 네이밍 규칙
@@ -501,7 +550,7 @@ Postgres 쪽 이름은 전부 `snake_case`다. Prisma 모델은 camelCase로 쓰
 5단계 (축소)    display_name 삭제                          → 배포
 ```
 
-번거로워 보이지만, 각 단계 사이에 어떤 앱이 아직 배포 전이어도 안 깨진다는 게 핵심이다. 세 앱이 각각 별도 Vercel 프로젝트로 배포되는 구조([라우팅 구조](../admin/routing.md))에서는 **세 앱이 동시에 새 코드가 되는 순간이 없다.** 한 번에 rename하면 배포 순서에 따라 반드시 누군가는 깨진다.
+번거로워 보이지만, 각 단계 사이에 어떤 앱이 아직 배포 전이어도 안 깨진다는 게 핵심이다. 네 앱이 각각 별도 Vercel 프로젝트로 배포되는 구조([라우팅 구조](../admin/routing.md))에서는 **네 앱이 동시에 새 코드가 되는 순간이 없다.** 한 번에 rename하면 배포 순서에 따라 반드시 누군가는 깨진다.
 
 - 1·2단계는 portal 담당자 리뷰만 받으면 된다.
 - **5단계(삭제)는 `core.*`를 읽는 모든 앱 담당자의 확인**을 받는다.
@@ -514,7 +563,7 @@ Postgres 쪽 이름은 전부 `snake_case`다. Prisma 모델은 camelCase로 쓰
 
 ### 9.4 `core`를 바꿀 때 누구에게 알리나
 
-`core`를 읽는 앱은 현재 portal·dh이고, hr이 생기면 셋이 된다. **읽는 쪽이 누군지는 §4 딕셔너리의 "읽기" 칸이 정답이다.** 표가 최신이어야 이게 작동하므로 §0의 규칙이 중요하다.
+`core`를 읽는 앱은 현재 portal·dh·hr·nut이다. **읽는 쪽이 누군지는 §4 딕셔너리의 "읽기" 칸이 정답이다.** 표가 최신이어야 이게 작동하므로 §0의 규칙이 중요하다.
 
 `packages/db/`와 `packages/auth/`에는 GitHub `CODEOWNERS`로 리뷰어를 걸어두는 걸 권장한다 — 사람이 기억해서 리뷰를 요청하는 방식은 언젠가 반드시 빠진다.
 
@@ -532,6 +581,7 @@ Postgres 쪽 이름은 전부 `snake_case`다. Prisma 모델은 camelCase로 쓰
 | `public` 스키마에 새 테이블 만들기 | 소유자가 불분명하고, Data API 기본 노출 대상이다 |
 | 다른 앱의 업무 스키마를 직접 SELECT | 보이지 않는 의존이 생긴다 (§3.1) |
 | `apps/*` 안에서 `prisma migrate` 실행 | 앱 스키마는 DB 전체를 모른다 — 남의 테이블을 삭제 대상으로 판단한다 (§7.2) |
+| 드리프트를 `migrate dev`의 리셋으로 "해결" | `All data will be lost` 프롬프트다. `N`을 누르고 §7.5를 따른다 |
 | `prisma db push` | 마이그레이션 이력 없이 DB를 바꾼다. 무엇이 왜 바뀌었는지 기록이 안 남는다 |
 | `packages/auth`를 우회한 `member.update()` | 인증 정책이 다시 여러 벌이 된다 (§5.2) |
 | `core.members`에 앱 전용 컬럼 추가 | 자기 스키마의 별도 테이블로 (§5.3) |
@@ -598,7 +648,7 @@ datasource db {
 
 ### 11.3 앱별 DB 계정 분리 — 아직 안 함
 
-**백엔드 세 앱은 전부 같은 `postgres` 계정으로 접속한다.** 즉 §3의 소유권 규칙은 백엔드 쪽에서는 **문서로만 지켜지고 권한으로 강제되지 않는다.** hr 백엔드가 `dh.companies`를 SELECT해도 DB는 막지 않는다.
+**백엔드 네 앱은 전부 같은 `postgres` 계정으로 접속한다.** 즉 §3의 소유권 규칙은 백엔드 쪽에서는 **문서로만 지켜지고 권한으로 강제되지 않는다.** hr 백엔드가 `dh.companies`를 SELECT해도 DB는 막지 않는다.
 
 진짜로 강제하려면 앱별 DB role을 만들고 GRANT를 나눠야 한다.
 

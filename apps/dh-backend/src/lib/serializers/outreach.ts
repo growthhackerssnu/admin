@@ -13,7 +13,10 @@ type DbClient = PrismaClient | Prisma.TransactionClient;
 //
 // 쓰기 엔드포인트는 db에 트랜잭션 클라이언트(tx)를 넘겨서, 방금 커밋 전인
 // 변경사항을 같은 트랜잭션 안에서 그대로 읽어 응답을 만든다.
-export async function serializeOutreachDetail(outreachId: string, db: DbClient = prisma) {
+export async function serializeOutreachDetail(
+  outreachId: string,
+  db: DbClient = prisma,
+) {
   const outreach = await db.outreach.findUnique({
     where: { id: outreachId },
     include: {
@@ -31,7 +34,13 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
 
   const templateBound = Boolean(
     await db.template.findFirst({
-      where: { route: outreach.route, active: true },
+      where: {
+        route: outreach.route,
+        active: true,
+        ...(outreach.recipientEndpoint
+          ? { channel: outreach.recipientEndpoint.channel }
+          : {}),
+      },
       select: { id: true },
     }),
   );
@@ -70,8 +79,13 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
       isPrelaunchOnly: outreach.company.isPrelaunchOnly,
       pastProjects: outreach.company.pastProjects.map((p) => ({
         id: p.id,
+        notionPageId: p.notionPageId,
         title: p.title,
         summary: p.summary,
+        year: p.year,
+        quarter: p.quarter,
+        technologyCategory: p.technologyCategory,
+        industryCategory: p.industryCategory,
         notionUrl: p.notionUrl,
       })),
     },
@@ -81,6 +95,7 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
           endpointId: outreach.recipientEndpointId,
           name: outreach.recipientContact?.name ?? null,
           title: outreach.recipientContact?.title ?? null,
+          channel: outreach.recipientEndpoint?.channel ?? null,
         }
       : null,
     draft: latestDraft
@@ -91,7 +106,10 @@ export async function serializeOutreachDetail(outreachId: string, db: DbClient =
           body: latestDraft.body,
           approvedRevision: outreach.approvedRevision,
           templateUsed: latestDraft.templateId
-            ? { id: latestDraft.templateId, version: latestDraft.templateVersion }
+            ? {
+                id: latestDraft.templateId,
+                version: latestDraft.templateVersion,
+              }
             : null,
         }
       : null,
