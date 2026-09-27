@@ -1,3 +1,4 @@
+import { contactMessage } from "./messageTemplate";
 export type Fit = "fit" | "pending" | "unfit";
 export type DraftStatus = "pending" | "ready" | "failed";
 export type Channel = "linkedin" | "email";
@@ -19,11 +20,19 @@ export const previewActor: ActorRef = {
   name: "샘플 팀원 A",
 };
 
-export type PreviewUser = ActorRef & { role: "member" | "leader" };
+export type PreviewUser = ActorRef & {
+  role: "member" | "leader";
+  jobTitle?: string;
+};
 export const previewUsers: PreviewUser[] = [
   { ...previewActor, role: "member" },
   { id: "preview-teammate-b", name: "샘플 팀원 B", role: "member" },
-  { id: "preview-leader", name: "샘플 팀장", role: "leader" },
+  {
+    id: "preview-leader",
+    name: "여재욱",
+    role: "leader",
+    jobTitle: "대외협력팀장",
+  },
 ];
 
 // Preview-only guard. The API must enforce this using the authenticated user.
@@ -93,6 +102,7 @@ export interface ContactTask {
   channel: Channel | null;
   sent: SentRecord | null;
   needsResearch: boolean;
+  noContact?: boolean;
 }
 
 export interface ListupState {
@@ -158,6 +168,7 @@ export function hasContactOption(company: Company) {
 export function eligibleForBulkEmail(task: ContactTask, company: Company) {
   return (
     !task.sent &&
+    !task.noContact &&
     !task.needsResearch &&
     task.status === "ready" &&
     task.channel === "email" &&
@@ -175,15 +186,16 @@ export function prepareCandidateTasks(state: ListupState): ListupState {
   for (const batch of state.batches) {
     for (const companyId of batch.companyIds) {
       const company = state.companies.find((item) => item.id === companyId);
-      if (!company || !hasContactOption(company) || known.has(companyId))
-        continue;
+      if (!company || known.has(companyId)) continue;
       known.add(companyId);
       created.push({
         companyId,
         quarter: batch.quarter,
         batchId: batch.id,
-        status: "ready",
-        ...draftFor(company),
+        status: "pending",
+        subject: "",
+        body: "",
+        noContact: false,
         personId: null,
         channel: null,
         sent: null,
@@ -196,14 +208,17 @@ export function prepareCandidateTasks(state: ListupState): ListupState {
     : state;
 }
 
-export function draftFor(company: Company) {
-  return {
-    subject: `[GrowthHackers SNU] ${company.name} 협업 제안`,
-    body: `안녕하세요, {{수신자명}}님.\nGrowthHackers SNU입니다.\n\n${company.name}의 서비스를 살펴보며 ${company.area} 영역에서 함께 실험할 기회가 있다고 생각해 연락드립니다.\n\n사용자 이용 흐름을 분석하고 개선 가설을 검증하는 프로젝트를 제안드립니다. 구체적인 실행 범위와 목표는 실제 사업의 우선순위를 함께 확인한 뒤 정하고자 합니다.\n\n가능하시다면 짧은 미팅에서 협업 가능성을 이야기 나눌 수 있을까요?\n\n감사합니다.\nGrowthHackers SNU 드림`,
-  };
+export function draftFor(
+  company: Company,
+  quarter: string,
+  members = previewUsers,
+) {
+  return contactMessage(company, quarter, members);
 }
 
 export function resolvedBody(task: ContactTask, company: Company) {
   const person = company.people.find((item) => item.id === task.personId);
-  return task.body.replaceAll("{{수신자명}}", person?.name || "{{수신자명}}");
+  return task.body
+    .replaceAll("{{수신자명}}", person?.name || "{{수신자명}}")
+    .replaceAll("{{수신자직함}}", person?.role || "{{수신자직함}}");
 }

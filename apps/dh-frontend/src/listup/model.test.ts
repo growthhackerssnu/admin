@@ -66,7 +66,7 @@ describe("신규 기업 탐색과 컨택 경계", () => {
     quarter: "2026-Q4",
     batchId: "initial",
     status: "ready",
-    ...draftFor(emailOnlyCompany),
+    ...draftFor(emailOnlyCompany, "2026-Q4"),
     personId: "email-person",
     channel: "email",
     sent: null,
@@ -86,9 +86,38 @@ describe("신규 기업 탐색과 컨택 경계", () => {
     );
     expect(linkedInTask?.personId).toBeNull();
     expect(linkedInTask?.channel).toBeNull();
+    expect(linkedInTask?.subject).toBe("");
+    expect(linkedInTask?.body).toBe("");
+    expect(linkedInTask?.status).toBe("pending");
     expect(prepareCandidateTasks(prepared).tasks).toHaveLength(
       prepared.tasks.length,
     );
+  });
+
+  it("연락처 미발견 대상에도 빈 작업을 만들고 재저장해도 메시지를 생성하지 않는다", () => {
+    const state = prepareCandidateTasks(initialState());
+    expect(
+      state.tasks.some((item) => item.companyId === noContactCompany.id),
+    ).toBe(true);
+    const marked = {
+      ...state,
+      tasks: state.tasks.map((item) => ({ ...item, noContact: true })),
+    };
+    const restored = prepareCandidateTasks(
+      normalizeStoredState(JSON.parse(JSON.stringify(marked))),
+    );
+    expect(
+      restored.tasks.every((item) => item.noContact && item.body === ""),
+    ).toBe(true);
+  });
+
+  it("연락하지 않음으로 표시한 대상은 기존 초안이 있어도 일괄 발송할 수 없다", () => {
+    expect(
+      eligibleForBulkEmail({ ...task, noContact: true }, emailOnlyCompany),
+    ).toBe(false);
+    expect(
+      eligibleForBulkEmail({ ...task, noContact: false }, emailOnlyCompany),
+    ).toBe(true);
   });
 
   it("발송 실적은 목표 분기가 아닌 한국 시각의 실제 발송 분기에 귀속한다", () => {

@@ -1061,9 +1061,6 @@ input[type="checkbox"]:disabled {
   min-width: 0;
   table-layout: fixed;
 }
-.lu-ws-table .lu-ws-col-check {
-  width: 46px;
-}
 .lu-ws-table .lu-ws-col-company {
   width: 28%;
 }
@@ -1183,7 +1180,8 @@ input[type="checkbox"]:disabled {
 .lu-ws-detail {
   min-width: 0;
   height: 100dvh;
-  width: min(600px, 100vw);
+  max-height: 100dvh;
+  width: min(480px, 100vw);
   position: fixed;
   inset: 0 0 0 auto;
   z-index: 31;
@@ -1193,6 +1191,7 @@ input[type="checkbox"]:disabled {
   overflow: hidden;
   border-left: 1px solid #e9e9e9;
   background: #fff;
+  border-radius: 0;
   box-shadow: -12px 0 32px rgb(0 0 0 / 12%);
   animation: lu-detail-enter 180ms ease-out;
 }
@@ -1294,7 +1293,7 @@ input[type="checkbox"]:disabled {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  padding: 14px 18px 12px;
+  padding: 20px 22px 16px;
   border-bottom: 1px solid #eee;
   flex: none;
 }
@@ -1316,7 +1315,7 @@ input[type="checkbox"]:disabled {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  padding: 0 18px 18px;
+  padding: 0 22px 18px;
 }
 .lu-ws-detail-section {
   padding: 12px 0;
@@ -1345,11 +1344,106 @@ input[type="checkbox"]:disabled {
   margin-top: 5px;
 }
 .lu-ws-fit-summary {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  overflow: hidden;
+  display: block;
   margin: 5px 0 7px !important;
+}
+.lu-panel-context {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  color: #697586;
+  font-size: 12px;
+}
+.lu-panel-context span + span::before {
+  content: "·";
+  margin-right: 8px;
+}
+.lu-ws-detail .lu-ws-detail-section {
+  padding: 16px 0;
+}
+.lu-ws-detail .lu-ws-fit-section .lu-section-head {
+  justify-content: flex-start;
+  gap: 10px;
+}
+.lu-ws-detail .lu-panel-about {
+  color: #697586;
+  margin: 10px 0 12px;
+}
+.lu-ws-detail .lu-ws-person {
+  margin-top: 10px;
+  border: 1px solid #e8edf3;
+  border-radius: 8px;
+  padding: 12px;
+}
+.lu-panel-person-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lu-panel-person-heading small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: #697586;
+}
+.lu-panel-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #f1f4f8;
+  color: #617085;
+  font-weight: 600;
+}
+.lu-ws-detail .lu-ws-person-options {
+  padding: 10px 0 0 44px;
+  gap: 6px 12px;
+  align-items: baseline;
+}
+.lu-ws-detail .lu-ws-person-options button {
+  min-height: 0;
+  padding: 0;
+}
+.lu-ws-detail .lu-section-head > button {
+  font-size: 12px;
+  padding: 4px 9px;
+  min-height: 28px;
+}
+.lu-panel-action {
+  padding: 16px;
+  margin: 16px 0 12px;
+  background: #f6f8fb;
+  border: 1px solid #e8edf3;
+  border-radius: 8px;
+}
+.lu-panel-action h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.lu-panel-status {
+  font-size: 11px;
+  color: #64748b;
+}
+.lu-panel-action p {
+  margin: 8px 0 14px;
+  font-size: 12px;
+  color: #697586;
+  line-height: 1.6;
+}
+.lu-panel-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lu-panel-action-buttons button {
+  flex: 1 1 auto;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.lu-ws-detail .lu-ws-other {
+  margin-top: 0;
+  padding: 6px 0 0;
 }
 .lu-ws-fit-chip {
   border: 1px solid #b7ebc6;
@@ -1606,8 +1700,8 @@ input[type="checkbox"]:disabled {
 }
 @media (min-width: 1051px) and (max-width: 1240px) {
   .lu-ws-table .lu-ws-col-area,
-  .lu-ws-table th:nth-child(3),
-  .lu-ws-table td:nth-child(3) {
+  .lu-ws-table th:nth-child(2),
+  .lu-ws-table td:nth-child(2) {
     display: none;
   }
   .lu-ws-table .lu-ws-col-company {
@@ -1638,5 +1732,133 @@ input[type="checkbox"]:disabled {
   .lu-ws-detail-scroll {
     padding-left: 16px;
     padding-right: 16px;
+  }
+}
+.lu-message-page {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.lu-message-page-head {
+  margin-bottom: 28px;
+}
+.lu-message-page-head h1 {
+  margin: 18px 0 8px;
+  outline: none;
+}
+.lu-message-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 24px;
+  align-items: start;
+}
+.lu-message-recipient {
+  padding: 24px;
+  position: sticky;
+  top: 24px;
+}
+.lu-message-recipient h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+.lu-message-recipient .lu-field {
+  margin-top: 20px;
+}
+.lu-message-recipient .lu-ws-meta {
+  overflow-wrap: anywhere;
+}
+.lu-message-document {
+  padding: 32px;
+  min-width: 0;
+}
+.lu-message-document .lu-ws-detail-section {
+  padding: 0;
+  border: 0;
+}
+.lu-message-document .lu-ws-message-editor {
+  min-height: 65vh;
+}
+.lu-message-document .lu-ws-message-body {
+  line-height: 1.9;
+}
+.lu-message-document .lu-ws-send-footer {
+  margin-top: 28px;
+  padding: 20px 0 0;
+}
+@media (max-width: 700px) {
+  .lu-message-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lu-message-recipient {
+    position: static;
+  }
+  .lu-message-document {
+    padding: 20px;
+  }
+}
+
+.lu-ws-table .lu-ws-col-message {
+  width: 130px;
+}
+.lu-ws-table .lu-ws-message-cell {
+  text-align: right;
+}
+.lu-ws-message-cell button {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.lu-message-sidebar {
+  display: grid;
+  gap: 16px;
+  position: sticky;
+  top: 24px;
+}
+.lu-message-sidebar .lu-message-recipient {
+  position: static;
+}
+.lu-message-tools {
+  padding: 24px;
+}
+.lu-message-tools h2,
+.lu-message-document h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+.lu-message-tool-buttons,
+.lu-message-copy-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.lu-message-tools textarea {
+  width: 100%;
+  min-height: 100px;
+  margin: 8px 0;
+}
+.lu-message-tools .lu-regen > button {
+  width: 100%;
+  white-space: normal;
+}
+.lu-message-send-actions {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #e8edf3;
+}
+.lu-message-send-actions > button {
+  width: 100%;
+  margin-top: 10px;
+}
+.lu-message-copy-actions button {
+  padding: 6px;
+}
+.lu-message-profile-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: #1769c6;
+  font-weight: 600;
+}
+@media (max-width: 700px) {
+  .lu-message-sidebar {
+    position: static;
   }
 }

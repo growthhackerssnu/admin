@@ -1,3 +1,4 @@
+import { changeMessageQuarter } from "./messageTemplate";
 import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
@@ -159,7 +160,18 @@ function Root() {
     save({
       ...state,
       tasks: state.tasks.map((task) =>
-        task.companyId === id && !task.sent ? { ...task, quarter } : task,
+        task.companyId === id && !task.sent
+          ? {
+              ...task,
+              quarter,
+              subject: changeMessageQuarter(
+                task.subject,
+                task.quarter,
+                quarter,
+              ),
+              body: changeMessageQuarter(task.body, task.quarter, quarter),
+            }
+          : task,
       ),
     });
   }

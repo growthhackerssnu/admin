@@ -225,6 +225,7 @@ export function normalizeStoredState(state: ListupState): ListupState {
     tasks: state.tasks.map((task) => ({
       ...task,
       needsResearch: task.needsResearch ?? false,
+      noContact: task.noContact ?? false,
     })),
     companies: state.companies.map((stored) => {
       const { changedByUser, ...company } = stored as Company & {
