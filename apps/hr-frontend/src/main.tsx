@@ -3,27 +3,22 @@ import ReactDOM from "react-dom/client";
 import { App as AntApp, ConfigProvider } from "antd";
 import koKR from "antd/locale/ko_KR";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Login } from "./pages/Login";
-import { Index } from "./pages/Index";
-import { AdminMembers } from "./pages/AdminMembers";
+import { Home } from "./pages/Home";
 import { installTokens, theme } from "@dhbot/ui-shell";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
 installTokens();
 
+// gateway 경유 시 basename(/hr) 필요 여부는 아직 미검증이다 — dh-frontend와
+// 같은 이슈(ISSUE_dh-frontend-routing.md), 첫 실제 배포 때 확인한다
+// (ARCHITECTURE.md §3.1, §10).
 function Root() {
   return (
     <ConfigProvider locale={koKR} theme={theme}>
       <AntApp>
         <BrowserRouter>
           <Routes>
-            {/* "/"는 Google OAuth의 redirectTo(origin) 착지점이기도 하다 — Login이
-                세션 유무에 따라 로그인 폼을 보여주거나 role 기반으로 리다이렉트한다. */}
-            <Route path="/" element={<Login />} />
-            <Route path="/login" element={<Login />} />
-            {/* acting/admin처럼 갈 곳이 여럿인 role이 로그인 직후 도착하는 선택 화면 (§2) */}
-            <Route path="/index" element={<Index />} />
-            <Route path="/admin" element={<AdminMembers />} />
+            <Route path="/" element={<Home />} />
           </Routes>
         </BrowserRouter>
       </AntApp>

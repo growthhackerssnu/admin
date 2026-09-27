@@ -1,6 +1,22 @@
 import { useEffect, useState } from "react";
-import { Alert, App as AntApp, Button, Form, Input, Segmented, Skeleton, Typography } from "antd";
-import { ApiClientError, createSignupRequest, getMe, verifySignupRequest } from "../lib/api";
+import { useNavigate } from "react-router-dom";
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Form,
+  Input,
+  Segmented,
+  Skeleton,
+  Typography,
+} from "antd";
+import {
+  ApiClientError,
+  createSignupRequest,
+  getMe,
+  verifySignupRequest,
+} from "../lib/api";
+import { resolveRedirect } from "../lib/redirect";
 import { signInWithGoogle, signOut } from "../lib/supabase";
 import { useSession } from "../hooks/useSession";
 
@@ -10,17 +26,10 @@ const MAX_OTP_ATTEMPTS = 5;
 type Mode = "login" | "signup";
 type SignupStep = "form" | "otp" | "done";
 
-// gateway는 production에서 /dh, /hr을 같은 origin 아래로 rewrite하므로 상대
-// 경로면 충분하다. 로컬은 앱마다 포트가 달라서, 있으면 절대 URL로 덮어쓴다.
-function resolveRedirect(path: string): string {
-  if (path === "/dh" && import.meta.env.VITE_DH_URL) return import.meta.env.VITE_DH_URL;
-  if (path === "/hr" && import.meta.env.VITE_HR_URL) return import.meta.env.VITE_HR_URL;
-  return path;
-}
-
 export function Login() {
   const { message } = AntApp.useApp();
   const session = useSession();
+  const navigate = useNavigate();
 
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<SignupStep>("form");
@@ -39,7 +48,10 @@ export function Login() {
   const [cooldown, setCooldown] = useState(0);
 
   // 이미 로그인된 세션으로 이 페이지(또는 OAuth 리다이렉트 대상인 "/")에
-  // 도달하면, /me로 role을 물어서 있어야 할 곳(관리자/dh/hr)으로 곧장 보낸다.
+  // 도달하면 /me로 role을 물어본다.
+  // - alumni는 갈 곳이 hr 하나뿐이라 바로 그리로 보낸다(기존과 동일).
+  // - acting/admin은 갈 수 있는 곳이 여럿(dh·hr, admin은 +admin)이라 곧장
+  //   보내지 않고, 고르게 해주는 /index로 보낸다(ARCHITECTURE_PORTAL.md §2).
   const [redirecting, setRedirecting] = useState(false);
   useEffect(() => {
     if (!session) return;
@@ -47,10 +59,16 @@ export function Login() {
     (async () => {
       try {
         const me = await getMe(session.access_token);
-        window.location.href = resolveRedirect(me.redirectPath);
+        if (me.role === "alumni") {
+          window.location.href = resolveRedirect(me.redirectPath);
+        } else {
+          navigate("/index", { replace: true });
+        }
       } catch {
         setRedirecting(false);
-        void message.error("계정 정보를 확인하지 못했습니다. 관리자에게 문의하세요.");
+        void message.error(
+          "계정 정보를 확인하지 못했습니다. 관리자에게 문의하세요.",
+        );
         await signOut();
       }
     })();
@@ -58,7 +76,10 @@ export function Login() {
 
   useEffect(() => {
     if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    const timer = setInterval(
+      () => setCooldown((c) => Math.max(0, c - 1)),
+      1000,
+    );
     return () => clearInterval(timer);
   }, [cooldown]);
 
@@ -80,7 +101,11 @@ export function Login() {
     }
     setBusy(true);
     try {
-      const result = await createSignupRequest({ cohort: cohort.trim(), name: name.trim(), desiredEmail: desiredEmail.trim() });
+      const result = await createSignupRequest({
+        cohort: cohort.trim(),
+        name: name.trim(),
+        desiredEmail: desiredEmail.trim(),
+      });
       setSignupRequestId(result.signupRequestId);
       setSentTo(result.sentTo);
       setStep("otp");
@@ -97,7 +122,11 @@ export function Login() {
     if (cooldown > 0) return;
     setBusy(true);
     try {
-      const result = await createSignupRequest({ cohort: cohort.trim(), name: name.trim(), desiredEmail: desiredEmail.trim() });
+      const result = await createSignupRequest({
+        cohort: cohort.trim(),
+        name: name.trim(),
+        desiredEmail: desiredEmail.trim(),
+      });
       setSignupRequestId(result.signupRequestId);
       setSentTo(result.sentTo);
       setOtp("");
@@ -184,7 +213,13 @@ export function Login() {
             <Typography.Paragraph type="secondary">
               이미 가입한 계정으로 Google 로그인합니다.
             </Typography.Paragraph>
-            <Button type="primary" block size="large" loading={busy} onClick={handleGoogleLogin}>
+            <Button
+              type="primary"
+              block
+              size="large"
+              loading={busy}
+              onClick={handleGoogleLogin}
+            >
               Google로 로그인
             </Button>
           </div>
@@ -193,10 +228,20 @@ export function Login() {
         {mode === "signup" && step === "form" && (
           <Form layout="vertical" onFinish={submitSignupForm}>
             <Form.Item label="기수" required>
-              <Input value={cohort} onChange={(e) => setCohort(e.target.value)} placeholder="예: 19" disabled={busy} />
+              <Input
+                value={cohort}
+                onChange={(e) => setCohort(e.target.value)}
+                placeholder="예: 19"
+                disabled={busy}
+              />
             </Form.Item>
             <Form.Item label="이름" required>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 박지윤" disabled={busy} />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="예: 박지윤"
+                disabled={busy}
+              />
             </Form.Item>
             <Form.Item label="사용할 구글 이메일" required>
               <Input
@@ -207,7 +252,13 @@ export function Login() {
                 disabled={busy}
               />
             </Form.Item>
-            <Button type="primary" htmlType="submit" block size="large" loading={busy}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              size="large"
+              loading={busy}
+            >
               인증코드 받기
             </Button>
           </Form>
@@ -229,19 +280,30 @@ export function Login() {
               >
                 <Input
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onChange={(e) =>
+                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
                   placeholder="6자리 숫자"
                   maxLength={6}
                   disabled={busy}
                   autoFocus
                 />
               </Form.Item>
-              <Button type="primary" htmlType="submit" block size="large" loading={busy} disabled={otp.length !== 6}>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                size="large"
+                loading={busy}
+                disabled={otp.length !== 6}
+              >
                 인증하기
               </Button>
             </Form>
             <Button block disabled={cooldown > 0 || busy} onClick={resendOtp}>
-              {cooldown > 0 ? `인증코드 재전송 (${cooldown}초 후 가능)` : "인증코드 재전송"}
+              {cooldown > 0
+                ? `인증코드 재전송 (${cooldown}초 후 가능)`
+                : "인증코드 재전송"}
             </Button>
             <Button type="link" onClick={resetSignup}>
               ← 처음부터 다시

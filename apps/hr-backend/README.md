@@ -1,8 +1,8 @@
 # hr-backend (그핵드인)
 
-알럼나이 관리 백엔드. **뼈대만 있고 업무 로직은 아직 없다** — `app/api/v1/ping`만 있고, 그건 스캐폴딩 확인용이라 첫 업무 라우트를 만들 때 지워도 된다.
+알럼나이 관리 백엔드. **뼈대만 있고 업무 로직은 아직 없다** — `app/api/v1/ping`(스캐폴딩 확인용, 첫 업무 라우트를 만들 때 지워도 됨)과 `app/api/v1/me`(role·notionPageId 반환, hr-frontend의 side pane·"내 프로필" 카드가 쓴다)만 있다.
 
-UI는 없다(API 전용). `apps/hr-frontend`가 이 API를 호출하는 쪽이 될 예정이며, 아직 만들어지지 않았다.
+UI는 없다(API 전용). `apps/hr-frontend`가 이 API를 호출한다.
 
 ## 시작하기 전에 — 필독
 
@@ -36,7 +36,7 @@ curl http://localhost:3002/api/v1/ping
 | `apps/portal-backend` | 3001 |
 | `apps/dh-backend` | 3000 |
 | **`apps/hr-backend`** | **3002** |
-| `apps/hr-frontend`(예정) | 5175 |
+| `apps/hr-frontend` | 5175 |
 
 ## 들어 있는 것
 
@@ -49,6 +49,7 @@ curl http://localhost:3002/api/v1/ping
 | `prisma/schema.prisma` | 이 앱이 쓰는 테이블 목록. 지금은 `core.members`만 |
 | `middleware.ts` | CORS (로컬 5175 + `admin.ghsnu.com`) |
 | `app/api/v1/ping/route.ts` | 라우트 작성 패턴 예시. 지워도 된다 |
+| `app/api/v1/me/route.ts` | `{role, notionPageId}` 반환. `PeopleDirectory`(트림된 사본, `prisma/schema.prisma`)를 통해 조회 |
 
 ## 첫 테이블 만들기
 
@@ -67,7 +68,7 @@ curl http://localhost:3002/api/v1/ping
 
 - **alumni 권한 범위** — 지금 `src/lib/auth.ts`는 role을 막지 않는다(`deny` 없음). 라우팅 문서상 alumni는 hr에서 "보기 전용"인데, 그걸 `deny`로 막을지 라우트별로 `member.role`을 보고 나눌지는 첫 쓰기 API를 만들 때 정한다.
 - **멱등성** — 쓰기 API를 만들면 `withIdempotency` 패턴이 필요하다. `apps/portal-backend/src/lib/idempotency.ts`를 복사해 오되, 테이블은 `hr.idempotency_keys`를 새로 만든다([§4.1](../../docs/db/conventions.md) — 앱마다 자기 테이블을 갖는다).
-- **hr 프론트엔드** — `apps/hr-frontend`는 아직 빈 자리다.
+- **hr 프론트엔드** — `apps/hr-frontend`에 스캐폴딩만 있고(로그인 세션 확인 + `/me` 조회 + side pane), 실제 디렉토리 화면은 아직 없다.
 
 ## 관련 문서
 

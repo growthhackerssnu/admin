@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { App as AntApp, Alert, Button, Modal, Segmented, Select, Skeleton, Space, Table, Tag } from "antd";
+import {
+  App as AntApp,
+  Alert,
+  Button,
+  Modal,
+  Segmented,
+  Select,
+  Skeleton,
+  Space,
+  Table,
+  Tag,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { APP_PATH, SidePane, type AppKey } from "@dhbot/ui-shell";
 import {
   ApiClientError,
   changeMemberRole,
@@ -13,6 +25,7 @@ import {
   type OpsRole,
 } from "../lib/api";
 import { useSession } from "../hooks/useSession";
+import { resolveRedirect } from "../lib/redirect";
 import { signOut } from "../lib/supabase";
 
 const ROLE_LABEL: Record<AdminMember["role"], string> = {
@@ -81,7 +94,9 @@ export function AdminMembers() {
       const result = await listAdminMembers(token);
       setMembers(result.items);
     } catch (e) {
-      setError(e instanceof ApiClientError ? e.message : "명단을 불러오지 못했습니다.");
+      setError(
+        e instanceof ApiClientError ? e.message : "명단을 불러오지 못했습니다.",
+      );
     } finally {
       setLoading(false);
     }
@@ -128,7 +143,10 @@ export function AdminMembers() {
     );
   }
 
-  async function withBusyReload(action: () => Promise<unknown>, successText: string) {
+  async function withBusyReload(
+    action: () => Promise<unknown>,
+    successText: string,
+  ) {
     setBusy(true);
     try {
       await action();
@@ -136,7 +154,9 @@ export function AdminMembers() {
       setSelectedIds([]);
       await load();
     } catch (e) {
-      void message.error(e instanceof ApiClientError ? e.message : "요청이 실패했습니다.");
+      void message.error(
+        e instanceof ApiClientError ? e.message : "요청이 실패했습니다.",
+      );
     } finally {
       setBusy(false);
     }
@@ -145,16 +165,21 @@ export function AdminMembers() {
   function confirmDeactivate() {
     modal.confirm({
       title: `${selectedIds.length}명을 정말 삭제(비활성화)할까요?`,
-      content: "선택한 회원은 로그인은 되지만 모든 기능 접근이 막힙니다. 나중에 재활성화할 수 있습니다.",
+      content:
+        "선택한 회원은 로그인은 되지만 모든 기능 접근이 막힙니다. 나중에 재활성화할 수 있습니다.",
       okText: "삭제",
       okButtonProps: { danger: true },
       cancelText: "취소",
       onOk: () =>
-        withBusyReload(() => deactivateMembers(token!, selectedIds), "선택한 회원을 비활성화했습니다."),
+        withBusyReload(
+          () => deactivateMembers(token!, selectedIds),
+          "선택한 회원을 비활성화했습니다.",
+        ),
     });
   }
 
-  const selectedMembers = members?.filter((m) => selectedIds.includes(m.id)) ?? [];
+  const selectedMembers =
+    members?.filter((m) => selectedIds.includes(m.id)) ?? [];
   const hasAdminSelected = selectedMembers.some((m) => m.role === "admin");
   const hasInactiveSelected = selectedMembers.some((m) => !m.active);
   const hasActiveSelected = selectedMembers.some((m) => m.active);
@@ -239,7 +264,9 @@ export function AdminMembers() {
       title: "권한",
       dataIndex: "role",
       width: 100,
-      render: (role: AdminMember["role"]) => <Tag color={ROLE_COLOR[role]}>{ROLE_LABEL[role]}</Tag>,
+      render: (role: AdminMember["role"]) => (
+        <Tag color={ROLE_COLOR[role]}>{ROLE_LABEL[role]}</Tag>
+      ),
     },
     {
       title: "운영팀",
@@ -255,124 +282,137 @@ export function AdminMembers() {
       title: "상태",
       dataIndex: "active",
       width: 90,
-      render: (active: boolean) => (active ? <Tag color="green">활성</Tag> : <Tag>비활성</Tag>),
+      render: (active: boolean) =>
+        active ? <Tag color="green">활성</Tag> : <Tag>비활성</Tag>,
     },
     { title: "가입일", dataIndex: "createdAt", width: 180, render: formatDate },
-    { title: "최근 접속일", dataIndex: "lastLoginAt", width: 180, render: formatDate },
+    {
+      title: "최근 접속일",
+      dataIndex: "lastLoginAt",
+      width: 180,
+      render: formatDate,
+    },
   ];
 
+  // 이 화면에 도달했다는 건 위에서 isAdmin이 true로 확인됐다는 뜻이라
+  // role="admin"으로 고정해도 된다 — dh·hr로 오가는 side pane(§3.1).
+  const hrefFor = (app: AppKey) => resolveRedirect(APP_PATH[app]);
+
   return (
-    <main>
-      <div className="row section-gap">
-        <div>
-          <h1>회원 관리</h1>
-          <p className="muted">기수, 이름, 이메일, 권한, 가입일, 최근 접속일</p>
-        </div>
-        <Button onClick={() => void signOut()}>로그아웃</Button>
-      </div>
-
-      {error && (
-        <Alert
-          className="feedback"
-          type="error"
-          showIcon
-          message={error}
-          action={<Button onClick={() => void load()}>다시 불러오기</Button>}
-        />
-      )}
-
-      <div className="surface">
-        <Segmented
-          style={{ marginBottom: 16 }}
-          value={view}
-          onChange={(v) => {
-            setView(v as typeof view);
-            setSelectedIds([]);
-          }}
-          options={[
-            { label: `전체 (${viewCounts.all})`, value: "all" },
-            { label: `활성 (${viewCounts.active})`, value: "active" },
-            { label: `비활성 (${viewCounts.inactive})`, value: "inactive" },
-          ]}
-        />
-
-        {selectedIds.length > 0 && (
-          <div className="actions" style={{ marginTop: 0, paddingTop: 0, borderTop: "none", marginBottom: 16 }}>
-            <span>{selectedIds.length}명 선택됨</span>
-            <Space wrap>
-              <Button disabled={busy || hasAdminSelected} onClick={openOpsRoleModal}>
-                {allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
-              </Button>
-              <Button disabled={busy || hasAdminSelected} onClick={confirmToAlumni}>
-                alumni로 변경
-              </Button>
-              {hasInactiveSelected && (
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    withBusyReload(() => reactivateMembers(token!, selectedIds), "선택한 회원을 재활성화했습니다.")
-                  }
-                >
-                  재활성화
-                </Button>
-              )}
-              {hasActiveSelected && (
-                <Button danger disabled={busy || hasAdminSelected} onClick={confirmDeactivate}>
-                  삭제
-                </Button>
-              )}
-            </Space>
+    <div className="app-shell">
+      <SidePane role="admin" current="admin" hrefFor={hrefFor} />
+      <main>
+        <div className="row section-gap">
+          <div>
+            <h1>회원 관리</h1>
+            <p className="muted">기수, 이름, 이메일, 권한, 가입일, 최근 접속일</p>
           </div>
-        )}
+          <Button onClick={() => void signOut()}>로그아웃</Button>
+        </div>
 
-        {loading ? (
-          <Skeleton active paragraph={{ rows: 8 }} />
-        ) : (
-          <Table
-            rowKey="id"
-            dataSource={visibleMembers}
-            columns={columns}
-            pagination={false}
-            rowSelection={{
-              selectedRowKeys: selectedIds,
-              onChange: (keys) => setSelectedIds(keys as string[]),
-              getCheckboxProps: (m) => ({ disabled: m.role === "admin" }),
-            }}
+        {error && (
+          <Alert
+            className="feedback"
+            type="error"
+            showIcon
+            message={error}
+            action={<Button onClick={() => void load()}>다시 불러오기</Button>}
           />
         )}
-      </div>
 
-      <Modal
-        title={allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
-        open={opsRoleModalOpen}
-        onCancel={() => setOpsRoleModalOpen(false)}
-        onOk={submitOpsRole}
-        okText="저장"
-        cancelText="취소"
-        okButtonProps={{ disabled: !opsRoleDraft || busy }}
-      >
-        <p className="muted">
-          acting 회원에게는 운영팀 직책이 반드시 있어야 합니다. 선택한 {selectedIds.length}명에게 지정할 직책을
-          고르세요.
-        </p>
-        <Select
-          style={{ width: "100%" }}
-          placeholder="운영팀 직책 선택"
-          value={opsRoleDraft}
-          onChange={setOpsRoleDraft}
-          options={OPS_ROLE_GROUPS.map((group) => ({
-            label: group.label,
-            options: group.roles.map((role) => {
-              const note = opsRoleOptionNote(role);
-              return {
-                value: role,
-                disabled: note !== undefined,
-                label: note ? `${OPS_ROLE_LABEL[role]} (${note})` : OPS_ROLE_LABEL[role],
-              };
-            }),
-          }))}
-        />
-      </Modal>
-    </main>
+        <div className="surface">
+          <Segmented
+            style={{ marginBottom: 16 }}
+            value={view}
+            onChange={(v) => {
+              setView(v as typeof view);
+              setSelectedIds([]);
+            }}
+            options={[
+              { label: `전체 (${viewCounts.all})`, value: "all" },
+              { label: `활성 (${viewCounts.active})`, value: "active" },
+              { label: `비활성 (${viewCounts.inactive})`, value: "inactive" },
+            ]}
+          />
+
+          {selectedIds.length > 0 && (
+            <div className="actions" style={{ marginTop: 0, paddingTop: 0, borderTop: "none", marginBottom: 16 }}>
+              <span>{selectedIds.length}명 선택됨</span>
+              <Space wrap>
+                <Button disabled={busy || hasAdminSelected} onClick={openOpsRoleModal}>
+                  {allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
+                </Button>
+                <Button disabled={busy || hasAdminSelected} onClick={confirmToAlumni}>
+                  alumni로 변경
+                </Button>
+                {hasInactiveSelected && (
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      withBusyReload(() => reactivateMembers(token!, selectedIds), "선택한 회원을 재활성화했습니다.")
+                    }
+                  >
+                    재활성화
+                  </Button>
+                )}
+                {hasActiveSelected && (
+                  <Button danger disabled={busy || hasAdminSelected} onClick={confirmDeactivate}>
+                    삭제
+                  </Button>
+                )}
+              </Space>
+            </div>
+          )}
+
+          {loading ? (
+            <Skeleton active paragraph={{ rows: 8 }} />
+          ) : (
+            <Table
+              rowKey="id"
+              dataSource={visibleMembers}
+              columns={columns}
+              pagination={false}
+              rowSelection={{
+                selectedRowKeys: selectedIds,
+                onChange: (keys) => setSelectedIds(keys as string[]),
+                getCheckboxProps: (m) => ({ disabled: m.role === "admin" }),
+              }}
+            />
+          )}
+        </div>
+
+        <Modal
+          title={allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
+          open={opsRoleModalOpen}
+          onCancel={() => setOpsRoleModalOpen(false)}
+          onOk={submitOpsRole}
+          okText="저장"
+          cancelText="취소"
+          okButtonProps={{ disabled: !opsRoleDraft || busy }}
+        >
+          <p className="muted">
+            acting 회원에게는 운영팀 직책이 반드시 있어야 합니다. 선택한 {selectedIds.length}명에게 지정할 직책을
+            고르세요.
+          </p>
+          <Select
+            style={{ width: "100%" }}
+            placeholder="운영팀 직책 선택"
+            value={opsRoleDraft}
+            onChange={setOpsRoleDraft}
+            options={OPS_ROLE_GROUPS.map((group) => ({
+              label: group.label,
+              options: group.roles.map((role) => {
+                const note = opsRoleOptionNote(role);
+                return {
+                  value: role,
+                  disabled: note !== undefined,
+                  label: note ? `${OPS_ROLE_LABEL[role]} (${note})` : OPS_ROLE_LABEL[role],
+                };
+              }),
+            }))}
+          />
+        </Modal>
+      </main>
+    </div>
   );
 }

@@ -193,7 +193,17 @@ Supabase Data API로 직접 노출하지 않는다. 현재 11개 테이블은 �
 
 ### hr — 소유자: hr
 
-미정. hr 구현 시작 시 이 표를 채운다. 테이블을 만들 때마다 한 줄씩 추가한다.
+그핵드인(알럼나이 디렉토리)이 소유하는 테이블 2개(2026-09-27 추가, `apps/hr-backend`
+전용 API로만 접근). 나머지 hr 화면 데이터(`core.members`/`core.people_directory`)는
+portal 소유를 읽기만 한다. 상세 스펙은 `DB_SCHEMA_HR.md` 참고.
+
+| 테이블 | 내용 | 프론트 직접 조회 |
+|---|---|---|
+| `edit_requests` | 알럼나이 프로필 수정 승인 대기 큐(diff, 상태, 검토자) | 아니오 |
+| `people_cache` | Notion People DB 조회 결과 TTL 캐시(`"list"` 또는 개별 notionPageId 키) | 아니오 |
+
+두 테이블 모두 생성 마이그레이션에서 RLS를 활성화했고, 정책은 아직 없다(=`postgres`
+계정 외 전부 거부). 현재는 hr-backend API만 접근한다.
 
 ### 4.1 `idempotency_keys`는 앱마다 따로 만든다
 
