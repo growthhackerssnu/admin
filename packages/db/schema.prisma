@@ -7,8 +7,8 @@
 // 스키마 경계 (§2, §3):
 //   core — 세 앱이 공유하는 신원·회원 데이터. 소유자는 portal.
 //   dh   — 대협봇 업무 데이터. 소유자는 dh. 다른 앱은 접근하지 않는다.
-//   hr   — 그핵드인 업무 데이터. Postgres에는 만들어져 있지만 아직 모델이 없어서
-//          아래 schemas 배열에는 넣지 않았다. hr이 첫 테이블을 만들 때 추가한다.
+//   hr   — 그핵드인 업무 데이터. 소유자는 hr. edit_requests/people_cache 2개
+//          (DB_SCHEMA_HR.md 참고). 다른 앱은 접근하지 않는다.
 //
 // 설계 근거: docs/admin/integration/05_데이터 모델 제안.md (목업 기준 테이블 설계).
 // 소싱·수집 파이프라인(sources/articles/funding_events 등)은 이번 범위 밖이다.
@@ -28,7 +28,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  schemas   = ["core", "dh", "nut"]
+  schemas   = ["core", "dh", "hr", "nut"]
 }
 
 // ---------- Enums ----------
@@ -175,6 +175,11 @@ model Member {
   dhIdempotencyKeys   DhIdempotencyKey[]   @relation("DhIdempotencyActor")
   coreIdempotencyKeys CoreIdempotencyKey[] @relation("CoreIdempotencyActor")
   claimedPersonEntry  PeopleDirectory?
+
+  // hr(그핵드인) — 프로필 수정 승인 큐. 본인이 제출한 요청(alumni 포함 누구나)과
+  // 자신이 검토한 요청(admin)은 서로 다른 관계다. DB_SCHEMA_HR.md §1 참고.
+  editRequestsSubmitted EditRequest[] @relation("EditRequestRequester")
+  editRequestsReviewed  EditRequest[] @relation("EditRequestReviewer")
 
   @@map("members")
   @@schema("core")
@@ -1311,4 +1316,50 @@ model NutTaxSummary {
   @@unique([periodId])
   @@map("tax_summaries")
   @@schema("nut")
+}
+
+// ---------- hr (그핵드인) — 소유자: hr ----------
+//
+// 설계 스펙 원본은 DB_SCHEMA_HR.md(repo 바깥, 기획 문서). hr이 실제로 소유하는
+// 테이블은 이 2개뿐이다 — 나머지(core.members 등)는 portal 소유를 읽기만 한다
+// (docs/db/conventions.md §3, §4).
+
+enum EditRequestStatus {
+  pending
+  approved
+  rejected
+  @@schema("hr")
+}
+
+// 알럼나이가 제출한 프로필 수정은 Notion에 바로 반영되지 않고 여기 "승인 대기"로
+// 쌓인다. 관리자가 승인해야 실제 write-back이 일어난다(DB_SCHEMA_HR.md §1).
+model EditRequest {
+  id                 String            @id @default(cuid())
+  notionPageId       String            @map("notion_page_id")
+  requesterMemberId  String            @map("requester_member_id")
+  requester          Member            @relation("EditRequestRequester", fields: [requesterMemberId], references: [id])
+  diff               Json
+  status             EditRequestStatus @default(pending)
+  submittedAt        DateTime          @default(now()) @map("submitted_at")
+  reviewedByMemberId String?           @map("reviewed_by_member_id")
+  reviewedBy         Member?           @relation("EditRequestReviewer", fields: [reviewedByMemberId], references: [id])
+  reviewedAt         DateTime?         @map("reviewed_at")
+  reviewNote         String?           @map("review_note")
+
+  @@index([status, submittedAt(sort: Desc)])
+  @@map("edit_requests")
+  @@schema("hr")
+}
+
+// Notion People DB 조회 결과의 TTL 캐시. key는 "list"(디렉토리 목록 경량 요약) 또는
+// 개별 notionPageId(그 사람의 전체 프로필) 둘 중 하나뿐이다 — 필터 조합별로 row를
+// 늘리지 않는다(DB_SCHEMA_HR.md §2, §2.1). core.people_directory(가입 시 본인확인용
+// 얕은 사본, portal 소유)와는 완전히 다른 테이블이니 혼동하지 않는다.
+model PeopleCache {
+  key       String   @id
+  data      Json
+  fetchedAt DateTime @map("fetched_at")
+
+  @@map("people_cache")
+  @@schema("hr")
 }

@@ -31,8 +31,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  // hr 테이블이 생기면 "hr"을 추가한다. 지금은 모델이 없어서 선언하지 않는다.
-  schemas   = ["core"]
+  schemas   = ["core", "hr"]
 }
 
 // ---------- core (소유자: portal — 읽기만 한다) ----------
@@ -86,6 +85,11 @@ model Member {
   // 컬럼은 반대편(PeopleDirectory.claimedByMemberId)에만 있다.
   claimedPersonEntry PeopleDirectory?
 
+  // hr(그핵드인) — 프로필 수정 승인 큐. 본인이 제출한 요청과 자신이 검토한
+  // 요청(admin)은 서로 다른 관계다. DB_SCHEMA_HR.md §1 참고.
+  editRequestsSubmitted EditRequest[] @relation("EditRequestRequester")
+  editRequestsReviewed  EditRequest[] @relation("EditRequestReviewer")
+
   @@map("members")
   @@schema("core")
 }
@@ -106,4 +110,49 @@ model PeopleDirectory {
 
   @@map("people_directory")
   @@schema("core")
+}
+
+// ---------- hr (그핵드인) — 소유자: hr ----------
+//
+// 설계 스펙 원본은 DB_SCHEMA_HR.md(repo 바깥, 기획 문서). 물리 스키마 원본은
+// packages/db/schema.prisma — 여기는 그 트림된 사본이다.
+
+enum EditRequestStatus {
+  pending
+  approved
+  rejected
+  @@schema("hr")
+}
+
+// 알럼나이가 제출한 프로필 수정은 Notion에 바로 반영되지 않고 여기 "승인 대기"로
+// 쌓인다. 관리자가 승인해야 실제 write-back이 일어난다(DB_SCHEMA_HR.md §1).
+model EditRequest {
+  id                 String            @id @default(cuid())
+  notionPageId       String            @map("notion_page_id")
+  requesterMemberId  String            @map("requester_member_id")
+  requester          Member            @relation("EditRequestRequester", fields: [requesterMemberId], references: [id])
+  diff               Json
+  status             EditRequestStatus @default(pending)
+  submittedAt        DateTime          @default(now()) @map("submitted_at")
+  reviewedByMemberId String?           @map("reviewed_by_member_id")
+  reviewedBy         Member?           @relation("EditRequestReviewer", fields: [reviewedByMemberId], references: [id])
+  reviewedAt         DateTime?         @map("reviewed_at")
+  reviewNote         String?           @map("review_note")
+
+  @@index([status, submittedAt(sort: Desc)])
+  @@map("edit_requests")
+  @@schema("hr")
+}
+
+// Notion People DB 조회 결과의 TTL 캐시. key는 "list"(디렉토리 목록 경량 요약) 또는
+// 개별 notionPageId(그 사람의 전체 프로필) 둘 중 하나뿐이다(DB_SCHEMA_HR.md §2, §2.1).
+// core.people_directory(위 모델, 가입 시 본인확인용 얕은 사본)와는 완전히 다른
+// 테이블이니 혼동하지 않는다.
+model PeopleCache {
+  key       String   @id
+  data      Json
+  fetchedAt DateTime @map("fetched_at")
+
+  @@map("people_cache")
+  @@schema("hr")
 }
