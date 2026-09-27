@@ -122,7 +122,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 | 테이블 | 내용 | 쓰기 | 읽기 | 개인정보 |
 |---|---|---|---|---|
-| `members` | 접근 허용 회원 화이트리스트. role·활성 여부 | portal (§5) | portal, dh, hr 백엔드 | 이메일, 이름 |
+| `members` | 접근 허용 회원 화이트리스트. role·운영팀 직책(`ops_role`, acting에게만)·활성 여부 | portal (§5) | portal, dh, hr 백엔드 | 이메일, 이름 |
 | `people_directory` | 노션 People DB에서 동기화한 "신뢰 이메일" 원장. 가입 시 본인 확인용 | portal | portal, dh, hr 백엔드 | 이메일, 기수, 이름 |
 | `signup_requests` | 가입 신청 + OTP 상태. 수명이 짧은 레코드 | portal | portal | 이메일, OTP 해시 |
 

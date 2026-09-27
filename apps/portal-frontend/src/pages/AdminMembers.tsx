@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { App as AntApp, Alert, Button, Segmented, Skeleton, Space, Table, Tag } from "antd";
+import { App as AntApp, Alert, Button, Modal, Segmented, Select, Skeleton, Space, Table, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
   ApiClientError,
@@ -10,6 +10,7 @@ import {
   listAdminMembers,
   reactivateMembers,
   type AdminMember,
+  type OpsRole,
 } from "../lib/api";
 import { useSession } from "../hooks/useSession";
 import { signOut } from "../lib/supabase";
@@ -24,6 +25,32 @@ const ROLE_COLOR: Record<AdminMember["role"], string> = {
   acting: "blue",
   alumni: "default",
 };
+
+// 운영팀 직책의 한국어 이름과 그룹. 백엔드 src/lib/opsRoles.ts와 같은 목록이며,
+// 프론트는 백엔드 코드를 import하지 않으므로 여기 한 벌 더 둔다(ROLE_LABEL도 같다).
+// 값을 추가할 때는 양쪽을 같이 고친다.
+const OPS_ROLE_LABEL: Record<OpsRole, string> = {
+  president: "회장",
+  vice_president: "부회장",
+  treasurer: "총무",
+  external_lead: "대외협력 팀장",
+  hr_lead: "HR 팀장",
+  pr_lead: "PR 팀장",
+  edu_lead: "에듀 팀장",
+  external_member: "대외협력 팀원",
+  hr_member: "HR 팀원",
+  pr_member: "PR 팀원",
+};
+
+// single: 그 직책을 한 명만 가질 수 있다(임원·팀장). 서버도 같은 규칙으로 거절한다.
+const OPS_ROLE_GROUPS: { label: string; single: boolean; roles: OpsRole[] }[] = [
+  { label: "임원", single: true, roles: ["president", "vice_president", "treasurer"] },
+  { label: "팀장", single: true, roles: ["external_lead", "hr_lead", "pr_lead", "edu_lead"] },
+  { label: "팀원", single: false, roles: ["external_member", "hr_member", "pr_member"] },
+];
+const SINGLE_HOLDER_ROLES = new Set<OpsRole>(
+  OPS_ROLE_GROUPS.filter((g) => g.single).flatMap((g) => g.roles),
+);
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString("ko-KR") : "—";
@@ -41,6 +68,8 @@ export function AdminMembers() {
   const [busy, setBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [view, setView] = useState<"all" | "active" | "inactive">("all");
+  const [opsRoleModalOpen, setOpsRoleModalOpen] = useState(false);
+  const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRole>();
 
   const token = session?.access_token;
 
@@ -141,6 +170,53 @@ export function AdminMembers() {
     return true;
   });
 
+  // 선택한 사람이 전부 이미 acting이면 이 버튼은 "직책만 바꾸는" 동작이 된다.
+  const allSelectedActing = selectedMembers.length > 0 && selectedMembers.every((m) => m.role === "acting");
+
+  // 1인 직책을 지금 누가 맡고 있는지. 선택 목록 안의 사람이면 자기 자리를 다시
+  // 지정하는 것이라 막지 않는다(그 외에는 서버가 422로 거절하므로 미리 잠근다).
+  const opsRoleHolders = new Map<OpsRole, AdminMember>();
+  for (const m of members ?? []) {
+    if (m.opsRole) opsRoleHolders.set(m.opsRole, m);
+  }
+
+  function opsRoleOptionNote(role: OpsRole): string | undefined {
+    if (!SINGLE_HOLDER_ROLES.has(role)) return undefined;
+    if (selectedIds.length > 1) return "한 명만 가능";
+    const holder = opsRoleHolders.get(role);
+    if (holder && !selectedIds.includes(holder.id)) {
+      return holder.active ? holder.displayName : `${holder.displayName} · 비활성`;
+    }
+    return undefined;
+  }
+
+  function openOpsRoleModal() {
+    // 한 명만 골랐고 이미 직책이 있으면 그 값에서 시작한다.
+    setOpsRoleDraft(selectedMembers.length === 1 ? (selectedMembers[0]?.opsRole ?? undefined) : undefined);
+    setOpsRoleModalOpen(true);
+  }
+
+  function submitOpsRole() {
+    if (!opsRoleDraft) return;
+    setOpsRoleModalOpen(false);
+    void withBusyReload(
+      () => changeMemberRole(token!, selectedIds, { role: "acting", opsRole: opsRoleDraft }),
+      allSelectedActing ? "운영팀 직책을 변경했습니다." : "acting으로 변경했습니다.",
+    );
+  }
+
+  function confirmToAlumni() {
+    modal.confirm({
+      title: `${selectedIds.length}명을 alumni로 변경할까요?`,
+      content:
+        "alumni에게는 운영팀 직책이 없습니다 — 지금 지정된 직책은 지워집니다. 다시 acting으로 올릴 때 새로 지정하면 됩니다.",
+      okText: "alumni로 변경",
+      cancelText: "취소",
+      onOk: () =>
+        withBusyReload(() => changeMemberRole(token!, selectedIds, { role: "alumni" }), "alumni로 변경했습니다."),
+    });
+  }
+
   const columns: ColumnsType<AdminMember> = [
     {
       title: "기수",
@@ -164,6 +240,16 @@ export function AdminMembers() {
       dataIndex: "role",
       width: 100,
       render: (role: AdminMember["role"]) => <Tag color={ROLE_COLOR[role]}>{ROLE_LABEL[role]}</Tag>,
+    },
+    {
+      title: "운영팀",
+      dataIndex: "opsRole",
+      width: 130,
+      render: (opsRole: AdminMember["opsRole"], m) => {
+        if (opsRole) return OPS_ROLE_LABEL[opsRole];
+        // acting인데 직책이 비어 있으면 이 기능이 생기기 전에 등록된 회원이다.
+        return m.role === "acting" ? <Tag color="orange">미지정</Tag> : "—";
+      },
     },
     {
       title: "상태",
@@ -214,20 +300,10 @@ export function AdminMembers() {
           <div className="actions" style={{ marginTop: 0, paddingTop: 0, borderTop: "none", marginBottom: 16 }}>
             <span>{selectedIds.length}명 선택됨</span>
             <Space wrap>
-              <Button
-                disabled={busy || hasAdminSelected}
-                onClick={() =>
-                  withBusyReload(() => changeMemberRole(token!, selectedIds, "acting"), "acting으로 변경했습니다.")
-                }
-              >
-                acting으로 변경
+              <Button disabled={busy || hasAdminSelected} onClick={openOpsRoleModal}>
+                {allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
               </Button>
-              <Button
-                disabled={busy || hasAdminSelected}
-                onClick={() =>
-                  withBusyReload(() => changeMemberRole(token!, selectedIds, "alumni"), "alumni로 변경했습니다.")
-                }
-              >
+              <Button disabled={busy || hasAdminSelected} onClick={confirmToAlumni}>
                 alumni로 변경
               </Button>
               {hasInactiveSelected && (
@@ -265,6 +341,38 @@ export function AdminMembers() {
           />
         )}
       </div>
+
+      <Modal
+        title={allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
+        open={opsRoleModalOpen}
+        onCancel={() => setOpsRoleModalOpen(false)}
+        onOk={submitOpsRole}
+        okText="저장"
+        cancelText="취소"
+        okButtonProps={{ disabled: !opsRoleDraft || busy }}
+      >
+        <p className="muted">
+          acting 회원에게는 운영팀 직책이 반드시 있어야 합니다. 선택한 {selectedIds.length}명에게 지정할 직책을
+          고르세요.
+        </p>
+        <Select
+          style={{ width: "100%" }}
+          placeholder="운영팀 직책 선택"
+          value={opsRoleDraft}
+          onChange={setOpsRoleDraft}
+          options={OPS_ROLE_GROUPS.map((group) => ({
+            label: group.label,
+            options: group.roles.map((role) => {
+              const note = opsRoleOptionNote(role);
+              return {
+                value: role,
+                disabled: note !== undefined,
+                label: note ? `${OPS_ROLE_LABEL[role]} (${note})` : OPS_ROLE_LABEL[role],
+              };
+            }),
+          }))}
+        />
+      </Modal>
     </main>
   );
 }

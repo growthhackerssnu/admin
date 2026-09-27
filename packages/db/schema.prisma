@@ -43,6 +43,29 @@ enum Role {
   @@schema("core")
 }
 
+// 운영팀 직책 — acting 회원에게만 붙는다(alumni·admin은 항상 NULL).
+//
+// 임원(회장·부회장·총무)과 각 팀의 팀장은 한 명씩이고, 팀원은 여러 명이다.
+// "한 명뿐"인 직책의 유일성은 Prisma 문법으로 표현할 수 없어서 마이그레이션
+// SQL의 부분 유니크 인덱스로 걸었다(conventions.md §7.3). "acting이면 반드시
+// 값이 있다"는 규칙은 API 쪽에서 지킨다 — 이 컬럼이 생기기 전에 등록된 acting
+// 행이 NULL로 남아 있어서 DB 제약으로 걸면 그 사람들의 로그인이 막힌다.
+//
+// 에듀는 팀장만 있다 — 팀원이 생기면 enum 값을 추가한다(§8: 값은 추가만 한다).
+enum OpsRole {
+  president       // 회장
+  vice_president  // 부회장
+  treasurer       // 총무
+  external_lead   // 대외협력 팀장
+  external_member // 대외협력 팀원
+  hr_lead         // HR 팀장
+  hr_member       // HR 팀원
+  pr_lead         // PR 팀장
+  pr_member       // PR 팀원
+  edu_lead        // 에듀 팀장
+  @@schema("core")
+}
+
 enum Channel {
   email
   linkedin
@@ -135,6 +158,8 @@ model Member {
   email          String   @unique
   displayName    String   @map("display_name")
   role           Role     @default(acting)
+  // 운영팀 직책. acting에게만 값이 있고 alumni·admin은 NULL이다(OpsRole 주석 참고).
+  opsRole        OpsRole? @map("ops_role")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")
   lastLoginAt    DateTime? @map("last_login_at")

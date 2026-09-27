@@ -35,6 +35,22 @@ enum Role {
   @@schema("core")
 }
 
+// 운영팀 직책 — acting에게만 붙는다. 회장·부회장·총무와 각 팀장은 한 명씩이고
+// 팀원은 여러 명이다(유일성은 packages/db 마이그레이션의 부분 유니크 인덱스).
+enum OpsRole {
+  president       // 회장
+  vice_president  // 부회장
+  treasurer       // 총무
+  external_lead   // 대외협력 팀장
+  external_member // 대외협력 팀원
+  hr_lead         // HR 팀장
+  hr_member       // HR 팀원
+  pr_lead         // PR 팀장
+  pr_member       // PR 팀원
+  edu_lead        // 에듀 팀장
+  @@schema("core")
+}
+
 // 접근은 화이트리스트 방식이다. 관리자가 이메일로 행을 미리 만들어야 로그인이
 // 완성된다. apps/dh-backend가 이 테이블에 대한 auth 진입점(getAuthenticatedMember)도
 // 갖고 있다 — 두 앱이 같은 members 테이블을 각자의 스키마로 본다.
@@ -44,6 +60,8 @@ model Member {
   email          String    @unique
   displayName    String    @map("display_name")
   role           Role      @default(acting)
+  // 운영팀 직책. acting에게만 값이 있고 alumni·admin은 NULL이다(OpsRole 주석 참고).
+  opsRole        OpsRole?  @map("ops_role")
   active         Boolean   @default(true)
   createdAt      DateTime  @default(now()) @map("created_at")
   lastLoginAt    DateTime? @map("last_login_at")
