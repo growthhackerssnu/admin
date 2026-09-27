@@ -161,6 +161,7 @@ Supabase Data API로 직접 노출하지 않는다. 현재 11개 테이블은 �
 | `budget_nodes` | 엑셀 예산안의 대/중/소분류 | 아니오 |
 | `budget_parameters` | 산출식에 사용하는 환경설정 변수 | 아니오 |
 | `income_lines` | 진행안 수입 항목과 결산안 실제 수입 | 아니오 |
+| `monthly_flows` | 월별 진행안·결산안 흐름 | 아니오 |
 | `ledger_entries` | 회계 상세 행 | 아니오 |
 | `accounting_details` | 프로젝트별·운영팀별 상세 회계 | 아니오 |
 | `accounting_summaries` | 프로젝트별·운영팀별 요약 회계 | 아니오 |
