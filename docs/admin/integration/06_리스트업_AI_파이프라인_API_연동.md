@@ -138,7 +138,7 @@ POST /outreaches/:outreachId/draft-generation
 1. DB 마이그레이션 적용
    - `20260926190000_add_past_project_metadata`
    - `20260927110000_add_new_outreach_templates`
-2. Supabase, OpenAI, Inngest 환경변수 설정 및 DH 백엔드 배포
+2. Supabase, Gemini, Inngest 환경변수 설정 및 DH 백엔드 배포
 3. Inngest에 `/api/inngest` worker 등록
 
-AI 모델 호출은 백엔드 전용이며, 프론트에는 OpenAI 키를 절대 노출하지 않는다.
+AI 모델 호출은 백엔드 전용이며, 프론트에는 Gemini 키를 절대 노출하지 않는다.

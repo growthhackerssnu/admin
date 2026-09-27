@@ -5,9 +5,9 @@ import {
 } from "@/config/fitCriteria";
 import type { ConditionsSnapshot } from "@/config/listupExecution";
 import {
-  LISTUP_WEB_SEARCH_MODEL,
+  LISTUP_GEMINI_MODEL,
   runStructuredOutput,
-} from "@/lib/listup/openaiWebSearch";
+} from "@/lib/listup/gemini";
 import { LocalTaskReporter } from "@/lib/listup/localObservability";
 import { prisma } from "@/lib/prisma";
 import { applyFitFollowup } from "@/lib/listup/tasks";
@@ -33,6 +33,152 @@ type RawIntervention = {
 
 type NormalizedIntervention = Omit<RawIntervention, "area"> & {
   area: InterventionArea;
+};
+
+// 모델이 "AI 기업", "플랫폼" 같은 일반 표현을 6개 영역 전부에 재사용하지 못하게
+// 하는 최소한의 공개 근거 검증이다. fit 자체는 한 영역만 직접 뒷받침되면 충분하다.
+const AREA_SIGNAL_TERMS: Record<InterventionArea, readonly string[]> = {
+  "사용자·고객 분석": [
+    "행동",
+    "이용",
+    "사용 패턴",
+    "방문",
+    "여정",
+    "세그먼트",
+    "리텐션",
+    "후기",
+    "리뷰",
+    "시청",
+    "구매",
+    "탐색",
+    "클릭",
+    "사용자",
+    "고객",
+    "회원",
+    "앱",
+    "콘텐츠",
+    "교육",
+    "예약",
+    "거래",
+    "결제",
+    "platform",
+    "marketplace",
+    "게임",
+    "game",
+    "플레이어",
+    "player",
+    "학습관리",
+    "학습자",
+    "실시간",
+    "오디오",
+    "라디오",
+    "청취",
+    "청취자",
+    "dj",
+  ],
+  "CRM·마케팅 최적화": [
+    "crm",
+    "캠페인",
+    "광고",
+    "마케팅",
+    "쿠폰",
+    "푸시",
+    "전환",
+    "재구매",
+    "구독",
+    "회원",
+    "프로모션",
+    "가격",
+    "lms",
+    "주문",
+    "결제",
+    "예약",
+    "거래",
+    "membership",
+    "subscription",
+    "commerce",
+    "충전",
+    "후원",
+    "유료",
+    "선물",
+  ],
+  "추천·개인화": [
+    "추천",
+    "개인화",
+    "맞춤",
+    "매칭",
+    "랭킹",
+    "정렬",
+    "콘텐츠",
+    "상품",
+    "이벤트",
+    "강의",
+    "과정",
+    "매장",
+    "목록",
+    "리스트",
+    "marketplace",
+    "catalog",
+  ],
+  "예측·분류·지표 개발": [
+    "예측",
+    "분류",
+    "스코어",
+    "평가 지표",
+    "수요",
+    "이탈",
+    "확률",
+    "forecast",
+    "scoring",
+  ],
+  "데이터 기반 전략·운영 개선": [
+    "운영",
+    "비용",
+    "가격",
+    "배차",
+    "스케줄",
+    "물류",
+    "재고",
+    "공급",
+    "용량",
+    "효율",
+    "프로세스",
+    "라우팅",
+    "할당",
+    "제작",
+    "지역",
+    "매장",
+    "스튜디오",
+    "배송",
+    "이동",
+    "모빌리티",
+    "입점",
+    "가맹",
+    "공유",
+    "주문",
+    "예약",
+    "거래",
+  ],
+  "AI·데이터 파이프라인": [
+    "파이프라인",
+    "데이터 수집",
+    "데이터 처리",
+    "정제",
+    "검색",
+    "요약",
+    "생성",
+    "llm",
+    "모델 호출",
+    "오케스트레이션",
+    "자동 라우팅",
+    "프롬프트",
+    "워크플로",
+    "workflow",
+    "자동 수집",
+    "자동으로 수집",
+    "데이터베이스",
+    "database",
+  ],
 };
 
 type FitOutput = {
@@ -93,9 +239,45 @@ function normalizeCriterion(
   return { verdict, reason: normalizedReason, evidenceIds: normalizedIds };
 }
 
+function hasDirectAreaSignal(
+  area: InterventionArea,
+  evidenceIds: string[],
+  evidenceTexts: ReadonlyMap<string, string>,
+) {
+  if (!evidenceTexts.size) return true;
+  const text = evidenceIds
+    .map((id) => evidenceTexts.get(id) ?? "")
+    .join(" ")
+    .toLowerCase();
+  return AREA_SIGNAL_TERMS[area].some((term) => text.includes(term));
+}
+
+function downgradeWithoutDirectSignal(
+  criterion: {
+    verdict: CriterionVerdict;
+    reason: string;
+    evidenceIds: string[];
+  },
+  area: InterventionArea,
+  label: "possibility" | "value",
+  evidenceTexts: ReadonlyMap<string, string>,
+) {
+  if (
+    criterion.verdict !== "supported" ||
+    hasDirectAreaSignal(area, criterion.evidenceIds, evidenceTexts)
+  )
+    return criterion;
+  return {
+    verdict: "unknown" as const,
+    reason: `제공된 근거에 ${area} ${label}의 직접 신호가 확인되지 않음`,
+    evidenceIds: [],
+  };
+}
+
 export function normalizeInterventions(
   interventions: RawIntervention[],
   allowedEvidenceIds: Set<string>,
+  evidenceTexts: ReadonlyMap<string, string> = new Map(),
 ): NormalizedIntervention[] {
   const byArea = new Map<string, RawIntervention>();
   for (const intervention of interventions) {
@@ -118,19 +300,29 @@ export function normalizeInterventions(
   return FIT_INTERVENTION_AREAS.map((area) => {
     const intervention = byArea.get(area);
     if (!intervention) throw new Error("Missing intervention area.");
-    const possibility = normalizeCriterion(
+    const possibility = downgradeWithoutDirectSignal(
+      normalizeCriterion(
       intervention.possibilityVerdict,
       intervention.possibilityReason,
       intervention.possibilityEvidenceIds,
       allowedEvidenceIds,
       `${area} possibility`,
+      ),
+      area,
+      "possibility",
+      evidenceTexts,
     );
-    const value = normalizeCriterion(
+    const value = downgradeWithoutDirectSignal(
+      normalizeCriterion(
       intervention.valueVerdict,
       intervention.valueReason,
       intervention.valueEvidenceIds,
       allowedEvidenceIds,
       `${area} value`,
+      ),
+      area,
+      "value",
+      evidenceTexts,
     );
     return {
       area,
@@ -175,18 +367,11 @@ export function deriveFitVerdict(interventions: NormalizedIntervention[]) {
 function collectInformationGaps(
   researchGaps: string[],
   reportedGaps: unknown,
-  interventions: NormalizedIntervention[],
 ) {
   return [
     ...new Set([
       ...researchGaps,
       ...stringList(reportedGaps, "information gaps"),
-      ...interventions.flatMap((item) => [
-        ...(item.possibilityVerdict === "unknown"
-          ? [item.possibilityReason, ...item.prerequisites]
-          : []),
-        ...(item.valueVerdict === "unknown" ? [item.valueReason] : []),
-      ]),
     ]),
   ].slice(0, 30);
 }
@@ -214,6 +399,8 @@ function fitInput(
   return [
     "You are the GHS SNU company-fit assessment agent.",
     "Use only the following criteria and research report. Do not browse, search, or add facts.",
+    "Assess public business compatibility, not confirmed delivery feasibility. Do not downgrade a supported public business signal merely because data access, KPIs, decision owners, campaign data, or an internal brief are unknown.",
+    "Judge each intervention area separately. A generic claim that the company is digital, SaaS, AI-enabled, or has customers must not be reused as support for unrelated areas.",
     "Return every intervention area exactly once. Cite only supplied Evidence IDs.",
     "Use unknown, rather than unsupported, when the report does not support a negative conclusion.",
     `Criteria version: ${criteria.version}`,
@@ -342,12 +529,17 @@ export async function executeFitAssessmentTask(taskId: string, runId: string) {
     const interventions = normalizeInterventions(
       report.value.interventions,
       allowedEvidenceIds,
+      new Map(
+        evidence.map((item) => [
+          item.id,
+          [item.title, item.excerpt].filter(Boolean).join(" "),
+        ]),
+      ),
     );
     const verdict = deriveFitVerdict(interventions);
     const informationGaps = collectInformationGaps(
       research.missingInformation,
       report.value.informationGaps,
-      interventions,
     );
     const summary = requiredText(report.value.summary, "summary");
 
@@ -378,7 +570,7 @@ export async function executeFitAssessmentTask(taskId: string, runId: string) {
           summary,
           informationGaps,
           criteriaVersion: snapshot.fitCriteria.version,
-          modelVersion: LISTUP_WEB_SEARCH_MODEL,
+          modelVersion: LISTUP_GEMINI_MODEL,
           interventions: { create: interventions },
         },
       });
@@ -402,7 +594,7 @@ export async function executeFitAssessmentTask(taskId: string, runId: string) {
         ...savedRefs(running.resultRefs),
         {
           type: "source",
-          sourceKey: "OpenAI fit assessment",
+          sourceKey: "Gemini fit assessment",
           status: "succeeded",
           foundCount: FIT_INTERVENTION_AREAS.length,
           acceptedCount: FIT_INTERVENTION_AREAS.length,

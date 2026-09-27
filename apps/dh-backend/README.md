@@ -4,14 +4,14 @@
 
 ## 스택
 
-Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres · Supabase Auth(Google OAuth) · Inngest(비동기 작업) · OpenAI API(리서치·초안 생성, Phase 3에서 사용) · Vercel 배포.
+Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres · Supabase Auth(Google OAuth) · Inngest(비동기 작업) · Gemini API(리서치·초안 생성, Phase 3에서 사용) · Vercel 배포.
 
 ## 준비
 
 1. `npm install`
 2. `.env.example`을 `.env.local`로 복사하고 값 채우기:
    - Supabase 프로젝트의 `DATABASE_URL`(Transaction pooler, 6543)/`DIRECT_URL`(**Session pooler**, 5432 — 대시보드의 "Direct connection" 탭 값이 아니다. 그건 IPv6 전용이라 일반 네트워크에서 `prisma migrate`가 "Can't reach database server"로 막힌다), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-   - `OPENAI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
+   - `GEMINI_API_KEY` — Phase 3(리서치·초안 생성)부터 필요, 지금 당장은 비워둬도 됨
    - `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` — 로컬 개발은 비워도 됨
 3. 스키마가 최신인지 확인 — 마이그레이션은 이 앱이 아니라 `packages/db`가 소유한다(`cd ../../packages/db && npm run db:status`). 자세한 규칙은 [DB 공유 규칙](../../docs/db/conventions.md) §7
 4. `npm run db:seed` — `apps/dh-frontend/src/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩

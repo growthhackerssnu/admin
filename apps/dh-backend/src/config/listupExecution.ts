@@ -1,4 +1,5 @@
 import type { FitCriteriaSnapshot } from "@/config/fitCriteria";
+import type { DiscoveryAffinitySnapshot } from "@/config/discoveryAffinity";
 
 // 탐색 배치의 실행 설정. 사용자가 요청 본문으로 보내지 않고(v0.4 §6.4) 서버가 정한 뒤
 // 생성 시점에 SearchRun.conditionsSnapshot으로 복사한다. 여기 값을 나중에 바꿔도 과거
@@ -21,7 +22,7 @@ import type { FitCriteriaSnapshot } from "@/config/fitCriteria";
 // 아직 미정(v0.4 §0.2): 기술적 재시도 한도, 시간·비용 상한. 워커를 붙일 때 정한다.
 // 기술적 재시도(네트워크 오류 등)는 위 조사 라운드와 별개로 센다.
 // fitCriteria 스냅샷 필드를 추가하면서 conditionsSnapshot 구조를 올렸다.
-export const LISTUP_EXECUTION_VERSION = "2026-09-26.2";
+export const LISTUP_EXECUTION_VERSION = "2026-09-27.1";
 
 const fixedListupExecution = {
   maxDiscoveryRounds: 3,
@@ -43,6 +44,7 @@ export type ConditionsSnapshot = {
   schemaVersion: string;
   // DB의 별도 기준 레코드가 아니라, 배치 시작 시점의 agent 프롬프트를 고정한다.
   fitCriteria: FitCriteriaSnapshot;
+  discoveryAffinity?: DiscoveryAffinitySnapshot;
   sources: { key: string; name: string; entryUrls: string[]; query: string | null }[];
   filters: {
     industries: string[];

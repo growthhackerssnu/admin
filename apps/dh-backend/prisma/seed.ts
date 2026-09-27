@@ -2,7 +2,12 @@
 // 목업이 이미 검증한 시나리오(무응답 차단, 배포 전 접촉자 제외, 재접촉 맥락 등)로
 // 실제 API를 바로 스모크 테스트할 수 있게 하는 것이 목적이다.
 import { PrismaClient } from "../src/generated/prisma";
-import { LISTUP_EXECUTION_VERSION, listupExecution } from "../src/config/listupExecution";
+import {
+  LISTUP_EXECUTION_VERSION,
+  createListupExecution,
+} from "../src/config/listupExecution";
+import { getFitCriteriaSnapshot } from "../src/config/fitCriteria";
+import { NEW_OUTREACH_TEMPLATES } from "../src/config/outreachTemplates";
 
 const prisma = new PrismaClient();
 
@@ -12,7 +17,11 @@ async function main() {
   // 리스트업 쪽은 candidates ↔ fit_assessments/human_fit_decisions가 서로를 참조해서
   // 지우는 순서만으로는 못 푼다. 후보의 "현재 무엇을 가리키는지"를 먼저 비우고 지운다.
   await prisma.candidate.updateMany({
-    data: { currentResearchId: null, latestSystemAssessmentId: null, activeHumanDecisionId: null },
+    data: {
+      currentResearchId: null,
+      latestSystemAssessmentId: null,
+      activeHumanDecisionId: null,
+    },
   });
   await prisma.$transaction([
     prisma.contactOptionAssessment.deleteMany(),
@@ -44,19 +53,37 @@ async function main() {
     prisma.template.deleteMany(),
   ]);
 
+  await prisma.template.createMany({ data: NEW_OUTREACH_TEMPLATES });
+
   // members는 portal이 소유하는 core 스키마의 공유 테이블이다(conventions.md §4, §5).
   // 예전엔 위 삭제 목록에 member.deleteMany()가 있어서, dh 시드를 한 번 돌리면 실제
   // 회원 계정이 전부 날아갔다 — 개발용 DB가 따로 없어 운영 DB를 그대로 보는 지금
   // 구조에서는 특히 위험했다. 이제 시드 전용 계정 둘만 upsert하고 나머지는 두지 않는다.
+  //
+  // acting에게는 운영팀 직책(opsRole)이 반드시 있다. external_lead(대외협력 팀장)는
+  // 한 명만 가질 수 있어서, 실제 회원 중 누군가 이미 그 직책이면 시드가 유니크
+  // 인덱스에 걸린다 — 그때는 아래 직책을 external_member로 바꿔서 돌린다.
   const jaewook = await prisma.member.upsert({
     where: { email: "jaewook@ghsnu.com" },
-    update: { displayName: "재욱", role: "acting", active: true },
-    create: { supabaseUserId: "seed-jaewook", email: "jaewook@ghsnu.com", displayName: "재욱", role: "acting" },
+    update: { displayName: "재욱", role: "acting", opsRole: "external_lead", active: true },
+    create: {
+      supabaseUserId: "seed-jaewook",
+      email: "jaewook@ghsnu.com",
+      displayName: "재욱",
+      role: "acting",
+      opsRole: "external_lead",
+    },
   });
   const minjun = await prisma.member.upsert({
     where: { email: "minjun@ghsnu.com" },
-    update: { displayName: "민준", role: "acting", active: true },
-    create: { supabaseUserId: "seed-minjun", email: "minjun@ghsnu.com", displayName: "민준", role: "acting" },
+    update: { displayName: "민준", role: "acting", opsRole: "external_member", active: true },
+    create: {
+      supabaseUserId: "seed-minjun",
+      email: "minjun@ghsnu.com",
+      displayName: "민준",
+      role: "acting",
+      opsRole: "external_member",
+    },
   });
 
   // 목표 분기는 "언제 추진할지"의 라벨이다. 실제 발송 시기와는 별개다(P-15).
@@ -73,7 +100,12 @@ async function main() {
     domain: string;
     owner: typeof jaewook;
     route: "new" | "alternate_contact" | "recontact" | "repeat_collaboration";
-    workStage: "company_review" | "recipient_selection" | "draft_review" | "ready_to_send" | "response_check";
+    workStage:
+      | "company_review"
+      | "recipient_selection"
+      | "draft_review"
+      | "ready_to_send"
+      | "response_check";
   }) {
     const company = await prisma.company.create({
       data: { name: input.name, product: input.product, domain: input.domain },
@@ -114,11 +146,20 @@ async function main() {
       data: { companyId: company.id, name: "김민수", title: "사업개발" },
     });
     const minsuEndpoint = await prisma.contactEndpoint.create({
-      data: { companyId: company.id, contactId: minsu.id, channel: "email", address: "minsu@company.example" },
+      data: {
+        companyId: company.id,
+        contactId: minsu.id,
+        channel: "email",
+        address: "minsu@company.example",
+      },
     });
     await prisma.outreach.update({
       where: { id: outreach.id },
-      data: { lastSentQuarterId: previousQuarter.id, recipientContactId: minsu.id, recipientEndpointId: minsuEndpoint.id },
+      data: {
+        lastSentQuarterId: previousQuarter.id,
+        recipientContactId: minsu.id,
+        recipientEndpointId: minsuEndpoint.id,
+      },
     });
     await prisma.sentMessage.create({
       data: {
@@ -147,17 +188,30 @@ async function main() {
       workStage: "draft_review",
     });
     await prisma.pastProject.create({
-      data: { companyId: company.id, title: "사용자 세분화 분석", summary: "데이터 제공과 커뮤니케이션 원활" },
+      data: {
+        companyId: company.id,
+        title: "사용자 세분화 분석",
+        summary: "데이터 제공과 커뮤니케이션 원활",
+      },
     });
     const seoyeon = await prisma.contact.create({
       data: { companyId: company.id, name: "박서연", title: "사업개발 리드" },
     });
     const seoyeonEndpoint = await prisma.contactEndpoint.create({
-      data: { companyId: company.id, contactId: seoyeon.id, channel: "email", address: "partner@company.example" },
+      data: {
+        companyId: company.id,
+        contactId: seoyeon.id,
+        channel: "email",
+        address: "partner@company.example",
+      },
     });
     await prisma.outreach.update({
       where: { id: outreach.id },
-      data: { recipientContactId: seoyeon.id, recipientEndpointId: seoyeonEndpoint.id, currentRevision: 1 },
+      data: {
+        recipientContactId: seoyeon.id,
+        recipientEndpointId: seoyeonEndpoint.id,
+        currentRevision: 1,
+      },
     });
     await prisma.messageDraftRevision.create({
       data: {
@@ -185,11 +239,20 @@ async function main() {
       data: { companyId: company.id, name: "김민수", title: "사업개발" },
     });
     const minsuEndpoint = await prisma.contactEndpoint.create({
-      data: { companyId: company.id, contactId: minsu.id, channel: "email", address: "minsu@company.example" },
+      data: {
+        companyId: company.id,
+        contactId: minsu.id,
+        channel: "email",
+        address: "minsu@company.example",
+      },
     });
     await prisma.outreach.update({
       where: { id: outreach.id },
-      data: { lastSentQuarterId: currentQuarter.id, recipientContactId: minsu.id, recipientEndpointId: minsuEndpoint.id },
+      data: {
+        lastSentQuarterId: currentQuarter.id,
+        recipientContactId: minsu.id,
+        recipientEndpointId: minsuEndpoint.id,
+      },
     });
     await prisma.sentMessage.create({
       data: {
@@ -221,7 +284,12 @@ async function main() {
       data: { companyId: company.id, name: "김민수", title: "사업개발" },
     });
     const minsuEndpoint = await prisma.contactEndpoint.create({
-      data: { companyId: company.id, contactId: minsu.id, channel: "email", address: "minsu@company.example" },
+      data: {
+        companyId: company.id,
+        contactId: minsu.id,
+        channel: "email",
+        address: "minsu@company.example",
+      },
     });
     const send = await prisma.sentMessage.create({
       data: {
@@ -281,7 +349,10 @@ async function main() {
       route: "new",
       workStage: "company_review",
     });
-    await prisma.company.update({ where: { id: company.id }, data: { isPrelaunchOnly: true } });
+    await prisma.company.update({
+      where: { id: company.id },
+      data: { isPrelaunchOnly: true },
+    });
     await prisma.prelaunchContact.create({
       data: {
         companyId: company.id,
@@ -299,19 +370,25 @@ async function main() {
       targetQuarterId: currentQuarter.id,
       conditionsSnapshot: {
         schemaVersion: LISTUP_EXECUTION_VERSION,
+        fitCriteria: getFitCriteriaSnapshot(),
         sources: [
-        { key: "Google", name: "Google", entryUrls: [], query: "신규 구독 서비스 출시 기업" },
-        { key: "뉴스레터", name: "뉴스레터", entryUrls: [], query: null },
+          {
+            key: "Google",
+            name: "Google",
+            entryUrls: [],
+            query: "신규 구독 서비스 출시 기업",
+          },
+          { key: "뉴스레터", name: "뉴스레터", entryUrls: [], query: null },
         ],
         filters: {
-        industries: [],
-        keywords: ["구독 서비스"],
-        regions: [],
-        companyStages: [],
-        excludedCompanyIds: [],
+          industries: [],
+          keywords: ["구독 서비스"],
+          regions: [],
+          companyStages: [],
+          excludedCompanyIds: [],
           additionalConditions: null,
         },
-        execution: listupExecution,
+        execution: createListupExecution(10),
       },
       status: "completed",
       duplicateExcludedCount: 2,
@@ -322,14 +399,27 @@ async function main() {
     },
   });
 
-  async function makeListupCompany(name: string, domain: string, aliases: string[]) {
+  async function makeListupCompany(
+    name: string,
+    domain: string,
+    aliases: string[],
+  ) {
     return prisma.company.create({
-      data: { name, aliases, canonicalDomain: domain, websiteUrl: `https://${domain}` },
+      data: {
+        name,
+        aliases,
+        canonicalDomain: domain,
+        websiteUrl: `https://${domain}`,
+      },
     });
   }
 
   // 1) 적합 + 창구 확보 — 시스템이 적합으로 판단했고 쓸 수 있는 이메일이 있다.
-  const fitCompany = await makeListupCompany("모닝루프", "morningloop.example", ["MorningLoop"]);
+  const fitCompany = await makeListupCompany(
+    "모닝루프",
+    "morningloop.example",
+    ["MorningLoop"],
+  );
   const fitEvidence = await prisma.evidence.create({
     data: {
       companyId: fitCompany.id,
@@ -384,7 +474,8 @@ async function main() {
           {
             area: "온보딩 개선",
             possibilityVerdict: "supported",
-            possibilityReason: "공개된 가입 흐름에서 단계별 이탈 지점을 확인할 수 있다.",
+            possibilityReason:
+              "공개된 가입 흐름에서 단계별 이탈 지점을 확인할 수 있다.",
             possibilityEvidenceIds: [fitEvidence.id],
             prerequisites: ["가입 퍼널 데이터 접근"],
             valueVerdict: "supported",
@@ -444,7 +535,11 @@ async function main() {
   });
 
   // 2) 판단 보류 — 공개 정보가 부족해서 결론을 내리지 못했다.
-  const pendingCompany = await makeListupCompany("폴드마켓", "foldmarket.example", []);
+  const pendingCompany = await makeListupCompany(
+    "폴드마켓",
+    "foldmarket.example",
+    [],
+  );
   const pendingEvidence = await prisma.evidence.create({
     data: {
       companyId: pendingCompany.id,
@@ -481,13 +576,24 @@ async function main() {
   });
   await prisma.candidate.update({
     where: { id: pendingCandidate.id },
-    data: { latestSystemAssessmentId: pendingAssessment.id, effectiveFit: "pending" },
+    data: {
+      latestSystemAssessmentId: pendingAssessment.id,
+      effectiveFit: "pending",
+    },
   });
 
   // 3) 시스템은 부적합, 사람이 적합으로 뒤집은 뒤 연락 조사가 도는 중 — searching 상태.
-  const overriddenCompany = await makeListupCompany("클리어노트", "clearnote.example", []);
+  const overriddenCompany = await makeListupCompany(
+    "클리어노트",
+    "clearnote.example",
+    [],
+  );
   const overriddenResearch = await prisma.companyResearch.create({
-    data: { companyId: overriddenCompany.id, originSearchRunId: searchRun.id, missingInformation: [] },
+    data: {
+      companyId: overriddenCompany.id,
+      originSearchRunId: searchRun.id,
+      missingInformation: [],
+    },
   });
   const overriddenCandidate = await prisma.candidate.create({
     data: {
@@ -554,9 +660,15 @@ async function main() {
     },
   });
 
-  console.log("시드 완료: 시드 회원 2명(upsert), targetQuarters=2, companies=11");
-  console.log("  리스트업: search_runs=1, candidates=3(적합·보류·사람변경), tasks=2");
-  console.log("  core.members의 다른 회원은 건드리지 않았습니다 — portal 소유 테이블입니다.");
+  console.log(
+    "시드 완료: 시드 회원 2명(upsert), targetQuarters=2, companies=11",
+  );
+  console.log(
+    "  리스트업: search_runs=1, candidates=3(적합·보류·사람변경), tasks=2",
+  );
+  console.log(
+    "  core.members의 다른 회원은 건드리지 않았습니다 — portal 소유 테이블입니다.",
+  );
 }
 
 main()
