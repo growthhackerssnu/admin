@@ -4,9 +4,9 @@
 
 대협봇(`/dh`, `apps/dh-backend`)·그핵드인(`/hr`, 준비 중)의 업무 로직과는 분리돼 있다. 이 앱은 "이 사람이 누구고, 로그인 후 어디로 보내야 하는지", "회원 명단·권한을 누가 관리하는지"만 안다.
 
-## apps/dh-backend와 DB를 공유하는 방식
+## apps/dh-backend·apps/hr-backend와 DB를 공유하는 방식
 
-같은 Supabase Postgres를 `apps/dh-backend`와 함께 쓴다. **마이그레이션은 이 앱이 만들지 않는다** — 물리 스키마(테이블 구조)의 단일 소스는 `apps/dh-backend/prisma`(마이그레이션 이력을 갖고 있음)이고, 이 앱의 `prisma/schema.prisma`는 그 위에 얹힌 또 하나의 클라이언트 뷰다(`members`, `people_directory`, `signup_requests`, `idempotency_keys`만 선언 — 대협봇 업무 테이블은 모른다). 테이블 구조를 바꿔야 하면 `apps/dh-backend`에서 마이그레이션을 만들고, 이 스키마도 같이 갱신해야 한다.
+같은 Supabase Postgres를 `apps/dh-backend`·`apps/hr-backend`와 함께 쓴다. **마이그레이션은 이 앱이 만들지 않는다** — 물리 스키마(테이블 구조)의 단일 소스는 `packages/db`(마이그레이션 이력을 갖고 있음)이고, 이 앱의 `prisma/schema.prisma`는 그 위에 얹힌 또 하나의 클라이언트 뷰다(`core.members`, `core.people_directory`, `core.signup_requests`, `core.idempotency_keys`만 선언 — dh/hr 업무 테이블은 모른다). 테이블 구조를 바꿔야 하면 `packages/db`에서 마이그레이션을 만들고, 이 스키마도 같이 갱신해야 한다. (2026-09-27 정정: 스키마 분리 리팩터 이전 정보가 남아있었음 — `docs/db/conventions.md` §7 참고.)
 
 `apps/dh-backend`도 `members` 테이블을 자기 스키마로 갖고 있다 — 자체 인증(`getAuthenticatedMember`)에 필요해서다. 두 앱의 `auth.ts`는 의도적으로 다르다: `apps/dh-backend`는 alumni를 완전히 막지만(그 백엔드는 `/dh` 전용), 이 앱은 **모든 role을 통과시킨다** — alumni도 로그인해서 `/me`로 자기 role을 알아야 `/hr`로 갈 수 있고, admin 화면 명단에도 나와야 하기 때문이다.
 

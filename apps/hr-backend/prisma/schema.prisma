@@ -62,6 +62,30 @@ model Member {
   createdAt      DateTime  @default(now()) @map("created_at")
   lastLoginAt    DateTime? @map("last_login_at")
 
+  // 이 사람이 가입할 때(기수+이름+OTP 인증) people_directory의 어느 항목을
+  // "내 것"이라고 인증했는지를 가리킨다. GET /api/v1/me가 notionPageId를
+  // 돌려줄 때 씀(ARCHITECTURE.md §12.2.1). 아래 주석에 적었듯 실제 저장되는
+  // 컬럼은 반대편(PeopleDirectory.claimedByMemberId)에만 있다.
+  claimedPersonEntry PeopleDirectory?
+
   @@map("members")
+  @@schema("core")
+}
+
+// 노션 People DB에서 가져온 "신뢰 이메일" 원장의 읽기 전용 사본. 물리 스키마
+// 원본은 packages/db/schema.prisma에 있고(전체 필드는 거기 참고), 이 앱은
+// GET /api/v1/me에서 notionPageId 하나만 읽으면 되므로 그 용도에 필요한
+// 필드만 그대로 옮겨 적었다(hr은 이 테이블에 쓰지 않는다 — docs/db/conventions.md §4).
+//
+// PeopleDirectory.signupRequests(SignupRequest[]) 관계는 일부러 안 옮겼다 —
+// hr-backend는 SignupRequest 모델 자체를 몰라도 되고(portal 전용), Prisma는
+// "이 스키마 파일 안에서" 관계가 완결되기만 하면 되므로 문제 없다.
+model PeopleDirectory {
+  id                String    @id @default(cuid())
+  notionPageId      String    @unique @map("notion_page_id")
+  claimedByMemberId String?   @unique @map("claimed_by_member_id")
+  claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
+
+  @@map("people_directory")
   @@schema("core")
 }
