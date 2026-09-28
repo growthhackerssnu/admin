@@ -15,6 +15,7 @@ import {
   Typography,
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
+import { HrNav } from "../components/HrNav";
 import { ApiClientError, getMe, getPeople, type Me, type PersonSummary } from "../lib/api";
 import {
   computeFacets,
@@ -120,6 +121,8 @@ export function Directory() {
           </div>
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
+
+        <HrNav />
 
         {myProfile && (
           <div className="section-gap">

@@ -5,6 +5,7 @@ import koKR from "antd/locale/ko_KR";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Directory } from "./pages/Directory";
 import { ProfileDetail } from "./pages/ProfileDetail";
+import { MyRequests } from "./pages/MyRequests";
 import { installTokens, theme } from "@dhbot/ui-shell";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
@@ -21,6 +22,7 @@ function Root() {
           <Routes>
             <Route path="/" element={<Directory />} />
             <Route path="/people/:notionPageId" element={<ProfileDetail />} />
+            <Route path="/requests" element={<MyRequests />} />
           </Routes>
         </BrowserRouter>
       </AntApp>
