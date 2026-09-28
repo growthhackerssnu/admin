@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { App as AntApp, ConfigProvider } from "antd";
 import koKR from "antd/locale/ko_KR";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Home } from "./pages/Home";
+import { Directory } from "./pages/Directory";
 import { installTokens, theme } from "@dhbot/ui-shell";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
@@ -18,7 +18,7 @@ function Root() {
       <AntApp>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Directory />} />
           </Routes>
         </BrowserRouter>
       </AntApp>

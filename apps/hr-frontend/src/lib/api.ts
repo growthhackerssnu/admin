@@ -51,3 +51,23 @@ export interface Me {
 export function getMe(token: string) {
   return request<Me>("/api/v1/me", { token });
 }
+
+// --- 디렉토리 목록 (ARCHITECTURE.md §12.2) ---
+
+export interface PersonSummary {
+  notionPageId: string;
+  name: string;
+  cohort: number;
+  department: string[];
+  jobField: string | null;
+  team: string[];
+  position: string | null;
+  currentCareerOneLine: string | null;
+  linkedin: string | null;
+  profileImageUrl: string | null;
+}
+
+export async function getPeople(token: string): Promise<PersonSummary[]> {
+  const { people } = await request<{ people: PersonSummary[] }>("/api/v1/people", { token });
+  return people;
+}
