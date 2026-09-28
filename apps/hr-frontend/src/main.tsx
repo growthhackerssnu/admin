@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Directory } from "./pages/Directory";
 import { ProfileDetail } from "./pages/ProfileDetail";
 import { MyRequests } from "./pages/MyRequests";
+import { AdminQueue } from "./pages/AdminQueue";
 import { installTokens, theme } from "@dhbot/ui-shell";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
@@ -23,6 +24,7 @@ function Root() {
             <Route path="/" element={<Directory />} />
             <Route path="/people/:notionPageId" element={<ProfileDetail />} />
             <Route path="/requests" element={<MyRequests />} />
+            <Route path="/admin" element={<AdminQueue />} />
           </Routes>
         </BrowserRouter>
       </AntApp>

@@ -122,7 +122,7 @@ export function Directory() {
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
 
-        <HrNav />
+        <HrNav role={me.role} />
 
         {myProfile && (
           <div className="section-gap">

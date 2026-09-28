@@ -135,6 +135,34 @@ export async function getMyEditRequests(token: string): Promise<EditRequest[]> {
   return requests;
 }
 
+// --- 승인 큐 (ARCHITECTURE.md §12.4, admin 전용) ---
+
+export interface AdminEditRequest extends EditRequest {
+  requesterName: string;
+  requesterCohort: string | null;
+}
+
+export async function getAdminEditRequests(token: string): Promise<AdminEditRequest[]> {
+  const { requests } = await request<{ requests: AdminEditRequest[] }>("/api/v1/admin/edit-requests", { token });
+  return requests;
+}
+
+export function approveEditRequest(id: string, reviewNote: string | undefined, token: string) {
+  return request<EditRequest>(`/api/v1/admin/edit-requests/${id}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ reviewNote }),
+    token,
+  });
+}
+
+export function rejectEditRequest(id: string, reviewNote: string, token: string) {
+  return request<EditRequest>(`/api/v1/admin/edit-requests/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reviewNote }),
+    token,
+  });
+}
+
 // --- 수정 폼 드롭다운 옵션 (Notion 실제 select 값 그대로) ---
 
 export interface FieldOptions {

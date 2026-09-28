@@ -119,3 +119,19 @@ export async function getMyEditRequests(member: Member) {
     orderBy: { submittedAt: "desc" },
   });
 }
+
+// 승인 큐(§12.4)용 전체 목록. 요청자 이름·기수는 Notion을 다시 안 부르고
+// core.people_directory에서 바로 가져온다(가입 시 이미 동기화돼 있는 값,
+// Member.claimedPersonEntry 관계) — 목록 화면에서 Notion 호출까지 필요 없다.
+export async function getAllEditRequests() {
+  const rows = await prisma.editRequest.findMany({
+    orderBy: { submittedAt: "desc" },
+    include: { requester: { include: { claimedPersonEntry: true } } },
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    requesterName: row.requester.claimedPersonEntry?.name ?? row.requester.displayName,
+    requesterCohort: row.requester.claimedPersonEntry?.cohort ?? null,
+  }));
+}

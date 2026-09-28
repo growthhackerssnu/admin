@@ -78,7 +78,7 @@ export function MyRequests() {
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
 
-        <HrNav />
+        <HrNav role={me.role} />
 
         {requests.length === 0 ? (
           <Empty description="제출한 수정 요청이 없습니다" style={{ marginTop: 48 }} />
