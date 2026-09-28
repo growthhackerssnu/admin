@@ -1346,6 +1346,11 @@ model EditRequest {
   reviewedAt         DateTime?         @map("reviewed_at")
   reviewNote         String?           @map("review_note")
 
+  // 같은 notionPageId로 pending 행이 동시에 2개 이상 생기면 안 된다(재수정은
+  // 새 행이 아니라 기존 pending 행을 덮어쓰는 방식, ARCHITECTURE.md §12.3.1) —
+  // Prisma 문법으로 표현할 수 없어서(부분 유니크 인덱스) 마이그레이션에 직접
+  // 쓴다(members_ops_role_singleton_key와 같은 패턴). 여기 없다고 없는 게
+  // 아니라 migrations/에서 찾아야 한다.
   @@index([status, submittedAt(sort: Desc)])
   @@map("edit_requests")
   @@schema("hr")
