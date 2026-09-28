@@ -1,0 +1,81 @@
+/* 디렉토리(/hr) 전용 레이아웃. 데스크톱 전용 고정 레이아웃이다 — 모바일
+   반응형은 후속 과제(ARCHITECTURE.md §12.2). */
+
+.directory-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-xl);
+  align-items: start;
+}
+
+.directory-facets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  position: sticky;
+  top: var(--space-lg);
+  /* 패싯 목록(특히 소속팀)이 메인 그리드보다 아래에 있으면, 페이지 전체
+     스크롤에 묶여서 271명을 다 지나야 보이는 문제가 있었다(2026-09-28,
+     실제 확인) — 이 패널만 독립적으로 스크롤되게 분리한다. */
+  max-height: calc(100vh - var(--space-lg) * 2);
+  overflow-y: auto;
+}
+
+.facet-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.facet-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.directory-search {
+  margin-bottom: var(--space-lg);
+  max-width: 360px;
+}
+
+.person-card-link {
+  display: block;
+  color: inherit;
+}
+
+.person-card {
+  height: 100%;
+}
+
+.person-card-highlight {
+  border-color: var(--color-primary);
+}
+
+.person-card-body {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+}
+
+.person-card-info {
+  min-width: 0;
+}
+
+.person-card-name {
+  font-weight: 650;
+}
+
+.person-card-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.person-card-career {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: var(--space-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

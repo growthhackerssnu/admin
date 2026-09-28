@@ -1,0 +1,11 @@
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.profile-section-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  margin: 0;
+}

@@ -105,6 +105,11 @@ model Member {
 model PeopleDirectory {
   id                String    @id @default(cuid())
   notionPageId      String    @unique @map("notion_page_id")
+  // 승인 큐(§12.4) 목록의 "요청자 이름/기수" 컬럼용 — Notion을 다시 안
+  // 부르려고 트림에 추가(2026-09-28). 원본은 packages/db/schema.prisma에
+  // 이미 있던 필드, 마이그레이션 불필요(같은 물리 테이블).
+  cohort            String
+  name              String
   claimedByMemberId String?   @unique @map("claimed_by_member_id")
   claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
 
