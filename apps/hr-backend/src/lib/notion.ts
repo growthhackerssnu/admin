@@ -51,6 +51,15 @@ export function extractPropertyText(property: unknown): string | null {
   }
 }
 
+// 블록(본문) 안의 rich_text 배열에서 텍스트만 이어붙인다. extractPropertyText의
+// title/rich_text 케이스와 비슷해 보이지만, 이건 "속성 객체"가 아니라 블록
+// 안에 바로 들어있는 rich_text 배열을 받는다는 점이 다르다(예: 문단·목록
+// 블록의 본문).
+export function richTextToPlain(richText: unknown): string {
+  const arr = richText as Array<{ plain_text?: string }> | undefined;
+  return arr?.map((t) => t.plain_text ?? "").join("") ?? "";
+}
+
 // multi_select처럼 "값이 여러 개"인 속성에서 이름 배열만 뽑는다(학과/소속팀).
 // 값이 없으면 빈 배열 — null이 아니다(DB_SCHEMA_HR.md §2.1, 필터의 "값 없음"
 // 옵션은 이 빈 배열을 기준으로 판단한다).
