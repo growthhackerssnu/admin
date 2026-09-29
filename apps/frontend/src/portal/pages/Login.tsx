@@ -190,7 +190,7 @@ export function Login() {
     <div className="auth-page">
       <div className="auth-card">
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          그로스해커스 어드민
+          GH 어드민
         </Typography.Title>
         <Typography.Text type="secondary">GROWTHHACKERS</Typography.Text>
 
