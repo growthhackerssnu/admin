@@ -69,7 +69,21 @@ export const POST = withPublicApiHandler(async (req, { requestId }) => {
     },
   });
 
-  await sendOtpEmail({ to: person.knownEmail, name: person.name, otp, desiredEmail });
+  try {
+    await sendOtpEmail({ to: person.knownEmail, name: person.name, otp, desiredEmail });
+  } catch (error) {
+    // 메일이 안 나갔으면 이 요청은 쓸 수 없다. 만료 처리해야 재시도가 쿨다운에 막히지 않는다.
+    await prisma.signupRequest.update({
+      where: { id: signupRequest.id },
+      data: { status: "expired" },
+    });
+    console.error(`[${requestId}]`, error);
+    throw new ApiError(
+      "INTERNAL_ERROR",
+      "인증 메일을 보내지 못했습니다. 잠시 후 다시 시도하거나 운영진에게 문의하세요.",
+      { retryable: true },
+    );
+  }
 
   return {
     status: 201,
