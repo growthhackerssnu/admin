@@ -10,6 +10,15 @@ import { ApiError } from "./errors";
 // hr(그핵드인)은 alumni가 주 사용자이므로 role을 막지 않는다(deny 없음).
 // alumni에게 보기 전용으로 제한할지 같은 세부 권한은 아직 정해지지 않았다 —
 // 정해지면 여기에 deny를 넣거나, 라우트에서 member.role을 보고 나눈다.
+// 승인 큐 권한은 §8에서 admin만으로 확정됐다(acting도 안 됨) — 인증 계층의
+// deny 목록이 아니라 라우트 안에서 개별적으로 체크한다(hr은 role 자체를
+// 막지 않으므로).
+export function requireAdmin(member: Member): void {
+  if (member.role !== "admin") {
+    throw new ApiError("FORBIDDEN", "관리자만 접근할 수 있습니다.");
+  }
+}
+
 export const getAuthenticatedMember = createGetAuthenticatedMember<Member>({
   findByEmail: (email) => prisma.member.findUnique({ where: { email } }),
   markLogin: (id, supabaseUserId) =>

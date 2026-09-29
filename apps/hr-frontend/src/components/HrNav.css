@@ -1,0 +1,24 @@
+.hr-nav {
+  display: flex;
+  gap: var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-lg);
+}
+
+.hr-nav-item {
+  display: inline-block;
+  padding: var(--space-sm) 0;
+  color: var(--color-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.hr-nav-item:hover {
+  color: var(--color-text);
+}
+
+.hr-nav-item-current {
+  color: var(--color-text);
+  font-weight: 650;
+  border-bottom-color: var(--color-primary);
+}
