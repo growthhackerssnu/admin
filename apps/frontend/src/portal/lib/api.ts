@@ -21,21 +21,32 @@ async function request<T>(
   options: RequestInit & { token?: string } = {},
 ): Promise<T> {
   const { token, headers, ...rest } = options;
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...rest,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+    });
+  } catch {
+    throw new ApiClientError(
+      "NETWORK",
+      "서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.",
+      { retryable: true },
+    );
+  }
   const json = await res.json().catch(() => null);
   if (!res.ok) {
     const err = json?.error;
+    // 우리 API의 에러 봉투가 아니면(호스팅 오류 페이지 등) 서버 자체에 닿지 못한 것이다.
     throw new ApiClientError(
-      err?.code ?? "UNKNOWN",
-      err?.message ?? "알 수 없는 오류가 발생했습니다.",
-      { fieldErrors: err?.fieldErrors, retryable: err?.retryable },
+      err?.code ?? "UNREACHABLE",
+      err?.message ??
+        `서버에 연결하지 못했습니다(HTTP ${res.status}). 관리자에게 문의하세요.`,
+      { fieldErrors: err?.fieldErrors, retryable: err?.retryable ?? true },
     );
   }
   return json.data as T;

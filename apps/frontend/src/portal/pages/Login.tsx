@@ -61,10 +61,13 @@ export function Login() {
         navigate(me.role === "alumni" ? me.redirectPath : "/index", {
           replace: true,
         });
-      } catch {
+      } catch (e) {
         setRedirecting(false);
+        // 명단에 없음(403)·서버 연결 실패 등 실제 이유를 보여준다.
         void message.error(
-          "계정 정보를 확인하지 못했습니다. 관리자에게 문의하세요.",
+          e instanceof ApiClientError
+            ? e.message
+            : "계정 정보를 확인하지 못했습니다. 관리자에게 문의하세요.",
         );
         await signOut();
       }
@@ -187,7 +190,7 @@ export function Login() {
     <div className="auth-page">
       <div className="auth-card">
         <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          대협 어드민
+          그로스해커스 어드민
         </Typography.Title>
         <Typography.Text type="secondary">GROWTHHACKERS</Typography.Text>
 
