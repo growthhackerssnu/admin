@@ -91,7 +91,13 @@ export interface SentRecord {
   at: string;
 }
 
+export type ContactStage =
+  | "recipient_selection"
+  | "draft_review"
+  | "ready_to_send";
+
 export interface ContactTask {
+  workStage?: ContactStage;
   companyId: string;
   quarter: string;
   batchId: string;
@@ -221,4 +227,33 @@ export function resolvedBody(task: ContactTask, company: Company) {
   return task.body
     .replaceAll("{{수신자명}}", person?.name || "{{수신자명}}")
     .replaceAll("{{수신자직함}}", person?.role || "{{수신자직함}}");
+}
+
+// Legacy preview drafts are unapproved. Never infer approval from message text.
+export function contactStage(task: ContactTask): ContactStage | null {
+  return task.workStage ?? (task.body.trim() ? "draft_review" : null);
+}
+export function canGenerateDraft(task: ContactTask, company: Company) {
+  const person = company.people.find((item) => item.id === task.personId);
+  return (
+    !task.sent &&
+    !task.noContact &&
+    contactStage(task) === "recipient_selection" &&
+    !!person &&
+    !!task.channel &&
+    !!(task.channel === "email" ? person.email : person.linkedin)
+  );
+}
+export function invalidateDraftApproval(
+  task: ContactTask,
+  patch: Partial<ContactTask>,
+): ContactTask {
+  const next = { ...task, ...patch };
+  if (task.sent) return task;
+  if (patch.personId !== undefined || patch.channel !== undefined) {
+    next.workStage = "recipient_selection";
+  } else if (patch.subject !== undefined || patch.body !== undefined) {
+    next.workStage = "draft_review";
+  }
+  return next;
 }

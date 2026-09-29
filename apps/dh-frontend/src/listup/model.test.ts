@@ -6,6 +6,9 @@ import {
 } from "./fixtures";
 import {
   draftFor,
+  contactStage,
+  canGenerateDraft,
+  invalidateDraftApproval,
   eligibleForBulkEmail,
   hasContactOption,
   prepareCandidateTasks,
@@ -202,5 +205,79 @@ describe("신규 기업 탐색과 컨택 경계", () => {
     expect(migrated.companies[0].fitChanges).toEqual([
       { fit: "fit", by: null, at: null },
     ]);
+  });
+});
+
+describe("백엔드 메시지 단계와 승인", () => {
+  const company = {
+    ...sampleCompanies[0],
+    fit: "fit" as const,
+    people: [
+      { id: "person", name: "수신자", role: "팀장", email: "test@example.com" },
+    ],
+  };
+  const task: ContactTask = {
+    companyId: company.id,
+    quarter: "2026-Q4",
+    batchId: "batch",
+    status: "pending",
+    subject: "",
+    body: "",
+    personId: null,
+    channel: null,
+    sent: null,
+    needsResearch: false,
+  };
+  it("컨택 시작·수신자·사용 가능한 채널을 모두 선택하기 전에는 생성하지 않는다", () => {
+    expect(contactStage(task)).toBeNull();
+    expect(canGenerateDraft(task, company)).toBe(false);
+    const selected = {
+      ...task,
+      workStage: "recipient_selection" as const,
+      personId: "person",
+      channel: "email" as const,
+    };
+    expect(canGenerateDraft(selected, company)).toBe(true);
+    expect(
+      canGenerateDraft({ ...selected, channel: "linkedin" }, company),
+    ).toBe(false);
+    expect(canGenerateDraft({ ...selected, noContact: true }, company)).toBe(
+      false,
+    );
+    expect(
+      canGenerateDraft({ ...selected, workStage: "ready_to_send" }, company),
+    ).toBe(false);
+  });
+  it("본문 수정과 수신자 변경은 발송 준비 승인을 해제한다", () => {
+    const approved = {
+      ...task,
+      body: "초안",
+      workStage: "ready_to_send" as const,
+    };
+    expect(invalidateDraftApproval(approved, { body: "수정" }).workStage).toBe(
+      "draft_review",
+    );
+    expect(
+      invalidateDraftApproval(approved, { personId: "person" }).workStage,
+    ).toBe("recipient_selection");
+    expect(
+      invalidateDraftApproval(approved, { channel: "email" }).workStage,
+    ).toBe("recipient_selection");
+    expect(contactStage({ ...task, body: "이전 샘플 초안" })).toBe(
+      "draft_review",
+    );
+  });
+  it("이미 발송한 기록은 초안 수정으로 바뀌지 않는다", () => {
+    const sent = {
+      ...task,
+      sent: {
+        channel: "email" as const,
+        recipient: "수신자",
+        subject: "제목",
+        body: "발송 원문",
+        at: "2026-09-28T00:00:00Z",
+      },
+    };
+    expect(invalidateDraftApproval(sent, { body: "수정" })).toEqual(sent);
   });
 });

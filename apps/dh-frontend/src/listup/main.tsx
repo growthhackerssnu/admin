@@ -1,3 +1,4 @@
+import { LiveRoot } from "./LiveRoot";
 import { changeMessageQuarter } from "./messageTemplate";
 import React, { useState } from "react";
 import ReactDOM from "react-dom/client";
@@ -10,6 +11,7 @@ import {
 import type { Company, ContactTask, Fit, ListupState, Person } from "./model";
 import {
   canManageCompany,
+  invalidateDraftApproval,
   prepareCandidateTasks,
   previewUsers,
   reviewFit,
@@ -140,7 +142,7 @@ function Root() {
     save({
       ...state,
       tasks: state.tasks.map((task) =>
-        task.companyId === id ? { ...task, ...patch } : task,
+        task.companyId === id ? invalidateDraftApproval(task, patch) : task,
       ),
     });
   }
@@ -164,6 +166,7 @@ function Root() {
           ? {
               ...task,
               quarter,
+              workStage: task.body.trim() ? "draft_review" : task.workStage,
               subject: changeMessageQuarter(
                 task.subject,
                 task.quarter,
@@ -304,6 +307,11 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <Root />
+    {new URLSearchParams(window.location.search).get("preview") === "1" ||
+    selectionPreview ? (
+      <Root />
+    ) : (
+      <LiveRoot />
+    )}
   </React.StrictMode>,
 );

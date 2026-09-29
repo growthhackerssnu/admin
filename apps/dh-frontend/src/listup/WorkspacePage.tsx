@@ -11,6 +11,8 @@ import type {
 } from "./model";
 import {
   draftFor,
+  contactStage,
+  canGenerateDraft,
   fitLabel,
   formatActivityTime,
   hasContactOption,
@@ -140,7 +142,8 @@ function SearchDialog({
           <small>로그인 연결 전 시연용 계정입니다.</small>
         </div>
         <label className="lu-field">
-          관심 기업 조건 <span className="lu-muted">(선택)</span>
+          검색어 / 관심 기업 조건{" "}
+          <span className="lu-muted">(Google 선택 시 필수)</span>
           <input
             value={condition}
             onChange={(event) => setCondition(event.target.value)}
@@ -154,10 +157,11 @@ function SearchDialog({
               <label key={source}>
                 <input
                   type="checkbox"
+                  disabled={source === "혁신의 숲"}
                   checked={sources.includes(source)}
                   onChange={() => toggleSource(source)}
                 />{" "}
-                {source}
+                {source === "혁신의 숲" ? "혁신의 숲 (준비 중)" : source}
               </label>
             ))}
           </div>
@@ -167,7 +171,7 @@ function SearchDialog({
           <input
             type="number"
             min="1"
-            max="300"
+            max="30"
             value={researchLimit}
             onChange={(event) => setResearchLimit(Number(event.target.value))}
           />
@@ -183,7 +187,9 @@ function SearchDialog({
             disabled={
               !sources.length ||
               researchLimit < 1 ||
-              researchLimit > 300 ||
+              researchLimit > 30 ||
+              !Number.isInteger(researchLimit) ||
+              (sources.includes("Google") && !condition.trim()) ||
               year < 2026 ||
               year > 2100
             }
@@ -284,27 +290,36 @@ function CandidateTable({
                       ? "전송 완료"
                       : task.noContact
                         ? "이번 탐색에서 연락하지 않음"
-                        : !task.body.trim()
-                          ? "메시지 생성 전"
-                          : task.channel
-                            ? `${task.channel === "email" ? "이메일" : "LinkedIn"} 선택`
-                            : "수신자 선택 전"}
+                        : contactStage(task) === "ready_to_send"
+                          ? "발송 준비 완료"
+                          : contactStage(task) === "draft_review"
+                            ? "초안 승인 전"
+                            : contactStage(task) === "recipient_selection"
+                              ? "수신자 · 채널 선택"
+                              : hasContactOption(company)
+                                ? "컨택 시작 전"
+                                : "조사 예외"}
                   </td>
                   <td className="lu-ws-message-cell">
                     <button
                       type="button"
+                      title={
+                        !contactStage(task) && !hasContactOption(company)
+                          ? "적합 판정과 사용 가능한 연락처가 필요합니다."
+                          : undefined
+                      }
                       disabled={
                         (!task.sent && !!task.noContact) ||
                         (!task.sent &&
-                          !task.body.trim() &&
-                          !canEdit(company.id))
+                          !contactStage(task) &&
+                          (!canEdit(company.id) || !hasContactOption(company)))
                       }
-                      aria-label={`${company.name} ${task.sent || task.body.trim() ? "메시지 열기" : "메시지 생성"}`}
+                      aria-label={`${company.name} ${task.sent || contactStage(task) ? "메시지 열기" : "컨택 시작"}`}
                       onClick={() => onMessage(task)}
                     >
-                      {task.sent || task.body.trim()
+                      {task.sent || contactStage(task)
                         ? "메시지 열기"
-                        : "메시지 생성"}
+                        : "컨택 시작"}
                     </button>
                   </td>
                 </tr>
@@ -388,7 +403,6 @@ export function WorkspacePage({
       if (id) setDetailId(id);
       setMessagePage(!!id);
       setEditing(false);
-      setRegenOpen(false);
       setMessageExpanded(true);
     };
     window.addEventListener("hashchange", syncPage);
@@ -402,10 +416,18 @@ export function WorkspacePage({
     setDetailId(id);
     setMessagePage(true);
     setEditing(false);
-    setRegenOpen(false);
     openedFromList.current = true;
     setMessageExpanded(true);
     window.location.hash = `message=${encodeURIComponent(id)}`;
+  }
+  function startContact(task: ContactTask) {
+    const company = state.companies.find((item) => item.id === task.companyId);
+    if (!company || (!task.sent && task.noContact)) return;
+    if (!contactStage(task) && !task.sent) {
+      if (!canEdit(task.companyId) || !hasContactOption(company)) return;
+      updateTask(task.companyId, { workStage: "recipient_selection" });
+    }
+    openMessage(task.companyId);
   }
   function backToResults() {
     if (openedFromList.current) window.history.back();
@@ -416,8 +438,6 @@ export function WorkspacePage({
   const [editSubject, setEditSubject] = useState("");
   const [editBody, setEditBody] = useState("");
   const [messageExpanded, setMessageExpanded] = useState(true);
-  const [regenOpen, setRegenOpen] = useState(false);
-  const [regenPrompt, setRegenPrompt] = useState("");
   const [newPersonOpen, setNewPersonOpen] = useState(false);
   const [newPerson, setNewPerson] = useState({
     name: "",
@@ -516,7 +536,6 @@ export function WorkspacePage({
     if (detailScroll) detailScroll.scrollTop = 0;
     setEditing(false);
     setMessageExpanded(false);
-    setRegenOpen(false);
     setNewPersonOpen(false);
     setMoveQuarter(
       state.tasks.find((item) => item.companyId === id)?.quarter ??
@@ -620,6 +639,7 @@ export function WorkspacePage({
         task.needsResearch ||
         !hasContactOption(company) ||
         task.status !== "ready" ||
+        contactStage(task) !== "ready_to_send" ||
         task.channel !== channel ||
         !task.subject.trim() ||
         !task.body.trim() ||
@@ -663,6 +683,7 @@ export function WorkspacePage({
     !!activeTask &&
     !!activePerson &&
     activeTask.status === "ready" &&
+    contactStage(activeTask) === "ready_to_send" &&
     !activeTask.needsResearch &&
     !activeTask.sent &&
     !activeTask.noContact &&
@@ -798,18 +819,7 @@ export function WorkspacePage({
                   activeId={detailId}
                   onOpen={openDetail}
                   canEdit={canEdit}
-                  onMessage={(task) => {
-                    if (task.noContact && !task.sent) return;
-                    if (!task.sent && !task.body.trim()) {
-                      if (!canEdit(task.companyId)) return;
-                      const company = companyById.get(task.companyId)!;
-                      updateTask(task.companyId, {
-                        ...draftFor(company, task.quarter),
-                        status: "ready",
-                      });
-                    }
-                    openMessage(task.companyId);
-                  }}
+                  onMessage={startContact}
                   label="현재 기업 목록"
                 />
               ) : (
@@ -882,20 +892,7 @@ export function WorkspacePage({
                                 activeId={detailId}
                                 onOpen={openDetail}
                                 canEdit={canEdit}
-                                onMessage={(task) => {
-                                  if (task.noContact && !task.sent) return;
-                                  if (!task.sent && !task.body.trim()) {
-                                    if (!canEdit(task.companyId)) return;
-                                    const company = companyById.get(
-                                      task.companyId,
-                                    )!;
-                                    updateTask(task.companyId, {
-                                      ...draftFor(company, task.quarter),
-                                      status: "ready",
-                                    });
-                                  }
-                                  openMessage(task.companyId);
-                                }}
+                                onMessage={startContact}
                                 label={`${batch.condition || "조건 없이 탐색"} 후보`}
                               />
                               <div className="lu-ws-exception-line">
@@ -1264,9 +1261,15 @@ export function WorkspacePage({
                                 ? "발송 완료"
                                 : activeTask.noContact
                                   ? "연락하지 않음"
-                                  : activeTask.body.trim()
-                                    ? "메시지 준비됨"
-                                    : "메시지 생성 전"}
+                                  : contactStage(activeTask) === "ready_to_send"
+                                    ? "발송 준비 완료"
+                                    : contactStage(activeTask) ===
+                                        "draft_review"
+                                      ? "초안 승인 전"
+                                      : contactStage(activeTask) ===
+                                          "recipient_selection"
+                                        ? "수신자 · 채널 선택"
+                                        : "컨택 시작 전"}
                             </span>
                           </div>
                           <p>
@@ -1274,41 +1277,33 @@ export function WorkspacePage({
                               ? "이번 탐색에서 연락하지 않도록 표시했어요."
                               : activeTask.sent
                                 ? "전송한 메시지와 발송 기록을 확인할 수 있어요."
-                                : "메시지 페이지에서 내용을 수정하고 수신자와 채널을 선택하세요."}
+                                : "메시지 페이지에서 수신자와 채널을 먼저 선택하고 초안을 생성하세요."}
                           </p>
                           <div className="lu-panel-action-buttons">
-                            {activeTask.sent ||
-                            (!activeTask.noContact &&
-                              activeTask.body.trim()) ? (
+                            {(activeTask.sent ||
+                              contactStage(activeTask) ||
+                              (canEditActive &&
+                                hasContactOption(activeCompany))) && (
                               <button
                                 className="lu-primary"
-                                onClick={() => openMessage()}
+                                onClick={() => startContact(activeTask)}
+                                disabled={
+                                  !!activeTask.noContact && !activeTask.sent
+                                }
                               >
-                                {activeTask.sent
-                                  ? "전송한 메시지 열기"
-                                  : "메시지 열기"}
-                                <span aria-hidden="true"> →</span>
+                                {activeTask.sent || contactStage(activeTask)
+                                  ? "메시지 열기"
+                                  : "컨택 시작"}{" "}
+                                →
                               </button>
-                            ) : !activeTask.noContact && canEditActive ? (
-                              <button
-                                className="lu-primary"
-                                onClick={() => {
-                                  updateTask(activeCompany.id, {
-                                    ...draftFor(
-                                      activeCompany,
-                                      activeTask.quarter,
-                                    ),
-                                    status: "ready",
-                                  });
-                                  openMessage();
-                                  notify(
-                                    "공통 템플릿으로 초안을 만들었어요. 조사 기반 제안은 예시 문구입니다.",
-                                  );
-                                }}
-                              >
-                                메시지 생성<span aria-hidden="true"> →</span>
-                              </button>
-                            ) : null}
+                            )}
+                            {!contactStage(activeTask) &&
+                              !hasContactOption(activeCompany) && (
+                                <p className="lu-ws-meta">
+                                  적합 판정과 사용 가능한 연락처가 있어야 컨택을
+                                  시작할 수 있어요.
+                                </p>
+                              )}
                             {canEditActive && !activeTask.sent && (
                               <button
                                 onClick={() => {
@@ -1316,7 +1311,6 @@ export function WorkspacePage({
                                     noContact: !activeTask.noContact,
                                   });
                                   setEditing(false);
-                                  setRegenOpen(false);
                                 }}
                               >
                                 {activeTask.noContact
@@ -1395,7 +1389,7 @@ export function WorkspacePage({
               {activeCompany?.name ?? "대상 없음"} · 메시지
             </h1>
             <p className="lu-muted">
-              메시지를 확인하고 수신자와 채널을 정해 연락하세요.
+              수신자·채널 선택 → 메시지 생성 → 초안 승인 순으로 준비하세요.
             </p>
           </header>
           {activeCompany && activeTask ? (
@@ -1444,8 +1438,8 @@ export function WorkspacePage({
                 )}
                 {!activeTask.body.trim() && !activeTask.sent && (
                   <p>
-                    아직 생성한 메시지가 없습니다. 조사 결과에서 메시지를
-                    생성하세요.
+                    아직 생성한 메시지가 없습니다. 오른쪽에서 수신자와 채널을
+                    선택한 뒤 메시지 생성 버튼을 눌러주세요.
                   </p>
                 )}
                 {activeTask.sent && (
@@ -1459,11 +1453,31 @@ export function WorkspacePage({
               </section>
               <div className="lu-message-sidebar">
                 <section className="lu-surface lu-message-tools">
-                  <h2>메시지 편집</h2>
+                  <h2>메시지 준비</h2>
+                  {!contactStage(activeTask) && !activeTask.sent && (
+                    <>
+                      <p className="lu-ws-meta">
+                        적합 판정과 사용 가능한 연락처가 있는 대상만 컨택을
+                        시작할 수 있어요.
+                      </p>
+                      <button
+                        className="lu-primary"
+                        disabled={
+                          !canEditActive ||
+                          !!activeTask.noContact ||
+                          !hasContactOption(activeCompany)
+                        }
+                        onClick={() => startContact(activeTask)}
+                      >
+                        컨택 시작
+                      </button>
+                    </>
+                  )}
                   {canEditActive &&
                   !activeTask.sent &&
                   !activeTask.noContact &&
-                  activeTask.body.trim() ? (
+                  activeTask.body.trim() &&
+                  contactStage(activeTask) !== "recipient_selection" ? (
                     <>
                       <div className="lu-message-tool-buttons">
                         {editing ? (
@@ -1492,63 +1506,96 @@ export function WorkspacePage({
                                 setEditSubject(activeTask.subject);
                                 setEditBody(activeTask.body);
                                 setEditing(true);
-                                setRegenOpen(false);
                                 setMessageExpanded(true);
                               }}
                             >
                               수정
                             </button>
                             <button
-                              onClick={() => setRegenOpen((open) => !open)}
+                              onClick={() => {
+                                updateTask(activeCompany.id, {
+                                  workStage: "recipient_selection",
+                                });
+                              }}
                             >
-                              다시 생성
+                              수신자 변경 · 재생성
                             </button>
                           </>
                         )}
                       </div>
-                      {regenOpen && !editing && (
-                        <div className="lu-regen">
-                          <label htmlFor="lu-ws-regen-prompt">
-                            다시 생성할 때 반영할 요청
-                          </label>
-                          <textarea
-                            id="lu-ws-regen-prompt"
-                            value={regenPrompt}
-                            onChange={(event) =>
-                              setRegenPrompt(event.target.value)
-                            }
-                            placeholder="예: 제안을 더 간결하게 써줘"
-                          />
+                      {!editing &&
+                        contactStage(activeTask) === "draft_review" && (
                           <button
                             className="lu-primary"
-                            disabled={!regenPrompt.trim()}
-                            onClick={() => {
-                              const draft = draftFor(
-                                activeCompany,
-                                activeTask.quarter,
-                              );
+                            onClick={() =>
                               updateTask(activeCompany.id, {
-                                ...draft,
-                                body: `${draft.body}\n\n추가 요청: ${regenPrompt.trim()}`,
-                              });
-                              setRegenPrompt("");
-                              setRegenOpen(false);
-                              setMessageExpanded(true);
-                              notify(
-                                "예시 초안을 다시 만들었어요. 생성 API는 연결되지 않았습니다.",
-                              );
-                            }}
+                                workStage: "ready_to_send",
+                              })
+                            }
                           >
-                            요청 반영해 다시 생성
+                            초안 승인
                           </button>
-                        </div>
+                        )}
+                      {contactStage(activeTask) === "ready_to_send" && (
+                        <p role="status">승인 완료 · 발송 준비됨</p>
                       )}
                     </>
                   ) : (
                     <p className="lu-ws-meta">
-                      현재 메시지는 조회만 가능합니다.
+                      {canEditActive &&
+                      !activeTask.sent &&
+                      !activeTask.noContact
+                        ? "메시지 생성 후 내용을 수정하고 승인할 수 있어요."
+                        : "현재 메시지는 조회만 가능합니다."}
                     </p>
                   )}
+                  {canEditActive &&
+                    !activeTask.sent &&
+                    !activeTask.noContact &&
+                    contactStage(activeTask) === "recipient_selection" && (
+                      <>
+                        <p className="lu-ws-meta">
+                          수신자와 채널을 선택한 뒤 생성하세요. 기존 초안이
+                          있으면 새 초안으로 바뀝니다.
+                        </p>
+                        <button
+                          className="lu-primary"
+                          disabled={
+                            !canGenerateDraft(activeTask, activeCompany)
+                          }
+                          onClick={() => {
+                            if (!canGenerateDraft(activeTask, activeCompany))
+                              return;
+                            updateTask(activeCompany.id, {
+                              ...draftFor(activeCompany, activeTask.quarter),
+                              status: "ready",
+                              workStage: "draft_review",
+                            });
+                            notify(
+                              "샘플 초안을 생성했어요. 실제 생성 API는 아직 연결되지 않았습니다.",
+                            );
+                          }}
+                        >
+                          {activeTask.body.trim()
+                            ? "메시지 다시 생성"
+                            : "메시지 생성"}
+                        </button>
+                        {!!activeTask.body.trim() && (
+                          <button
+                            disabled={
+                              !canGenerateDraft(activeTask, activeCompany)
+                            }
+                            onClick={() =>
+                              updateTask(activeCompany.id, {
+                                workStage: "draft_review",
+                              })
+                            }
+                          >
+                            기존 초안 검토
+                          </button>
+                        )}
+                      </>
+                    )}
                 </section>
                 <aside className="lu-surface lu-message-recipient">
                   <h2>수신자 · 채널</h2>
@@ -1572,7 +1619,10 @@ export function WorkspacePage({
                           aria-label="메시지 수신자"
                           value={activeTask.personId ?? ""}
                           disabled={
-                            !canEditActive || editing || !!activeTask.noContact
+                            !canEditActive ||
+                            editing ||
+                            !!activeTask.noContact ||
+                            contactStage(activeTask) !== "recipient_selection"
                           }
                           onChange={(event) =>
                             updateTask(activeCompany.id, {
@@ -1604,6 +1654,8 @@ export function WorkspacePage({
                             !canEditActive ||
                             editing ||
                             !activePerson ||
+                            contactStage(activeTask) !==
+                              "recipient_selection" ||
                             !!activeTask.noContact
                           }
                           onChange={(event) =>
@@ -1656,7 +1708,9 @@ export function WorkspacePage({
                         !!activeTask.body.trim() && (
                           <div className="lu-message-send-actions">
                             <p className="lu-ws-meta">
-                              선택한 채널에서 직접 전송한 뒤 완료로 표시하세요.
+                              초안 승인 후 내용을 복사해 선택한 채널에서
+                              전송하세요. 발송 결과 저장 API는 아직 제공되지
+                              않았습니다.
                             </p>
                             <div className="lu-message-copy-actions">
                               <button
@@ -1681,10 +1735,10 @@ export function WorkspacePage({
                             </div>
                             <button
                               className="lu-primary"
-                              disabled={!canSendActive || editing}
-                              onClick={() => setManualConfirm(true)}
+                              disabled
+                              title="발송 결과 저장 API 연결 대기"
                             >
-                              전송 완료 표시
+                              전송 완료 저장 (연결 대기)
                             </button>
                           </div>
                         )}
