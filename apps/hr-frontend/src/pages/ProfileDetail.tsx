@@ -197,7 +197,11 @@ function ProfileView({
           {person.email ? (
             <Space>
               {person.email}
-              <a href={`mailto:${person.email}`}>
+              <a
+                href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(person.email)}`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <Button size="small">메일 보내기</Button>
               </a>
             </Space>
