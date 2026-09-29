@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "sh scripts/build-web.sh",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/dh/:path*", "destination": "/dh/index.html" },
+    { "source": "/hr/:path*", "destination": "/hr/index.html" },
+    { "source": "/nut/:path*", "destination": "/nut/index.html" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
+}

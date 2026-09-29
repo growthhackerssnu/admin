@@ -1,8 +1,7 @@
 // admin.ghsnu.com이 공유하는 Postgres의 물리 스키마 원본.
 //
-// 이 파일이 DB 구조의 유일한 소스다. 앱들(apps/*-backend/prisma/schema.prisma)은
-// 각자 "내가 쓰는 테이블 목록"만 선언하는 생성 전용 사본이며 마이그레이션을 만들지
-// 않는다. 규칙: docs/db/conventions.md §7
+// 이 파일이 DB 구조의 유일한 소스다. 마이그레이션도, apps/backend가 쓰는 Prisma
+// Client도 이 파일 하나에서 나온다. 규칙: docs/db/conventions.md §7
 //
 // 스키마 경계 (§2, §3):
 //   core — 세 앱이 공유하는 신원·회원 데이터. 소유자는 portal.
@@ -14,14 +13,12 @@
 // 소싱·수집 파이프라인(sources/articles/funding_events 등)은 이번 범위 밖이다.
 // DB 컬럼(snake_case)과 API DTO(camelCase)의 이름 차이는 각 앱의 serializer가 흡수한다.
 
-// 이 패키지는 클라이언트를 쓰지 않는다 — 마이그레이션만 소유한다. generator 블록이
-// 남아 있는 건 previewFeatures를 선언할 자리가 여기뿐이기 때문이고, 스크립트가
-// --skip-generate로 실행해서 아래 output 디렉터리는 실제로 만들어지지 않는다.
-// 앱이 쓰는 Prisma Client는 각 앱의 prisma/schema.prisma가 따로 생성한다.
+// Prisma Client는 apps/backend의 postinstall(prisma generate --schema 이 파일)이
+// 아래 output으로 생성한다. 이 패키지의 스크립트는 --skip-generate로 실행한다.
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["multiSchema"]
-  output          = "./generated/prisma"
+  output          = "../../apps/backend/src/generated/prisma"
 }
 
 datasource db {
@@ -186,7 +183,7 @@ model Member {
 }
 
 // 노션 People DB(액팅+알럼나이 전체)에서 가져온 "신뢰 이메일" 원장
-// (apps/portal-backend의 npm run people:import로 동기화). 딱 하나만 한다: 가입 신청 시 기수+이름으로
+// (apps/backend(portal)의 npm run people:import로 동기화). 딱 하나만 한다: 가입 신청 시 기수+이름으로
 // 이 테이블을 찾아 knownEmail로 OTP를 보내서 "진짜 명단에 있는 사람"인지
 // 확인한다. role(acting/alumni)은 여기서 판단하지 않는다 — 가입 직후엔 무조건
 // alumni로 등록되고, admin이 나중에 개별로 acting으로 올린다.

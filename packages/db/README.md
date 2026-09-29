@@ -16,6 +16,8 @@
 
 **앱 디렉토리에서 `prisma migrate`를 실행하지 마세요.** 앱 스키마는 DB 전체를 모르기 때문에, Prisma가 자기가 모르는 테이블을 "지워야 할 것"으로 판단해서 DB를 망가뜨립니다.
 
+> **2026-09-30 변경:** 백엔드가 `apps/backend` 하나로 합쳐졌다. 앱별 `prisma/schema.prisma` 사본은 없어졌고, `apps/backend`가 `packages/db/schema.prisma`에서 직접 Prisma Client를 생성한다(`npm run db:generate -w apps/backend`). 아래에서 "각 앱의 `prisma/`"를 언급하는 내용은 이전 구조 기준이다. 마이그레이션은 여전히 `packages/db`에서만 만든다.
+
 ## 설정
 
 ```sh

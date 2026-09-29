@@ -6,11 +6,11 @@
 
 ## 프론트 기반 구현 후 업데이트
 
-`apps/dh-frontend/`에 화면·타입·샘플 데이터 어댑터·디자인 토큰을 분리한 개발 환경을 추가했다. [실행 및 구현 범위](../../apps/dh-frontend/README.md)를 먼저 확인한다. 아래 integration 문서는 초기 계약 제안이며, 현재 실행 가능한 계약은 apps/dh-frontend/src/services/outreachRepository.ts다. 실제 서버 연결은 아직 하지 않았다.
+`apps/frontend/src/dh/`에 화면·타입·샘플 데이터 어댑터를 분리했다(디자인 토큰은 `packages/ui-shell`). [실행 및 구현 범위](../../apps/frontend/docs/dh.md)를 먼저 확인한다. 아래 integration 문서는 초기 계약 제안이며, 현재 실행 가능한 계약은 apps/frontend/src/dh/services/outreachRepository.ts다. 실제 서버 연결은 아직 하지 않았다.
 
 현재 프론트 기준 [API 연결 명세 초안](api-contract.md)에 전체 endpoint 제안, 요청·응답, 업무 명령 대응, 미정 사항을 정리했다. 이전 integration 문서보다 구체적인 연결 협의 자료이며 배포된 API는 아니다.
 
-로그인·가입·회원 관리는 `apps/portal-frontend`+`apps/portal-backend`가 담당하고, 대협봇 `/dh`·그핵드인 `/hr`과 어떻게 경로별로 연결되는지는 [라우팅 구조](routing.md)에 정리했다 — hr 앱을 새로 만들 때 특히 이 문서를 먼저 읽는다.
+로그인·가입·회원 관리는 portal(`apps/frontend/src/portal` + `apps/backend/src/portal`)이 담당하고, 대협봇 `/dh`·그핵드인 `/hr`·NUT `/nut`과 어떻게 연결되는지는 [라우팅 구조](routing.md)에 정리했다 — 새 화면을 추가할 때 이 문서를 먼저 읽는다.
 
 세 앱은 Supabase Postgres 하나를 공유한다. 어느 테이블이 어느 앱 소유이고, 공유하는 `members`를 누가 쓸 수 있고, 테이블을 추가·변경할 때 어떤 절차를 밟는지는 [DB 공유 규칙](../db/conventions.md)에 있다 — **Prisma 스키마나 마이그레이션을 건드리기 전에 반드시 읽는다.**
 

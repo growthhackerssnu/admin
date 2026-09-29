@@ -1,17 +1,21 @@
 # admin
 
-대협 어드민을 새로 구현하기 위한 업무 설계, 클릭 목업, 프론트·백엔드 구현입니다. PR #3의 자료를 유지하고 이전 서비스 구현은 제거했습니다. `apps/dh-frontend/`에 샘플 어댑터를 쓰는 프론트, `apps/dh-backend/`에 API 계약 구현이 진행 중입니다(조회 API 완료, 쓰기·비동기 작업은 진행 중). 프론트-백엔드 실 연결(liveRepository)은 아직입니다.
+대협 어드민을 새로 구현하기 위한 업무 설계, 클릭 목업, 프론트·백엔드 구현입니다. PR #3의 자료를 유지하고 이전 서비스 구현은 제거했습니다. `apps/frontend`(`/dh`)에 샘플 어댑터를 쓰는 프론트, `apps/backend`(`src/dh`)에 API 계약 구현이 진행 중입니다(조회 API 완료, 쓰기·비동기 작업은 진행 중). 프론트-백엔드 실 연결(liveRepository)은 아직입니다.
 
-`admin.ghsnu.com` 통합 어드민 포털(로그인·회원 관리 `/`·`/admin`, 대협봇 `/dh`, 그핵드인 `/hr`)을 모노레포 구조로 운영합니다. 로그인·가입(OTP)·회원 관리는 `apps/portal-frontend`+`apps/portal-backend`가 전담하고, `apps/dh-frontend`+`apps/dh-backend`는 대협봇 업무 로직만 갖습니다. `apps/hr-backend`는 뜰 수 있는 뼈대까지 준비돼 있고(업무 로직은 아직 없음) `apps/hr-frontend`는 아직 빈 자리표시자이며, `gateway/`가 도메인을 소유하고 경로별로 각 앱 배포로 리라이트합니다. 앱 간 공유 디자인 토큰·스타일은 `packages/ui-shell`에 있습니다. 각 앱은 독립된 Vercel 프로젝트로 배포됩니다.
+`admin.ghsnu.com` 통합 어드민 포털(로그인·회원 관리 `/`·`/admin`, 대협봇 `/dh`, 그핵드인 `/hr`, NUT `/nut`)을 모노레포로 운영합니다. 배포 단위는 두 개입니다.
 
-- [포털 백엔드(로그인·가입·회원 관리 API)](apps/portal-backend/README.md)
-- [포털 프론트(로그인·가입·회원 관리 화면)](apps/portal-frontend/README.md)
-- [대협봇 백엔드 실행·구조 안내](apps/dh-backend/README.md)
-- [대협봇 프론트 실행·구조 안내](apps/dh-frontend/README.md)
-- [그핵드인 백엔드(스캐폴딩 — hr 담당자 시작점)](apps/hr-backend/README.md)
+- **프론트 — `admin.ghsnu.com`, Vercel 프로젝트 하나**(`apps/frontend`, 루트 `vercel.json`). 포털·대협봇·그핵드인·NUT이 라우터 하나를 쓰는 단일 SPA라 화면 간 이동에 새로고침이 없습니다. 설정은 [apps/frontend/README.md](apps/frontend/README.md).
+- **백엔드 — `api.ghsnu.com`, Railway 서비스 하나**(`apps/backend`, 루트 `railway.json`). 모든 API가 `/api/...` 아래에 있습니다. 설정은 [apps/backend/README.md](apps/backend/README.md).
+
+앱 간 공유 디자인 토큰·스타일은 `packages/ui-shell`, 인증 헬퍼는 `packages/auth`, DB 스키마·마이그레이션은 `packages/db`에 있습니다.
+
+- [백엔드 실행·배포](apps/backend/README.md)
+- [포털 백엔드(로그인·가입·회원 관리 API)](apps/backend/docs/portal.md)
+- [프론트 실행·배포](apps/frontend/README.md)
+- [대협봇 백엔드 실행·구조 안내](apps/backend/docs/dh.md)
+- [그핵드인 백엔드(스캐폴딩 — hr 담당자 시작점)](apps/backend/docs/hr.md)
 - [공유 UI 패키지](packages/ui-shell/README.md)
 - [DB 패키지(스키마·마이그레이션 원본)](packages/db/README.md)
-- [게이트웨이(도메인·리라이트)](gateway/README.md)
 - [라우팅 구조 — 포털·dh·hr을 어떻게 나누고 연결하는지](docs/admin/routing.md)
 - [DB 공유 규칙 — 세 앱이 Supabase 하나를 같이 쓰는 방법 (스키마 작업 전 필독)](docs/db/conventions.md)
 - [설계·정책·연동 제안](docs/admin/README.md)

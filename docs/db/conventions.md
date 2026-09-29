@@ -14,7 +14,7 @@
 - 테이블·컬럼·enum을 새로 만들거나 이름을 바꾸거나 지우는 사람
 - `members`, `people_directory` 등 **다른 앱과 공유하는 테이블**을 읽거나 쓰는 코드를 짜는 사람
 - **프론트엔드에서 `supabase.from()`으로 테이블을 직접 조회하려는 사람** — §6이 이 경우를 다룬다. 권한 검사가 백엔드에서 DB로 넘어가므로 규칙이 다르다.
-- `apps/hr-backend`를 처음 구현하는 사람 — **특히 이 경우 필수다.** hr은 세 번째로 합류하는 앱이라, 이미 정해진 경계를 모르고 시작하면 dh/portal 쪽을 깨뜨리기 쉽다.
+- hr·nut 등 새 도메인을 `apps/backend`에 추가하는 사람 — **특히 이 경우 필수다.** 새로 합류하는 도메인은 이미 정해진 경계를 모르고 시작하면 dh/portal 쪽을 깨뜨리기 쉽다.
 
 **읽었다는 확인 방법**: DB 구조를 바꾸는 PR(= `packages/db/` 또는 `apps/*/prisma/`를 건드리는 PR)에는 설명에 아래 체크리스트를 붙이고, 해당 항목에 체크한다.
 
@@ -98,7 +98,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | **`core` 스키마** | **읽기는 네 앱 모두 자유.** 쓰기는 §5의 제한을 따른다. 구조 변경은 portal 담당자 리뷰 필수. |
 | **남의 업무 스키마** (dh ↔ hr) | **접근하지 않는다.** 읽기도 안 된다. 필요하면 §3.2를 따른다. |
 
-여기서 "앱"은 프론트와 백엔드를 묶은 단위다. `apps/dh-frontend`가 `dh` 스키마를 읽는 건 자기 스키마 접근이라 문제없다 — 다만 브라우저에서 직접 읽는 것은 경로가 달라서 §6의 추가 규칙을 탄다.
+여기서 "앱"은 프론트와 백엔드를 묶은 단위다. dh 화면(`apps/frontend/src/dh`)이 `dh` 스키마를 읽는 건 자기 스키마 접근이라 문제없다 — 다만 브라우저에서 직접 읽는 것은 경로가 달라서 §6의 추가 규칙을 탄다.
 
 ### 3.1 왜 남의 업무 스키마는 읽기도 막나
 
@@ -132,7 +132,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 
 `core`는 어느 테이블도 브라우저에 직접 노출하지 않는다 (§6.6).
 
-> `core`의 세 테이블을 쓰는 CLI(`members:add` / `members:remove` / `people:import`)는 전부 `apps/portal-backend/prisma/`에 있다 — 소유 앱과 일치한다.
+> `core`의 세 테이블을 쓰는 CLI(`members:add` / `members:remove` / `people:import`)는 전부 `apps/backend/scripts/portal/`에 있다 — 소유 도메인과 일치한다.
 
 ### dh — 소유자: dh
 
@@ -193,8 +193,8 @@ Supabase Data API로 직접 노출하지 않는다. 현재 11개 테이블은 �
 
 ### hr — 소유자: hr
 
-그핵드인(알럼나이 디렉토리)이 소유하는 테이블 2개(2026-09-27 추가, `apps/hr-backend`
-전용 API로만 접근). 나머지 hr 화면 데이터(`core.members`/`core.people_directory`)는
+그핵드인(알럼나이 디렉토리)이 소유하는 테이블 2개(2026-09-27 추가, `apps/backend`의
+hr API로만 접근). 나머지 hr 화면 데이터(`core.members`/`core.people_directory`)는
 portal 소유를 읽기만 한다. 상세 스펙은 `DB_SCHEMA_HR.md` 참고.
 
 | 테이블 | 내용 | 프론트 직접 조회 |
@@ -203,7 +203,7 @@ portal 소유를 읽기만 한다. 상세 스펙은 `DB_SCHEMA_HR.md` 참고.
 | `people_cache` | Notion People DB 조회 결과 TTL 캐시(`"list"` 또는 개별 notionPageId 키) | 아니오 |
 
 두 테이블 모두 생성 마이그레이션에서 RLS를 활성화했고, 정책은 아직 없다(=`postgres`
-계정 외 전부 거부). 현재는 hr-backend API만 접근한다.
+계정 외 전부 거부). 현재는 hr API(`apps/backend/src/hr`)만 접근한다.
 
 ### 4.1 `idempotency_keys`는 앱마다 따로 만든다
 
@@ -237,13 +237,13 @@ portal 소유를 읽기만 한다. 상세 스펙은 `DB_SCHEMA_HR.md` 참고.
 ```
 packages/auth/  ← getAuthenticatedMember() 원본 1벌
       ↑              ↑              ↑
-portal-backend   dh-backend    hr-backend
+src/portal      src/dh     src/hr, src/nut   (apps/backend 안의 도메인별 auth.ts)
 ```
 
-앱마다 다른 것 — Prisma 접근(생성 클라이언트가 앱마다 다르다), `ApiError`(에러 코드 집합이 다르다), 거부 대상 — 은 주입한다. 정책(검사 순서, 거부 조건, 최근 접속 갱신 시점)만 패키지가 갖는다.
+도메인마다 다른 것 — `ApiError`(에러 코드 집합이 다르다), 거부 대상, 거부 문구 — 은 주입한다(Prisma 클라이언트는 이제 서버 전체가 하나다). 정책(검사 순서, 거부 조건, 최근 접속 갱신 시점)만 패키지가 갖는다.
 
 ```ts
-// apps/dh-backend — alumni는 대협봇 접근 불가
+// apps/backend/src/dh/lib/auth.ts — alumni는 대협봇 접근 불가 (src/nut도 같음)
 export const getAuthenticatedMember = createGetAuthenticatedMember<Member>({
   findByEmail: (email) => prisma.member.findUnique({ where: { email } }),
   markLogin: (id, supabaseUserId) =>
@@ -254,7 +254,7 @@ export const getAuthenticatedMember = createGetAuthenticatedMember<Member>({
   messages: { /* 앱별 거부 문구 */ },
 });
 
-// apps/portal-backend — deny 없음. alumni도 /me로 자기 목적지를 알아야 한다.
+// apps/backend/src/portal/lib/auth.ts — deny 없음(src/hr도 같음). alumni도 /me로 자기 목적지를 알아야 한다.
 ```
 
 **지켜야 하는 순서 계약이 하나 있다**: `deny`로 거부되는 계정이라도 최근 접속 기록은 **먼저** 남긴다. 관리자 명단 화면의 "최근 접속일"이 alumni에게도 의미 있으려면 그래야 한다. `packages/auth/src/member.test.ts`가 이 순서를 테스트로 고정해 뒀다.
@@ -280,7 +280,7 @@ FK 방향은 항상 **업무 스키마 → core**다. `core`에서 `dh`나 `hr`�
 
 ## 6. 프론트엔드에서 테이블 직접 조회하기
 
-`apps/dh-frontend`가 기업 정보 등을 백엔드 API를 거치지 않고 `supabase.from()`으로 직접 읽는 것을 **예정하고 있다.** 아직 적용 전이지만(§12), 스키마를 나누는 지금 시점에 규칙을 정해둔다. 나중에 붙이면 이미 노출된 테이블을 되돌려야 해서 훨씬 비싸다.
+dh 화면(`apps/frontend/src/dh`)이 기업 정보 등을 백엔드 API를 거치지 않고 `supabase.from()`으로 직접 읽는 것을 **예정하고 있다.** 아직 적용 전이지만(§12), 스키마를 나누는 지금 시점에 규칙을 정해둔다. 나중에 붙이면 이미 노출된 테이블을 되돌려야 해서 훨씬 비싸다.
 
 ### 6.0 무엇이 달라지나
 
@@ -398,7 +398,7 @@ as select id, name, product, domain, created_at
 `supabase-js`는 기본적으로 `public` 스키마를 본다. 다른 스키마는 명시해야 한다.
 
 ```ts
-// apps/dh-frontend
+// apps/frontend/src/dh
 const { data, error } = await supabase
   .schema("dh")
   .from("v_company_list")
@@ -411,7 +411,7 @@ const { data, error } = await supabase
 export const dhDb = createClient(url, anonKey, { db: { schema: "dh" } });
 ```
 
-`apps/dh-frontend/src/services/`의 repository 계층 안에서만 호출한다 — 화면 컴포넌트가 `supabase.from()`을 직접 부르면, 나중에 API 경유로 되돌리거나 뷰 이름을 바꿀 때 전부 뒤져야 한다. 지금 `outreachRepository.ts`가 샘플 데이터 어댑터를 감싸고 있는 구조를 그대로 유지한다.
+`apps/frontend/src/dh/services/`의 repository 계층 안에서만 호출한다 — 화면 컴포넌트가 `supabase.from()`을 직접 부르면, 나중에 API 경유로 되돌리거나 뷰 이름을 바꿀 때 전부 뒤져야 한다. 지금 `outreachRepository.ts`가 샘플 데이터 어댑터를 감싸고 있는 구조를 그대로 유지한다.
 
 ### 6.6 `core`는 노출하지 않는다
 
@@ -444,6 +444,8 @@ export const dhDb = createClient(url, anonKey, { db: { schema: "dh" } });
 ---
 
 ## 7. 마이그레이션은 `packages/db`가 소유한다
+
+> **2026-09-30 변경:** 백엔드가 `apps/backend` 하나로 합쳐졌다. 앱별 `prisma/schema.prisma` 사본은 없어졌고, `apps/backend`가 `packages/db/schema.prisma`에서 직접 Prisma Client를 생성한다(`npm run db:generate -w apps/backend`). 아래에서 "각 앱의 `prisma/`"를 언급하는 내용은 이전 구조 기준이다. 마이그레이션은 여전히 `packages/db`에서만 만든다.
 
 ### 7.1 지금 구조의 문제
 
@@ -542,7 +544,7 @@ Postgres 쪽 이름은 전부 `snake_case`다. Prisma 모델은 camelCase로 쓰
    ```
 
    프론트에 열 계획이 없어도 켠다. 나중에 스키마를 노출할 때 이 테이블 하나가 빠져 있으면 그게 구멍이 된다.
-4. 자기 앱의 `prisma/schema.prisma`에도 같은 모델 추가 → `npm run db:generate`
+4. `npm run db:generate -w apps/backend`로 클라이언트 재생성
 5. **§4 딕셔너리에 한 줄 추가**
 6. PR (같은 스키마 안의 새 테이블이면 다른 앱 담당자 리뷰는 불필요)
 
@@ -637,18 +639,18 @@ enum Role {
 }
 ```
 
-각 앱의 `schema.prisma`는 자기가 쓰는 스키마만 나열한다.
+`packages/db/schema.prisma`가 모든 스키마를 나열한다(앱별 사본은 없어졌다).
 
 ```prisma
-// apps/dh-backend/prisma/schema.prisma
+// packages/db/schema.prisma
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["core", "dh"]
+  schemas  = ["core", "dh", "hr", "nut"]
 }
 ```
 
-생성 위치는 앱마다 다르게 유지한다(`output = "../src/generated/prisma"`). npm workspaces가 `@prisma/client`를 루트로 hoist하기 때문에, 같은 위치로 generate하면 나중에 실행한 앱이 다른 앱의 타입을 덮어쓴다. 현재 코드 주석에 이미 설명돼 있다.
+클라이언트는 `apps/backend/src/generated/prisma` 한 곳에 생성된다(`npm run db:generate -w apps/backend`). 예전엔 앱마다 스키마 사본과 생성 위치가 따로 있었지만, 백엔드가 하나로 합쳐지면서 필요 없어졌다.
 
 ### 11.2 접속 문자열
 

@@ -1,0 +1,65 @@
+# backend
+
+`api.ghsnu.com`의 API 서버 하나. Next.js(App Router) API 전용 앱이고 Railway에 배포한다.
+
+모든 라우트가 `app/api/...`(→ `/api/...`)에 있고, 업무 코드는 도메인별로 나뉜다.
+
+| 도메인 | 대표 경로 | 코드 | 상세 |
+|---|---|---|---|
+| portal (로그인·가입·회원 관리) | `/api/auth/*`, `/api/v1/me`, `/api/v1/admin/members*` | `src/portal` | [docs/portal.md](docs/portal.md) |
+| dh (대협봇) | `/api/v1/companies`, `/candidates`, `/outreaches`, `/search-runs`…, Inngest `/api/inngest` | `src/dh` | [docs/dh.md](docs/dh.md) |
+| hr (그핵드인) | `/api/v1/people`, `/api/v1/people/me`, `/api/v1/edit-requests`, `/api/v1/admin/edit-requests`, `/api/v1/field-options` | `src/hr` | [docs/hr.md](docs/hr.md) |
+| nut (재무) | `/api/v1/finance/*`, `/api/v1/ping` | `src/nut` | [docs/nut.md](docs/nut.md) |
+| 헬스체크 | `/health` (인증 없음) | `app/health` | |
+
+hr의 "내 정보"는 portal의 `/api/v1/me`와 겹치지 않도록 `/api/v1/people/me`다.
+
+Prisma Client는 `packages/db/schema.prisma`에서 `src/generated/prisma`로 생성되고(`postinstall`), 모든 도메인이 `@/lib/prisma` 하나를 쓴다. 마이그레이션은 `packages/db`에서만 만든다.
+
+## 로컬
+
+```sh
+cp .env.example .env.local
+npm install                          # 저장소 루트에서
+npm run dev -w apps/backend          # http://localhost:3000
+npm run dev:inngest -w apps/backend  # 대협봇 비동기 작업이 필요할 때
+npm test -w apps/backend
+```
+
+## 환경 변수
+
+전체 목록과 설명은 [.env.example](.env.example).
+
+**Railway(서버 런타임)에 넣는 값**
+
+| 이름 | 어디서 | 쓰는 곳 |
+|---|---|---|
+| `DATABASE_URL` | Supabase → Project Settings → Database → Connect → **Transaction pooler**(포트 6543), 끝에 `?pgbouncer=true` | 전체 |
+| `DIRECT_URL` | 같은 화면 → **Session pooler**(포트 5432) | Prisma 스키마가 참조(마이그레이션용) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL | 전체(토큰 검증) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 같은 화면 → `anon` `public` 키 | 전체(토큰 검증) |
+| `OPENAI_API_KEY` | platform.openai.com → API keys | dh 리서치·초안 생성 |
+| `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | Inngest 대시보드 → 앱 → Event Keys / Signing Key | dh 비동기 작업 |
+| `RESEND_API_KEY` | resend.com → API Keys | portal 가입 OTP 메일 |
+| `NOTION_API_KEY` | notion.so/my-integrations → integration 토큰 | hr 디렉토리·승인(Notion 읽기/쓰기) |
+| `NOTION_PEOPLE_DATABASE_ID` | Notion People DB의 database ID(integration에 공유 필요) | hr 디렉토리 |
+| 선택: `RESEND_FROM_ADDRESS`, `LISTUP_*`, `ALLOWED_ORIGINS` | `.env.example` 참고. `ALLOWED_ORIGINS` 기본값은 `http://localhost:5173,https://admin.ghsnu.com` | |
+
+**로컬 스크립트에만 필요한 값** (Railway엔 불필요)
+
+| 이름 | 스크립트 |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` (Supabase → API → `service_role`, 절대 프론트에 넣지 않음) | `images:migrate` |
+| `NOTION_PROJECTS_DATABASE_ID`, `NOTION_PROJECT_*` | `past-projects:import` |
+| `NOTION_COHORT_PROPERTY` 등 | `people:import` |
+
+## Railway 배포 (`api.ghsnu.com`)
+
+저장소 루트의 `railway.json`이 빌드·시작 명령과 헬스체크(`/health`)를 정의한다.
+
+1. Railway에서 이 저장소로 서비스를 만든다. **Root Directory는 비워 둔다**(저장소 루트) — npm workspaces(`@dhbot/auth`)를 설치해야 하기 때문이다.
+2. Variables에 위 값을 넣는다.
+3. Settings → Networking → **Custom Domain**에 `api.ghsnu.com`을 추가한다. Railway가 보여주는 CNAME 대상(`xxxx.up.railway.app`)을 DNS(ghsnu.com을 관리하는 곳)에 `api` CNAME 레코드로 등록한다. 인증서는 Railway가 자동 발급한다.
+4. Inngest 대시보드에 앱 URL `https://api.ghsnu.com/api/inngest`를 등록한다.
+
+`PORT`는 Railway가 주입하고 `next start`가 그대로 쓴다. 마이그레이션은 배포에 묶지 않았다 — 필요하면 `packages/db`에서 `npm run db:deploy`.
