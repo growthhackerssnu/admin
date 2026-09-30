@@ -9,6 +9,7 @@
 // 첫 요청자가 약 100초를 기다렸는데(실측, worklog §39), 이 변경으로 그 문제
 // 자체가 사라졌다(worklog §40~41).
 import { prisma } from "@/lib/prisma";
+import { CACHE_TTL_MS, memoryGet, memorySet, singleFlight } from "./memoryCache";
 import {
   callNotionRateLimited,
   extractMultiSelect,
@@ -16,14 +17,15 @@ import {
   getNotionClient,
   richTextToPlain,
 } from "./notion";
+import { scheduleProfileImageSync, type ImageCandidate } from "./profileImageSync";
 
-// TTL은 컬럼이 아니라 코드 상수(DB_SCHEMA_HR.md §2).
-const TTL_MS = 5 * 60 * 1000;
+// TTL은 컬럼이 아니라 코드 상수(DB_SCHEMA_HR.md §2). 읽기 순서는
+// ①서버 메모리 → ②hr.people_cache(DB) → ③Notion 재조회(memoryCache.ts 참고).
+const TTL_MS = CACHE_TTL_MS;
 
-// 기수 20은 아직 프로필 사진·정보 수집이 안 끝나서 임시 제외한다(ARCHITECTURE.md
-// §4, 2026-09-26 결정). 데이터 수집이 끝나면 이 상수 자체를 지운다 — "19 이하만"
-// 처럼 커지는 문턱값이 아니라, 이 한 기수만 콕 집어 빼는 임시 필터다.
-const EXCLUDED_COHORT = 20;
+// 기수 20 임시 제외 필터는 2026-09-30에 제거했다 — 사진이 없는 신입도
+// profileImageUrl=null로 목록에 들어가고, 프론트가 기본 프로필을 그린다
+// (profileImageSync.ts).
 
 const PROPERTY = {
   cohort: "기수",
@@ -49,7 +51,8 @@ export type PersonSummary = {
   name: string;
   cohort: number;
   department: string[];
-  jobField: string | null;
+  // 2026-09-30: Notion "직무 계열"이 select → multi_select로 바뀌어 배열이다.
+  jobField: string[];
   team: string[];
   position: string | null;
   currentCareerOneLine: string | null;
@@ -57,26 +60,49 @@ export type PersonSummary = {
   profileImageUrl: string | null;
 };
 
-export async function getPeopleList(): Promise<PersonSummary[]> {
-  const row = await prisma.peopleCache.findUnique({ where: { key: "list" } });
-  if (row && Date.now() - row.fetchedAt.getTime() < TTL_MS) {
-    return row.data as unknown as PersonSummary[];
-  }
-
-  const list = await buildPeopleList();
-
-  // upsert: 첫 실행이면 행이 없고, 그 이후엔 있다 — 매번 있는지 먼저 물어보지
-  // 않고 한 번에 처리한다.
-  await prisma.peopleCache.upsert({
-    where: { key: "list" },
-    create: { key: "list", data: list as unknown as object, fetchedAt: new Date() },
-    update: { data: list as unknown as object, fetchedAt: new Date() },
-  });
-
-  return list;
+// 직무 계열이 단일 값이던 시절(문자열/null)에 만들어진 캐시 행이 배포 직후
+// 최대 5분 남아 있을 수 있다 — 읽을 때 배열로 맞춘다.
+function normalizeJobField(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
+  return typeof value === "string" && value ? [value] : [];
 }
 
-async function buildPeopleList(): Promise<PersonSummary[]> {
+function normalizeSummary<T extends { jobField: unknown }>(person: T): T & { jobField: string[] } {
+  return { ...person, jobField: normalizeJobField(person.jobField) };
+}
+
+export async function getPeopleList(): Promise<PersonSummary[]> {
+  const inMemory = memoryGet<PersonSummary[]>("list");
+  if (inMemory) return inMemory;
+
+  return singleFlight("list", async () => {
+    const row = await prisma.peopleCache.findUnique({ where: { key: "list" } });
+    if (row && Date.now() - row.fetchedAt.getTime() < TTL_MS) {
+      const list = (row.data as unknown as PersonSummary[]).map(normalizeSummary);
+      memorySet("list", list, row.fetchedAt.getTime());
+      return list;
+    }
+
+    const { list, imageCandidates } = await buildPeopleList();
+
+    // upsert: 첫 실행이면 행이 없고, 그 이후엔 있다 — 매번 있는지 먼저 물어보지
+    // 않고 한 번에 처리한다.
+    await prisma.peopleCache.upsert({
+      where: { key: "list" },
+      create: { key: "list", data: list as unknown as object, fetchedAt: new Date() },
+      update: { data: list as unknown as object, fetchedAt: new Date() },
+    });
+    memorySet("list", list);
+
+    // 사진 없는 사람은 본문에 새로 올린 사진이 있는지 확인해서 자동 이관한다.
+    // 응답을 기다리게 하지 않는다(profileImageSync.ts 머리말 참고).
+    scheduleProfileImageSync(imageCandidates);
+
+    return list;
+  });
+}
+
+async function buildPeopleList(): Promise<{ list: PersonSummary[]; imageCandidates: ImageCandidate[] }> {
   const databaseId = process.env.NOTION_PEOPLE_DATABASE_ID;
   if (!databaseId) {
     throw new Error("NOTION_PEOPLE_DATABASE_ID가 설정되지 않았습니다.");
@@ -84,6 +110,7 @@ async function buildPeopleList(): Promise<PersonSummary[]> {
   const notion = getNotionClient();
 
   const people: PersonSummary[] = [];
+  const imageCandidates: ImageCandidate[] = [];
   let cursor: string | undefined;
   do {
     const page = await callNotionRateLimited(() =>
@@ -99,26 +126,38 @@ async function buildPeopleList(): Promise<PersonSummary[]> {
       const cohort = cohortText ? Number(cohortText) : NaN;
       // 이름·기수가 없으면 아직 정보가 안 채워진 자리표시자 행일 가능성이 커서
       // 건너뛴다 — 검색/필터 대상에 빈 카드가 섞이는 걸 방지.
-      if (!name || !Number.isFinite(cohort) || cohort === EXCLUDED_COHORT) continue;
+      if (!name || !Number.isFinite(cohort)) continue;
+
+      const profileImageUrl = extractPropertyText(props[PROPERTY.profileImageUrl]);
+      // 전원이 후보다 — 실제로 Notion 블록을 확인할지는 profileImageSync가 확인 기록을
+      // 보고 정한다(사진이 없는 신규 등록 + 이미 있는 사람의 교체 감지).
+      if ("last_edited_time" in row) {
+        imageCandidates.push({
+          notionPageId: row.id,
+          name,
+          lastEditedTime: row.last_edited_time,
+          hasImageUrl: Boolean(profileImageUrl),
+        });
+      }
 
       people.push({
         notionPageId: row.id,
         name,
         cohort,
         department: extractMultiSelect(props[PROPERTY.department]),
-        jobField: extractPropertyText(props[PROPERTY.jobField]),
+        jobField: extractMultiSelect(props[PROPERTY.jobField]),
         team: extractMultiSelect(props[PROPERTY.team]),
         position: extractPropertyText(props[PROPERTY.position]),
         currentCareerOneLine: extractPropertyText(props[PROPERTY.currentCareer]),
         linkedin: extractPropertyText(props[PROPERTY.linkedin]),
-        profileImageUrl: extractPropertyText(props[PROPERTY.profileImageUrl]),
+        profileImageUrl,
       });
     }
 
     cursor = page.has_more ? (page.next_cursor ?? undefined) : undefined;
   } while (cursor);
 
-  return people;
+  return { list: people, imageCandidates };
 }
 
 export type PersonDetail = PersonSummary & {
@@ -133,21 +172,29 @@ export type PersonDetail = PersonSummary & {
 };
 
 export async function getPersonDetail(notionPageId: string): Promise<PersonDetail | null> {
-  const row = await prisma.peopleCache.findUnique({ where: { key: notionPageId } });
-  if (row && Date.now() - row.fetchedAt.getTime() < TTL_MS) {
-    return row.data as unknown as PersonDetail;
-  }
+  const inMemory = memoryGet<PersonDetail>(notionPageId);
+  if (inMemory) return inMemory;
 
-  const detail = await buildPersonDetail(notionPageId);
-  if (!detail) return null;
+  return singleFlight(notionPageId, async () => {
+    const row = await prisma.peopleCache.findUnique({ where: { key: notionPageId } });
+    if (row && Date.now() - row.fetchedAt.getTime() < TTL_MS) {
+      const detail = normalizeSummary(row.data as unknown as PersonDetail);
+      memorySet(notionPageId, detail, row.fetchedAt.getTime());
+      return detail;
+    }
 
-  await prisma.peopleCache.upsert({
-    where: { key: notionPageId },
-    create: { key: notionPageId, data: detail as unknown as object, fetchedAt: new Date() },
-    update: { data: detail as unknown as object, fetchedAt: new Date() },
+    const detail = await buildPersonDetail(notionPageId);
+    if (!detail) return null;
+
+    await prisma.peopleCache.upsert({
+      where: { key: notionPageId },
+      create: { key: notionPageId, data: detail as unknown as object, fetchedAt: new Date() },
+      update: { data: detail as unknown as object, fetchedAt: new Date() },
+    });
+    memorySet(notionPageId, detail);
+
+    return detail;
   });
-
-  return detail;
 }
 
 async function buildPersonDetail(notionPageId: string): Promise<PersonDetail | null> {
@@ -175,7 +222,7 @@ async function buildPersonDetail(notionPageId: string): Promise<PersonDetail | n
     name,
     cohort,
     department: extractMultiSelect(props[PROPERTY.department]),
-    jobField: extractPropertyText(props[PROPERTY.jobField]),
+    jobField: extractMultiSelect(props[PROPERTY.jobField]),
     team: extractMultiSelect(props[PROPERTY.team]),
     position: extractPropertyText(props[PROPERTY.position]),
     currentCareerOneLine: extractPropertyText(props[PROPERTY.currentCareer]),

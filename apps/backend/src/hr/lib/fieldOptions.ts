@@ -5,7 +5,48 @@
 //
 // 정렬 기준(§12.2 정렬과 무관, 여기는 "고를 수 있는 목록"일 뿐)은 Notion에
 // 등록된 순서 그대로 둔다.
+import { memoryDelete, memoryGet, memorySet } from "./memoryCache";
 import { callNotionRateLimited, getNotionClient } from "./notion";
+
+const OPTIONS_CACHE_KEY = "field-options";
+
+// 승인으로 Notion에 새 옵션이 생기면 다음 조회가 바로 새 목록을 보게 한다.
+export function invalidateFieldOptions(): void {
+  memoryDelete(OPTIONS_CACHE_KEY);
+}
+
+// 옵션 이름 비교용 정규화 — 공백·대소문자만 다른 값을 같은 옵션으로 본다
+// ("pm" ≈ "PM", "데이터  사이언스" ≈ "데이터 사이언스"). 표시 이름은 항상 Notion의
+// 기존 옵션 이름을 쓴다(canonicalizeOptionValues).
+export function optionKey(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+// 입력 값들을 기존 옵션 이름으로 맞춘다. 기존에 없으면 공백만 정리한 새 값으로 둔다.
+// 중복은 제거한다. isNew는 "Notion에 새 옵션이 생길 값"이다.
+export function canonicalizeOptionValues(
+  values: string[],
+  existing: string[],
+): { values: string[]; newValues: string[] } {
+  const byKey = new Map(existing.map((name) => [optionKey(name), name]));
+  const seen = new Set<string>();
+  const result: string[] = [];
+  const newValues: string[] = [];
+  for (const raw of values) {
+    const key = optionKey(raw);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const canonical = byKey.get(key);
+    if (canonical) {
+      result.push(canonical);
+    } else {
+      const cleaned = raw.trim().replace(/\s+/g, " ");
+      result.push(cleaned);
+      newValues.push(cleaned);
+    }
+  }
+  return { values: result, newValues };
+}
 
 export type FieldOptions = {
   jobField: string[];
@@ -22,6 +63,9 @@ const PROPERTY_NAME = {
 } as const;
 
 export async function getFieldOptions(): Promise<FieldOptions> {
+  const cached = memoryGet<FieldOptions>(OPTIONS_CACHE_KEY);
+  if (cached) return cached;
+
   const databaseId = process.env.NOTION_PEOPLE_DATABASE_ID;
   if (!databaseId) {
     throw new Error("NOTION_PEOPLE_DATABASE_ID가 설정되지 않았습니다.");
@@ -30,7 +74,7 @@ export async function getFieldOptions(): Promise<FieldOptions> {
   const db = await callNotionRateLimited(() => notion.databases.retrieve({ database_id: databaseId }));
   const properties = db.properties as Record<string, unknown>;
 
-  return {
+  const options: FieldOptions = {
     jobField: selectOptionNames(properties[PROPERTY_NAME.jobField]),
     department: selectOptionNames(properties[PROPERTY_NAME.department]),
     team: selectOptionNames(properties[PROPERTY_NAME.team]),
@@ -41,6 +85,8 @@ export async function getFieldOptions(): Promise<FieldOptions> {
       .filter(Number.isFinite)
       .sort((a, b) => b - a),
   };
+  memorySet(OPTIONS_CACHE_KEY, options);
+  return options;
 }
 
 function selectOptionNames(property: unknown): string[] {

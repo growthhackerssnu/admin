@@ -13,14 +13,18 @@
 // "Profile Image URL"이 채워진 사람은 기본적으로 건너뛴다(--force로 전체 재실행).
 //
 // 사용법: npm run images:migrate [-- --force]
+//
+// (2026-09-30) 신규 등록분은 이제 서버가 디렉토리 목록을 만들 때 자동으로 옮긴다
+// (src/hr/lib/profileImageSync.ts). 이 스크립트는 전체 재이관(--force)이나
+// 자동 동기화를 기다리지 않고 한 번에 돌리고 싶을 때만 쓴다. 사진 처리 규칙은
+// 자동 동기화와 같은 src/hr/lib/profileImage.ts를 공유한다.
 import { createClient } from "@supabase/supabase-js";
-import sharp from "sharp";
 import { callNotionRateLimited, extractPropertyText, getNotionClient } from "@/hr/lib/notion";
-
-const BUCKET = "hr-profile-photos";
-const IMAGE_URL_PROPERTY = "Profile Image URL";
-const RESIZE_SIZE = 800; // 프로필 상세 화면 헤더 크기 기준(가장 크게 쓰는 곳), 카드 썸네일은 이걸 축소해서 씀
-const JPEG_QUALITY = 82;
+import {
+  fetchFirstImageUrl,
+  PROFILE_IMAGE_PROPERTY as IMAGE_URL_PROPERTY,
+  uploadProfileImage,
+} from "@/hr/lib/profileImage";
 
 const FORCE = process.argv.includes("--force");
 const LIMIT_ARG = process.argv.find((a) => a.startsWith("--limit="));
@@ -78,26 +82,11 @@ async function main() {
         continue;
       }
 
-      const original = await fetch(imageUrl);
-      if (!original.ok) throw new Error(`이미지 다운로드 실패: HTTP ${original.status}`);
-      const originalBuffer = Buffer.from(await original.arrayBuffer());
-
-      const resized = await sharp(originalBuffer)
-        .resize(RESIZE_SIZE, RESIZE_SIZE, { fit: "cover" })
-        .jpeg({ quality: JPEG_QUALITY })
-        .toBuffer();
-
-      const path = `${target.pageId}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from(BUCKET)
-        // cacheControl 1년: 이 사진은 이 스크립트를 다시 돌리지 않는 한 안 바뀐다
-        // (셀프 편집 대상 아님, §12.3) — 길게 캐싱해서 egress를 아낀다.
-        .upload(path, resized, { contentType: "image/jpeg", upsert: true, cacheControl: "31536000" });
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      const { publicUrl, originalBytes, resizedBytes } = await uploadProfileImage(
+        supabase,
+        target.pageId,
+        imageUrl,
+      );
 
       await callNotionRateLimited(() =>
         notion.pages.update({
@@ -108,7 +97,7 @@ async function main() {
 
       migrated++;
       console.log(
-        `[${i + 1}/${todo.length}] ${target.name}: ${(originalBuffer.length / 1024).toFixed(0)}KB → ${(resized.length / 1024).toFixed(0)}KB 완료`,
+        `[${i + 1}/${todo.length}] ${target.name}: ${(originalBytes / 1024).toFixed(0)}KB → ${(resizedBytes / 1024).toFixed(0)}KB 완료`,
       );
     } catch (err) {
       failed++;
@@ -117,20 +106,6 @@ async function main() {
   }
 
   console.log(`\n완료: 마이그레이션 ${migrated}명, 이미지 없음 ${noImage}명, 실패 ${failed}명`);
-}
-
-async function fetchFirstImageUrl(pageId: string): Promise<string | null> {
-  const notion = getNotionClient();
-  const children = await callNotionRateLimited(() =>
-    notion.blocks.children.list({ block_id: pageId, page_size: 1 }),
-  );
-  const first = children.results[0] as
-    | { type?: string; image?: { type?: string; file?: { url?: string }; external?: { url?: string } } }
-    | undefined;
-  if (!first || first.type !== "image" || !first.image) return null;
-  if (first.image.type === "file") return first.image.file?.url ?? null;
-  if (first.image.type === "external") return first.image.external?.url ?? null;
-  return null;
 }
 
 main().catch((err) => {

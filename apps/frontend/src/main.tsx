@@ -7,6 +7,7 @@ import { installTokens, theme } from "@dhbot/ui-shell";
 import { Login } from "./portal/pages/Login";
 import { Index } from "./portal/pages/Index";
 import { AdminMembers } from "./portal/pages/AdminMembers";
+import { RequireApp } from "./portal/components/RequireApp";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
 
@@ -42,15 +43,38 @@ function Root() {
               <Route path="/index" element={<Index />} />
               <Route path="/admin" element={<AdminMembers />} />
 
-              <Route path="/dh" element={<DhWorkspace />} />
-              <Route path="/dh/listup" element={<DhListup />} />
+              {/* dh·nut은 role이 맞지 않으면(예: alumni) 화면 대신 안내를 보여준다.
+                  /admin은 AdminMembers가 자체 가드를 갖고 있다. */}
+              <Route
+                path="/dh"
+                element={
+                  <RequireApp app="dh">
+                    <DhWorkspace />
+                  </RequireApp>
+                }
+              />
+              <Route
+                path="/dh/listup"
+                element={
+                  <RequireApp app="dh">
+                    <DhListup />
+                  </RequireApp>
+                }
+              />
 
               <Route path="/hr" element={<HrDirectory />} />
               <Route path="/hr/people/:notionPageId" element={<HrProfileDetail />} />
               <Route path="/hr/requests" element={<HrMyRequests />} />
               <Route path="/hr/admin" element={<HrAdminQueue />} />
 
-              <Route path="/nut/*" element={<Nut />} />
+              <Route
+                path="/nut/*"
+                element={
+                  <RequireApp app="nut">
+                    <Nut />
+                  </RequireApp>
+                }
+              />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

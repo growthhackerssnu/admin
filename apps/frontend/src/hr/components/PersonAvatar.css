@@ -1,0 +1,14 @@
+.person-avatar {
+  display: inline-block;
+  flex: none;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #f0f0f0;
+}
+
+.person-avatar-default {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #bfbfbf;
+}

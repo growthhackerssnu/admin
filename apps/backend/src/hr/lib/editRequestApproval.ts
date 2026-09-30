@@ -3,7 +3,14 @@
 import type { Member } from "@/generated/prisma";
 import { ApiError } from "./errors";
 import { prisma } from "@/lib/prisma";
+import { invalidateFieldOptions } from "./fieldOptions";
+import { memoryDelete } from "./memoryCache";
 import { callNotionRateLimited, getNotionClient } from "./notion";
+import { recentUpdateLabel } from "./quarter";
+
+// Notion "최근 업데이트"(select, "YY-NQ") — 승인할 때마다 승인 시각(KST) 기준 분기로
+// 자동 세팅한다. 옵션이 아직 없으면 Notion이 이름으로 새로 만들어준다.
+const RECENT_UPDATE_PROPERTY = "최근 업데이트";
 
 const SECTION_HEADING: Record<string, string> = {
   careers: "Careers",
@@ -23,14 +30,20 @@ export async function approveEditRequest(admin: Member, editRequestId: string, r
     freeTextSections: Record<string, { before: unknown; after: unknown }>;
   };
 
-  await writeStructuredFields(editRequest.notionPageId, diff.structuredFields);
+  // 본문 섹션(블록)을 먼저 쓰고, 속성은 마지막에 한 번에 쓴다 — 속성 쓰기에
+  // "최근 업데이트"가 항상 들어가므로, 본문 쓰기가 중간에 실패하면 "최근 업데이트"
+  // 만 갱신된 어중간한 상태가 남지 않는다.
   for (const [key, entry] of Object.entries(diff.freeTextSections)) {
     const heading = SECTION_HEADING[key];
     if (!heading) continue; // 모르는 key는 조용히 무시(방어적으로만 — 서버가 만든 diff라 원래 없어야 함)
     await replaceSectionBlocks(editRequest.notionPageId, heading, entry.after as string);
   }
+  await writeStructuredFields(editRequest.notionPageId, diff.structuredFields, new Date());
 
-  // people_cache 무효화(§5) — list/개별 둘 다. 다음 조회 때 새로 채워진다.
+  // people_cache 무효화(§5) — list/개별 둘 다(DB + 서버 메모리). 다음 조회 때 새로
+  // 채워진다. 새 옵션이 생겼을 수 있으니 옵션 목록 캐시도 같이 비운다.
+  memoryDelete("list", editRequest.notionPageId);
+  invalidateFieldOptions();
   await prisma.peopleCache.deleteMany({
     where: { key: { in: ["list", editRequest.notionPageId] } },
   });
@@ -59,7 +72,7 @@ const PROPERTY_NAME_TO_TYPE: Record<string, "email" | "url" | "rich_text" | "sel
   LinkedIn: "url",
   "현재 커리어": "rich_text",
   기수: "select",
-  "직무 계열": "select",
+  "직무 계열": "multi_select", // 2026-09-30: select → multi_select로 변경됨
   학과: "multi_select",
   소속팀: "multi_select",
 };
@@ -67,12 +80,15 @@ const PROPERTY_NAME_TO_TYPE: Record<string, "email" | "url" | "rich_text" | "sel
 async function writeStructuredFields(
   notionPageId: string,
   structuredFields: Record<string, { before: unknown; after: unknown }>,
+  approvedAt: Date,
 ) {
   const entries = Object.entries(structuredFields);
-  if (entries.length === 0) return;
 
   const notion = getNotionClient();
-  const properties: Record<string, unknown> = {};
+  const properties: Record<string, unknown> = {
+    // 어떤 변경이든 승인되면 항상 갱신(구조화 필드가 하나도 없고 본문만 바뀐 요청 포함).
+    [RECENT_UPDATE_PROPERTY]: { select: { name: recentUpdateLabel(approvedAt) } },
+  };
 
   for (const [key, { after }] of entries) {
     const type = PROPERTY_NAME_TO_TYPE[key];
@@ -92,13 +108,16 @@ async function writeStructuredFields(
         // 기수는 숫자로 diff에 들어있지만 Notion select는 문자열 옵션이다.
         properties[key] = { select: after == null ? null : { name: String(after) } };
         break;
-      case "multi_select":
-        properties[key] = { multi_select: ((after as string[]) ?? []).map((name) => ({ name })) };
+      case "multi_select": {
+        // 직무 계열이 단일 값이던 시절에 제출된 대기 요청은 after가 문자열/null일 수
+        // 있어서 배열로 맞춘다.
+        const names = Array.isArray(after) ? (after as string[]) : after ? [String(after)] : [];
+        properties[key] = { multi_select: names.map((name) => ({ name })) };
         break;
+      }
     }
   }
 
-  if (Object.keys(properties).length === 0) return;
   // Notion SDK의 update properties 타입은 각 속성 타입별로 엄격한 유니온이라,
   // key마다 다른 타입을 런타임에 조립하는 이 함수 구조와는 구조적으로 안
   // 맞다(사람이 수기로 매핑하지 않는 이상). 위 switch가 이미 각 타입에 맞는
