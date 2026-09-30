@@ -266,7 +266,7 @@ export function AdminQueue() {
               : null
           }
         >
-          {detail && <EditRequestDiff diff={detail.diff} />}
+          {detail && <EditRequestDiff diff={detail.diff} newOptions={detail.newOptions} />}
           {detail && detail.status === "rejected" && detail.reviewNote && (
             <Alert style={{ marginTop: 16 }} type="warning" message={`반려 사유: ${detail.reviewNote}`} />
           )}

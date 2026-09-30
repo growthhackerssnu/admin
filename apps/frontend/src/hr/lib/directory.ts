@@ -61,7 +61,9 @@ function toSortedOptions(counts: Map<string, number>, labelFor: (key: string) =>
 
 export function computeFacets(people: PersonSummary[]): Facets {
   const cohortCounts = countBy(people.map((p) => String(p.cohort)));
-  const jobFieldCounts = countBy(people.map((p) => p.jobField ?? NONE_KEY));
+  // 직무 계열은 다중 선택이라 소속팀처럼 값마다 한 번씩 센다(여러 계열인 사람은
+  // 각 계열에 모두 포함), 값이 없으면 "값 없음".
+  const jobFieldCounts = countBy(people.flatMap((p) => (p.jobField.length > 0 ? p.jobField : [NONE_KEY])));
   const teamCounts = countBy(people.flatMap((p) => (p.team.length > 0 ? p.team : [NONE_KEY])));
 
   return {
@@ -91,8 +93,8 @@ export function matchesFilters(person: PersonSummary, filters: DirectoryFilters)
   if (filters.cohorts.size > 0 && !filters.cohorts.has(String(person.cohort))) return false;
 
   if (filters.jobFields.size > 0) {
-    const key = person.jobField ?? NONE_KEY;
-    if (!filters.jobFields.has(key)) return false;
+    const personJobFields = person.jobField.length > 0 ? person.jobField : [NONE_KEY];
+    if (!personJobFields.some((j) => filters.jobFields.has(j))) return false;
   }
 
   if (filters.teams.size > 0) {
@@ -101,4 +103,16 @@ export function matchesFilters(person: PersonSummary, filters: DirectoryFilters)
   }
 
   return true;
+}
+
+// 이미 정렬된 목록을 기수별로 묶는다(입력 순서 유지 → 기수 내림차순 그대로).
+// 필터·정렬 로직과 무관한 "표시용 묶음"일 뿐이다.
+export function groupByCohort(people: PersonSummary[]): { cohort: number; people: PersonSummary[] }[] {
+  const groups: { cohort: number; people: PersonSummary[] }[] = [];
+  for (const person of people) {
+    const last = groups[groups.length - 1];
+    if (last && last.cohort === person.cohort) last.people.push(person);
+    else groups.push({ cohort: person.cohort, people: [person] });
+  }
+  return groups;
 }

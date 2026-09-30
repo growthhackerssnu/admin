@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Alert,
-  Avatar,
   Button,
   Card,
   Checkbox,
   Col,
+  Collapse,
   Empty,
   Input,
   Row,
@@ -16,10 +16,12 @@ import {
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
 import { HrNav } from "../components/HrNav";
-import { ApiClientError, getMe, getPeople, type Me, type PersonSummary } from "../lib/api";
+import { PersonAvatar } from "../components/PersonAvatar";
+import { ApiClientError, getMe, getPeople, peekCached, type Me, type PersonSummary } from "../lib/api";
 import {
   computeFacets,
   comparePeople,
+  groupByCohort,
   matchesFilters,
   NONE_LABEL,
   type FacetOption,
@@ -42,6 +44,9 @@ export function Directory() {
   const [cohorts, setCohorts] = useState<Set<string>>(new Set());
   const [jobFields, setJobFields] = useState<Set<string>>(new Set());
   const [teams, setTeams] = useState<Set<string>>(new Set());
+  // 접어둔 기수 목록. "펼친 기수"가 아니라 "접은 기수"를 기억해서, 필터로 새로
+  // 나타나는 기수는 항상 기본(펼침)으로 보이게 한다. 표시 전용 상태라 필터와 무관.
+  const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (session === undefined) return; // 아직 세션 확인 중
@@ -49,16 +54,30 @@ export function Directory() {
       navigate("/login", { replace: true });
       return;
     }
+    const userId = session.user.id;
+
+    // 이전에 받아둔 응답이 있으면 즉시 보여주고(재방문·프로필 상세에서 돌아온 경우),
+    // 아래에서 새로 받아 덮어쓴다.
+    const cachedMe = peekCached<Me>(userId, "me");
+    const cachedPeople = peekCached<PersonSummary[]>(userId, "people");
+    if (cachedMe && cachedPeople) {
+      setMe(cachedMe);
+      setPeople(cachedPeople);
+    }
+
     (async () => {
       try {
         const [meResult, peopleResult] = await Promise.all([
-          getMe(session.access_token),
-          getPeople(session.access_token),
+          getMe(session.access_token, userId),
+          getPeople(session.access_token, userId),
         ]);
         setMe(meResult);
         setPeople(peopleResult);
       } catch (e) {
-        setError(e instanceof ApiClientError ? e.message : "디렉토리 정보를 불러오지 못했습니다.");
+        // 캐시로 이미 화면이 떠 있으면 조용히 유지하고, 아무것도 없을 때만 오류를 보인다.
+        if (!cachedPeople) {
+          setError(e instanceof ApiClientError ? e.message : "디렉토리 정보를 불러오지 못했습니다.");
+        }
       }
     })();
   }, [session]);
@@ -82,6 +101,9 @@ export function Directory() {
       .filter((p) => matchesFilters(p, { search, cohorts, jobFields, teams }))
       .sort(comparePeople);
   }, [gridSource, search, cohorts, jobFields, teams]);
+
+  // 화면 표시용으로만 기수별로 묶는다(필터·정렬 결과는 그대로).
+  const cohortGroups = useMemo(() => groupByCohort(filtered), [filtered]);
 
   if (session === undefined || session === null || (!people && !error)) {
     return (
@@ -132,14 +154,17 @@ export function Directory() {
 
         <div className="directory-layout">
           <aside className="directory-facets">
-            <FacetGroup title="기수" options={facets.cohorts} selected={cohorts} onChange={setCohorts} />
-            <FacetGroup
-              title="직무 계열"
-              options={facets.jobFields}
-              selected={jobFields}
-              onChange={setJobFields}
+            {/* 패싯 섹션은 기본이 모두 접힘(activeKey 미지정 = 전부 닫힘). 접혀 있어도
+                선택된 개수는 제목 옆에 보여준다. */}
+            <Collapse
+              ghost
+              size="small"
+              items={[
+                facetItem("cohort", "기수", facets.cohorts, cohorts, setCohorts),
+                facetItem("jobField", "직무 계열", facets.jobFields, jobFields, setJobFields),
+                facetItem("team", "소속팀", facets.teams, teams, setTeams),
+              ].filter((item) => item !== null)}
             />
-            <FacetGroup title="소속팀" options={facets.teams} selected={teams} onChange={setTeams} />
           </aside>
 
           <div className="directory-main">
@@ -154,13 +179,36 @@ export function Directory() {
             {filtered.length === 0 ? (
               <Empty description="조건에 맞는 사람이 없습니다" style={{ marginTop: 48 }} />
             ) : (
-              <Row gutter={[16, 16]}>
-                {filtered.map((person) => (
-                  <Col span={6} key={person.notionPageId}>
-                    <PersonCard person={person} />
-                  </Col>
-                ))}
-              </Row>
+              // 기수별로 접었다 펼 수 있다(기본은 전부 펼침). 사람이 하나도 없는 기수는
+              // 그룹 자체가 안 생긴다.
+              <Collapse
+                ghost
+                className="cohort-collapse"
+                activeKey={cohortGroups
+                  .filter((g) => !collapsedCohorts.has(g.cohort))
+                  .map((g) => String(g.cohort))}
+                onChange={(keys) => {
+                  const open = new Set((Array.isArray(keys) ? keys : [keys]).map(Number));
+                  setCollapsedCohorts(new Set(cohortGroups.filter((g) => !open.has(g.cohort)).map((g) => g.cohort)));
+                }}
+                items={cohortGroups.map((group) => ({
+                  key: String(group.cohort),
+                  label: (
+                    <Typography.Text strong>
+                      {group.cohort}기 <Typography.Text type="secondary">({group.people.length}명)</Typography.Text>
+                    </Typography.Text>
+                  ),
+                  children: (
+                    <Row gutter={[16, 16]}>
+                      {group.people.map((person) => (
+                        <Col span={6} key={person.notionPageId}>
+                          <PersonCard person={person} />
+                        </Col>
+                      ))}
+                    </Row>
+                  ),
+                }))}
+              />
             )}
           </div>
         </div>
@@ -179,16 +227,14 @@ function PersonCard({ person, highlight }: { person: PersonSummary; highlight?: 
           </Tag>
         )}
         <div className="person-card-body">
-          <Avatar shape="square" size={64} src={person.profileImageUrl ?? undefined}>
-            {person.name.slice(0, 1)}
-          </Avatar>
+          <PersonAvatar src={person.profileImageUrl} size={64} />
           <div className="person-card-info">
             <div className="person-card-name">{person.name}</div>
             {/* 학과는 카드에 안 보여준다(2026-09-28 결정) — 복수전공이 많아
                 줄 길이가 들쭉날쭉해지고 카드 높이가 흔들려서 가독성이
                 떨어졌다. 기수+현재 직무 정도면 카드 용도(빠른 식별)엔 충분. */}
             <div className="person-card-meta">
-              {person.cohort}기{person.jobField ? ` · ${person.jobField}` : ""}
+              {person.cohort}기{person.jobField.length > 0 ? ` · ${person.jobField.join(", ")}` : ""}
             </div>
             {person.currentCareerOneLine && (
               <div className="person-card-career">{person.currentCareerOneLine}</div>
@@ -200,29 +246,33 @@ function PersonCard({ person, highlight }: { person: PersonSummary; highlight?: 
   );
 }
 
-function FacetGroup({
-  title,
-  options,
-  selected,
-  onChange,
-}: {
-  title: string;
-  options: FacetOption[];
-  selected: Set<string>;
-  onChange: (next: Set<string>) => void;
-}) {
+// 패싯 한 섹션을 Collapse 항목으로 만든다(옵션이 없으면 null → 섹션 자체를 숨김).
+// 체크박스 동작(카테고리 내 OR)은 예전과 완전히 같고, 접었다 펼치는 껍데기만 추가했다.
+function facetItem(
+  key: string,
+  title: string,
+  options: FacetOption[],
+  selected: Set<string>,
+  onChange: (next: Set<string>) => void,
+) {
   if (options.length === 0) return null;
 
-  function toggle(key: string, checked: boolean) {
+  function toggle(optionKey: string, checked: boolean) {
     const next = new Set(selected);
-    if (checked) next.add(key);
-    else next.delete(key);
+    if (checked) next.add(optionKey);
+    else next.delete(optionKey);
     onChange(next);
   }
 
-  return (
-    <div className="facet-group">
-      <Typography.Text strong>{title}</Typography.Text>
+  return {
+    key,
+    label: (
+      <Typography.Text strong>
+        {title}
+        {selected.size > 0 && <Tag color="blue" style={{ marginLeft: 6 }}>{selected.size}</Tag>}
+      </Typography.Text>
+    ),
+    children: (
       <div className="facet-options">
         {options.map((opt) => (
           <Checkbox
@@ -235,6 +285,6 @@ function FacetGroup({
           </Checkbox>
         ))}
       </div>
-    </div>
-  );
+    ),
+  };
 }

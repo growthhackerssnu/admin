@@ -7,15 +7,34 @@ import type { Member } from "@/generated/prisma";
 import { z } from "zod";
 import { ApiError } from "./errors";
 import { prisma } from "@/lib/prisma";
+import { canonicalizeOptionValues, getFieldOptions, optionKey } from "./fieldOptions";
 import { getPersonDetail, type PersonDetail } from "./peopleCache";
+
+// 본인이 직접 입력해서 만들 수 있는 옵션(직무 계열·학과)의 이름 규칙. Notion
+// 옵션 이름은 쉼표를 못 쓰고(multi_select 값 구분자), 길이는 100자까지다.
+const OptionName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100, "100자 이하로 입력하세요.")
+  .refine((v) => !v.includes(","), { message: "쉼표(,)는 사용할 수 없습니다." });
 
 export const EditRequestInput = z.object({
   email: z.string().trim().nullable(),
   linkedin: z.string().trim().nullable(),
   currentCareerOneLine: z.string().trim().nullable(),
   cohort: z.number().int(),
-  jobField: z.string().trim().nullable(),
-  department: z.array(z.string()),
+  // 직무 계열은 2026-09-30에 다중 선택으로 바뀌었다. 배포 시점 차이로 옛 프론트가
+  // 단일 값(문자열/null)을 보내도 받아준다.
+  jobField: z.union([
+    z.array(OptionName).max(20),
+    z
+      .string()
+      .trim()
+      .nullable()
+      .transform((v) => (v ? [v] : [])),
+  ]),
+  department: z.array(OptionName).max(20),
   team: z.array(z.string()),
   careersText: z.string(),
   activitiesText: z.string(),
@@ -40,7 +59,11 @@ function addArrayIfChanged(bucket: Record<string, DiffEntry>, key: string, befor
   if (normalize(before) !== normalize(after)) bucket[key] = { before, after };
 }
 
-function computeDiff(baseline: PersonDetail, input: EditRequestInput): EditDiff {
+// z.union의 transform 때문에 zod 출력 타입에선 jobField가 string[]로 좁혀지지만,
+// computeDiff 이후 로직은 정규화된 값만 다루므로 아래 타입을 쓴다.
+type NormalizedInput = Omit<EditRequestInput, "jobField"> & { jobField: string[] };
+
+function computeDiff(baseline: PersonDetail, input: NormalizedInput): EditDiff {
   const structuredFields: Record<string, DiffEntry> = {};
   const freeTextSections: Record<string, DiffEntry> = {};
 
@@ -53,7 +76,7 @@ function computeDiff(baseline: PersonDetail, input: EditRequestInput): EditDiff 
     input.currentCareerOneLine || null,
   );
   addIfChanged(structuredFields, "기수", baseline.cohort, input.cohort);
-  addIfChanged(structuredFields, "직무 계열", baseline.jobField, input.jobField || null);
+  addArrayIfChanged(structuredFields, "직무 계열", baseline.jobField, input.jobField);
   addArrayIfChanged(structuredFields, "학과", baseline.department, input.department);
   addArrayIfChanged(structuredFields, "소속팀", baseline.team, input.team);
 
@@ -79,7 +102,28 @@ export async function submitEditRequest(member: Member, input: EditRequestInput)
   const baseline = await getPersonDetail(notionPageId);
   if (!baseline) throw new ApiError("NOT_FOUND", "프로필을 찾을 수 없습니다.");
 
-  const diff = computeDiff(baseline, input);
+  // 직무 계열·학과는 본인이 새 옵션을 만들 수 있다(공백·대소문자만 다른 값은 기존
+  // 옵션으로 합친다). 소속팀·기수는 기존 옵션만 허용한다 — 승인 시 Notion이 없는
+  // 옵션 이름을 자동 생성하기 때문에, 여기서 안 막으면 API로 직접 보내 옵션을
+  // 오염시킬 수 있다.
+  const options = await getFieldOptions();
+  const jobField = canonicalizeOptionValues(input.jobField as string[], options.jobField).values;
+  const department = canonicalizeOptionValues(input.department, options.department).values;
+  const teamKeys = new Map(options.team.map((name) => [optionKey(name), name]));
+  const team = input.team.map((name) => teamKeys.get(optionKey(name)));
+  if (team.some((name) => !name)) {
+    throw new ApiError("VALIDATION_ERROR", "소속팀은 기존 목록에서만 선택할 수 있습니다.");
+  }
+  if (!options.cohort.includes(input.cohort)) {
+    throw new ApiError("VALIDATION_ERROR", "존재하지 않는 기수입니다.");
+  }
+
+  const diff = computeDiff(baseline, {
+    ...input,
+    jobField,
+    department,
+    team: team as string[],
+  });
   if (Object.keys(diff.structuredFields).length === 0 && Object.keys(diff.freeTextSections).length === 0) {
     throw new ApiError("VALIDATION_ERROR", "변경된 내용이 없습니다.");
   }
@@ -129,9 +173,36 @@ export async function getAllEditRequests() {
     include: { requester: { include: { claimedPersonEntry: true } } },
   });
 
+  // 대기 중 요청이 "Notion에 없는 새 옵션"을 담고 있으면 승인 화면에서 표시한다
+  // (오타·중복 옵션이 그대로 만들어지는 걸 admin이 거를 수 있게). Notion 조회가
+  // 실패해도 목록 자체는 보여준다.
+  let options: Awaited<ReturnType<typeof getFieldOptions>> | null = null;
+  if (rows.some((r) => r.status === "pending")) {
+    options = await getFieldOptions().catch(() => null);
+  }
+
   return rows.map((row) => ({
     ...row,
     requesterName: row.requester.claimedPersonEntry?.name ?? row.requester.displayName,
     requesterCohort: row.requester.claimedPersonEntry?.cohort ?? null,
+    newOptions: row.status === "pending" && options ? findNewOptions(row.diff, options) : {},
   }));
+}
+
+function findNewOptions(
+  diff: unknown,
+  options: { jobField: string[]; department: string[] },
+): Record<string, string[]> {
+  const structured = (diff as { structuredFields?: Record<string, { after?: unknown }> }).structuredFields ?? {};
+  const result: Record<string, string[]> = {};
+  const check = (label: string, existing: string[]) => {
+    const after = structured[label]?.after;
+    if (!Array.isArray(after)) return;
+    const known = new Set(existing.map(optionKey));
+    const fresh = after.filter((v): v is string => typeof v === "string" && !known.has(optionKey(v)));
+    if (fresh.length > 0) result[label] = fresh;
+  };
+  check("직무 계열", options.jobField);
+  check("학과", options.department);
+  return result;
 }

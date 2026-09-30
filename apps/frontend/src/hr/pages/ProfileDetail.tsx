@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
-  Avatar,
   Button,
   Descriptions,
   Form,
@@ -15,6 +14,7 @@ import {
   Typography,
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
+import { PersonAvatar } from "../components/PersonAvatar";
 import {
   ApiClientError,
   getFieldOptions,
@@ -27,6 +27,7 @@ import {
   type FieldOptions,
   type Me,
   type PersonDetail,
+  toStringArray,
 } from "../lib/api";
 import { useSession } from "../../lib/useSession";
 import { signOut } from "../../lib/supabase";
@@ -60,7 +61,7 @@ export function ProfileDetail() {
     (async () => {
       try {
         const [meResult, personResult] = await Promise.all([
-          getMe(session.access_token),
+          getMe(session.access_token, session.user.id),
           getPerson(notionPageId, session.access_token),
         ]);
         setMe(meResult);
@@ -138,9 +139,7 @@ export function ProfileDetail() {
         </div>
 
         <div className="profile-header section-gap">
-          <Avatar shape="square" size={120} src={person.profileImageUrl ?? undefined}>
-            {person.name.slice(0, 1)}
-          </Avatar>
+          <PersonAvatar src={person.profileImageUrl} size={120} />
           <div>
             <Typography.Title level={3} style={{ marginBottom: 4 }}>
               {person.name}
@@ -180,7 +179,7 @@ function ProfileView({
     <>
       <Descriptions column={1} bordered size="small" className="section-gap">
         <Descriptions.Item label="학과">{person.department.join(", ") || "-"}</Descriptions.Item>
-        <Descriptions.Item label="직무 계열">{person.jobField ?? "-"}</Descriptions.Item>
+        <Descriptions.Item label="직무 계열">{person.jobField.join(", ") || "-"}</Descriptions.Item>
         {/* 직책은 읽기 전용 참고 정보(§12.3, 2026-09-28 결정) — 권한 판단엔 안 쓰지만
             화면에 보여주는 건 별개다. 값 없는 일반 회원은 항목 자체를 숨긴다. */}
         {person.position && <Descriptions.Item label="직책">{person.position}</Descriptions.Item>}
@@ -262,11 +261,30 @@ function ProfileEditForm({
       <Form.Item name="cohort" label="기수" rules={[{ required: true, message: "기수를 선택하세요." }]}>
         <Select options={fieldOptions.cohort.map((c) => ({ value: c, label: `${c}기` }))} />
       </Form.Item>
-      <Form.Item name="jobField" label="직무 계열">
-        <Select allowClear options={fieldOptions.jobField.map((v) => ({ value: v, label: v }))} />
+      {/* 직무 계열·학과는 목록에 없는 값을 직접 입력해서 추가할 수 있다(mode="tags").
+          쉼표는 Notion 옵션 이름에 쓸 수 없어서 구분자로 처리한다. 새 값은 관리자
+          승인 후 Notion 옵션으로 만들어진다. */}
+      <Form.Item
+        name="jobField"
+        label="직무 계열"
+        extra="여러 개 선택할 수 있어요. 목록에 없으면 직접 입력해서 추가할 수 있어요(승인 후 반영)."
+      >
+        <Select
+          mode="tags"
+          tokenSeparators={[","]}
+          options={fieldOptions.jobField.map((v) => ({ value: v, label: v }))}
+        />
       </Form.Item>
-      <Form.Item name="department" label="학과">
-        <Select mode="multiple" options={fieldOptions.department.map((v) => ({ value: v, label: v }))} />
+      <Form.Item
+        name="department"
+        label="학과"
+        extra="목록에 없으면 직접 입력해서 추가할 수 있어요(승인 후 반영)."
+      >
+        <Select
+          mode="tags"
+          tokenSeparators={[","]}
+          options={fieldOptions.department.map((v) => ({ value: v, label: v }))}
+        />
       </Form.Item>
       <Form.Item name="team" label="소속팀">
         <Select mode="multiple" options={fieldOptions.team.map((v) => ({ value: v, label: v }))} />
@@ -319,7 +337,8 @@ function buildInitialFormValues(person: PersonDetail, pending: EditRequest | nul
       ? (sf["현재 커리어"].after as string | null)
       : base.currentCareerOneLine,
     cohort: sf["기수"] ? (sf["기수"].after as number) : base.cohort,
-    jobField: sf["직무 계열"] ? (sf["직무 계열"].after as string | null) : base.jobField,
+    // 직무 계열이 단일 값이던 시절 제출된 대기 요청(문자열/null)도 배열로 맞춘다.
+    jobField: sf["직무 계열"] ? toStringArray(sf["직무 계열"].after) : base.jobField,
     department: sf["학과"] ? (sf["학과"].after as string[]) : base.department,
     team: sf["소속팀"] ? (sf["소속팀"].after as string[]) : base.team,
     careersText: fts["careers"] ? (fts["careers"].after as string) : base.careersText,

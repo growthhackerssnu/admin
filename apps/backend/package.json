@@ -17,7 +17,8 @@
     "members:add": "dotenv -e .env.local -- tsx scripts/portal/addMember.ts",
     "members:remove": "dotenv -e .env.local -- tsx scripts/portal/removeMember.ts",
     "people:import": "dotenv -e .env.local -- tsx scripts/portal/importPeopleDirectory.ts",
-    "images:migrate": "dotenv -e .env.local -- tsx scripts/hr/migrateProfileImages.ts"
+    "images:migrate": "dotenv -e .env.local -- tsx scripts/hr/migrateProfileImages.ts",
+    "images:baseline": "dotenv -e .env.local -- tsx scripts/hr/seedImageBaseline.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
