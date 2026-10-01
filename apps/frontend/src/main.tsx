@@ -10,6 +10,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { installTokens, theme } from "@dhbot/ui-shell";
+import { LoadingScreen } from "./lib/LoadingScreen";
 import { RequireApp } from "./portal/components/RequireApp";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
@@ -56,6 +57,12 @@ const Nut = lazy(() => import("./nut"));
 // 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 어두운 네이비 화면이라 같은 색
 // 바탕만 깔아서(CSS 파일이 아직 안 왔으므로 인라인) 흰/회색 스켈레톤이 번쩍이지 않게 한다.
 const AUTH_PATHS = ["/", "/login", "/index"];
+// 밝은 앱 화면(hr·회원 관리)의 주소 — 이 화면들은 파란 점 로딩 화면을 쓴다.
+function isAppScreenPath(pathname: string) {
+  return (
+    pathname === "/hr" || pathname.startsWith("/hr/") || pathname === "/admin"
+  );
+}
 function RouteFallback() {
   const { pathname } = useLocation();
   if (AUTH_PATHS.includes(pathname)) {
@@ -63,6 +70,8 @@ function RouteFallback() {
       <div style={{ position: "fixed", inset: 0, background: "#001136" }} />
     );
   }
+  // hr·회원 관리는 데이터 로딩 단계와 같은 로딩 화면(파란 점)을 이어서 보여준다.
+  if (isAppScreenPath(pathname)) return <LoadingScreen />;
   return <Skeleton active style={{ padding: 24 }} />;
 }
 

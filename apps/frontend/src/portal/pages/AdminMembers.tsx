@@ -27,6 +27,7 @@ import {
 } from "../lib/api";
 import { useSession } from "../../lib/useSession";
 import { signOut } from "../../lib/supabase";
+import { LoadingScreen } from "../../lib/LoadingScreen";
 
 const ROLE_LABEL: Record<AdminMember["role"], string> = {
   admin: "admin",
@@ -135,11 +136,7 @@ export function AdminMembers() {
   }, [isAdmin, load]);
 
   if (session === undefined || checking) {
-    return (
-      <main>
-        <Skeleton active paragraph={{ rows: 6 }} />
-      </main>
-    );
+    return <LoadingScreen />;
   }
   if (session === null) return <Navigate to="/login" replace />;
   if (!isAdmin) {

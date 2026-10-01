@@ -8,12 +8,12 @@ import {
   Input,
   Modal,
   Segmented,
-  Skeleton,
   Space,
   Table,
   Typography,
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
+import { LoadingScreen } from "../../lib/LoadingScreen";
 import { HrNav } from "../components/HrNav";
 import { EditRequestDiff } from "../components/EditRequestDiff";
 import { EditRequestStatusTag } from "../components/EditRequestStatusTag";
@@ -145,14 +145,9 @@ export function AdminQueue() {
     }
   }
 
+  // 화면 코드 로딩 단계(RouteFallback)와 같은 로딩 화면을 이어서 보여준다(lib/LoadingScreen.tsx).
   if (session === undefined || session === null || (!requests && !error)) {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <Skeleton active paragraph={{ rows: 4 }} />
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !requests || !me) {
