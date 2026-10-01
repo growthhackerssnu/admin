@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gmailAndroidIntentUrl, gmailWebUrl, isAndroid } from "./mailCompose";
+import { gmailAndroidIntentUrl, gmailWebUrl, isAndroid, isIOS, mailtoUrl } from "./mailCompose";
 
 describe("gmailWebUrl", () => {
   it("받는 사람을 URL 인코딩해서 컴포즈 주소를 만든다", () => {
@@ -31,5 +31,29 @@ describe("isAndroid", () => {
     expect(isAndroid("Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile")).toBe(true);
     expect(isAndroid("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari")).toBe(false);
     expect(isAndroid("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120")).toBe(false);
+  });
+});
+
+describe("mailtoUrl", () => {
+  it("받는 사람을 인코딩한 mailto 주소를 만든다", () => {
+    expect(mailtoUrl("a+b@snu.ac.kr")).toBe("mailto:a%2Bb%40snu.ac.kr");
+  });
+});
+
+describe("isIOS", () => {
+  it("iPhone/iPad UA를 알아본다", () => {
+    expect(isIOS("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari")).toBe(true);
+    expect(isIOS("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Safari")).toBe(true);
+  });
+
+  it("iPadOS는 Mac UA를 보내므로 터치 지점으로 판별한다", () => {
+    const macUa = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15";
+    expect(isIOS(macUa, "MacIntel", 5)).toBe(true);
+    expect(isIOS(macUa, "MacIntel", 0)).toBe(false); // 진짜 Mac
+  });
+
+  it("Android·Windows는 아니다", () => {
+    expect(isIOS("Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile", "Linux armv8l", 5)).toBe(false);
+    expect(isIOS("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120", "Win32", 0)).toBe(false);
   });
 });

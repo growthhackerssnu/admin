@@ -15,7 +15,7 @@ import {
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
 import { PersonAvatar } from "../components/PersonAvatar";
-import { gmailWebUrl, openGmailAppIfPossible } from "../lib/mailCompose";
+import { gmailWebUrl, openMailAppIfPossible } from "../lib/mailCompose";
 import { PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
 import {
   ApiClientError,
@@ -208,14 +208,14 @@ function ProfileView({
           {person.email ? (
             <Space>
               {person.email}
-              {/* 기본은 Gmail 웹 컴포즈. Android에선 Gmail 앱으로 먼저 열고 앱이 없으면
-                  같은 웹 주소로 넘어간다(lib/mailCompose.ts). */}
+              {/* 기본은 Gmail 웹 컴포즈. Android는 Gmail 앱(없으면 웹), iPhone·iPad는 기본 메일 앱
+                  (mailto)으로 연다(lib/mailCompose.ts). */}
               <a
                 href={gmailWebUrl(person.email)}
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => {
-                  if (person.email && openGmailAppIfPossible(person.email)) e.preventDefault();
+                  if (person.email && openMailAppIfPossible(person.email)) e.preventDefault();
                 }}
               >
                 <Button size="small">메일 보내기</Button>
