@@ -6,6 +6,7 @@
 // 스키마 경계 (§2, §3):
 //   core — 세 앱이 공유하는 신원·회원 데이터. 소유자는 portal.
 //   dh   — 대협봇 업무 데이터. 소유자는 dh. 다른 앱은 접근하지 않는다.
+//   ghbot — GH Bot 접근 토큰. 소유자는 portal.
 //   hr   — 그핵드인 업무 데이터. 소유자는 hr. edit_requests/people_cache 2개
 //          (DB_SCHEMA_HR.md 참고). 다른 앱은 접근하지 않는다.
 //
@@ -25,7 +26,7 @@ datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
-  schemas   = ["core", "dh", "hr", "nut"]
+  schemas   = ["core", "dh", "ghbot", "hr", "nut"]
 }
 
 // ---------- Enums ----------
@@ -184,16 +185,16 @@ model Member {
   @@schema("core")
 }
 
-// ghbot의 구성원 로그인용 장기 토큰. 원문 토큰은 발급 응답에서 한 번만
-// 보여주고, DB에는 SHA-256 해시와 식별용 접두사만 남긴다. 이 레코드는 portal이
-// 소유하지만 ghbot 서버가 내부 검증 API를 통해 읽어 쓸 수 있다.
+// ghbot의 구성원 로그인용 장기 토큰. 인증에는 SHA-256 해시를 쓰고, 관리자
+// 재복사용 원문은 암호문으로만 저장한다. 이 레코드는 portal이 소유하고 ghbot
+// 서버는 내부 검증 API를 통해서만 확인한다.
 model GhbotAccessToken {
   id               String    @id @default(cuid())
   memberId         String    @map("member_id")
   member           Member    @relation("GhbotTokenMember", fields: [memberId], references: [id])
-    tokenHash        String    @unique @map("token_hash")
-    tokenCiphertext  String    @map("token_ciphertext")
-    tokenPrefix      String    @map("token_prefix")
+  tokenHash        String    @unique @map("token_hash")
+  tokenCiphertext  String    @map("token_ciphertext")
+  tokenPrefix      String    @map("token_prefix")
   issuedByMemberId String    @map("issued_by_member_id")
   issuedBy         Member    @relation("GhbotTokenIssuer", fields: [issuedByMemberId], references: [id])
   issuedAt         DateTime  @default(now()) @map("issued_at")
@@ -204,7 +205,7 @@ model GhbotAccessToken {
   @@index([memberId])
   @@index([revokedAt])
   @@map("ghbot_access_tokens")
-  @@schema("core")
+  @@schema("ghbot")
 }
 
 // 노션 People DB(액팅+알럼나이 전체)에서 가져온 "신뢰 이메일" 원장
