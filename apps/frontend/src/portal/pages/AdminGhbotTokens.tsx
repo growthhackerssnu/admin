@@ -72,8 +72,10 @@ export function AdminGhbotTokens() {
     if (isAdmin) void load();
   }, [isAdmin, load]);
 
-  if (session === undefined || checking) return <Skeleton active style={{ padding: 24 }} />;
-  if (session === null) return <Navigate to="/login" replace />;
+  // `?preview=1` is a local-development-only fixture. It deliberately does
+  // not initialize a real Supabase session or call the API.
+  if (!preview && (session === undefined || checking)) return <Skeleton active style={{ padding: 24 }} />;
+  if (!preview && session === null) return <Navigate to="/login" replace />;
   if (!isAdmin) {
     return <Alert type="error" showIcon message="접근 권한이 없습니다" description="관리자만 GH Bot 토큰을 관리할 수 있습니다." />;
   }
