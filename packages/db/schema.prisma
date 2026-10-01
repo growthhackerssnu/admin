@@ -172,6 +172,8 @@ model Member {
   dhIdempotencyKeys   DhIdempotencyKey[]   @relation("DhIdempotencyActor")
   coreIdempotencyKeys CoreIdempotencyKey[] @relation("CoreIdempotencyActor")
   claimedPersonEntry  PeopleDirectory?
+  ghbotTokens         GhbotAccessToken[] @relation("GhbotTokenMember")
+  ghbotTokensIssued   GhbotAccessToken[] @relation("GhbotTokenIssuer")
 
   // hr(그핵드인) — 프로필 수정 승인 큐. 본인이 제출한 요청(alumni 포함 누구나)과
   // 자신이 검토한 요청(admin)은 서로 다른 관계다. DB_SCHEMA_HR.md §1 참고.
@@ -179,6 +181,28 @@ model Member {
   editRequestsReviewed  EditRequest[] @relation("EditRequestReviewer")
 
   @@map("members")
+  @@schema("core")
+}
+
+// ghbot의 구성원 로그인용 장기 토큰. 원문 토큰은 발급 응답에서 한 번만
+// 보여주고, DB에는 SHA-256 해시와 식별용 접두사만 남긴다. 이 레코드는 portal이
+// 소유하지만 ghbot 서버가 내부 검증 API를 통해 읽어 쓸 수 있다.
+model GhbotAccessToken {
+  id               String    @id @default(cuid())
+  memberId         String    @map("member_id")
+  member           Member    @relation("GhbotTokenMember", fields: [memberId], references: [id])
+  tokenHash        String    @unique @map("token_hash")
+  tokenPrefix      String    @map("token_prefix")
+  issuedByMemberId String    @map("issued_by_member_id")
+  issuedBy         Member    @relation("GhbotTokenIssuer", fields: [issuedByMemberId], references: [id])
+  issuedAt         DateTime  @default(now()) @map("issued_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  expiresAt        DateTime? @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+
+  @@index([memberId])
+  @@index([revokedAt])
+  @@map("ghbot_access_tokens")
   @@schema("core")
 }
 
