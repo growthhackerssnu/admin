@@ -16,7 +16,7 @@ import { assertCanModify } from "@/dh/lib/permissions";
 import { assertVersionMatch } from "@/dh/lib/revision";
 import { serializeOutreachDetail } from "@/dh/lib/serializers/outreach";
 import { generateDraftSchema } from "@/dh/lib/validation/outreach";
-import { runStructuredOutput } from "@/dh/lib/listup/openaiWebSearch";
+import { runStructuredOutput } from "@/dh/lib/listup/gemini";
 
 // POST /outreaches/{id}/draft-generation — AI는 빈칸 값만 만든다. 고정 문구는
 // Template에서 읽고 서버가 조립하며, 발송이나 웹 검색은 수행하지 않는다.

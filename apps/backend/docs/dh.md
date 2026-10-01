@@ -4,11 +4,11 @@
 
 ## 스택
 
-Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres · Supabase Auth(Google OAuth) · Inngest(비동기 작업) · OpenAI API(리서치·초안 생성) · Railway 배포(서버 전체가 하나).
+Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres · Supabase Auth(Google OAuth) · Inngest(비동기 작업) · Gemini API(리서치·초안 생성) · Railway 배포(서버 전체가 하나).
 
 ## 준비
 
-1. 서버 공통 설정은 [apps/backend/README.md](../README.md). dh에 필요한 값: `OPENAI_API_KEY`(리서치·초안 생성), `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY`(로컬은 비워도 됨), 선택 `LISTUP_*`.
+1. 서버 공통 설정은 [apps/backend/README.md](../README.md). dh에 필요한 값: `GEMINI_API_KEY`(리서치·초안 생성), `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY`(로컬은 비워도 됨), 선택 `LISTUP_*`.
    - `DIRECT_URL`은 **Session pooler**(5432)다 — 대시보드의 "Direct connection" 탭 값은 IPv6 전용이라 일반 네트워크에서 `prisma migrate`가 "Can't reach database server"로 막힌다.
 2. 스키마가 최신인지 확인 — 마이그레이션은 `packages/db`가 소유한다(`cd packages/db && npm run db:status`). 규칙은 [DB 공유 규칙](../../../docs/db/conventions.md) §7
 3. `npm run db:seed -w apps/backend` — `apps/frontend/src/dh/mocks/fixtures.ts`의 샘플 8개 기업을 그대로 시딩

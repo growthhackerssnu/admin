@@ -143,7 +143,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | `outreaches` | 컨택 건 (기업당 1건) | **예정** (§6) |
 | `templates`, `message_draft_revisions` | 템플릿과 초안 리비전 | 미정 |
 | `sent_messages`, `responses` | 발송 기록과 응답 확인 | 미정 |
-| `past_projects` | 과거 협업 이력 | 미정 |
+| `past_projects` | 과거 협업 이력(기업, 한줄 설명, Notion 원본, 진행 분기, 기술·산업 분류) | 미정 |
 | `jobs` | 비동기 작업(발송 쪽) | 아니오 |
 | `idempotency_keys` | 멱등성 키. `dh` 스키마 전용이며 portal 것과 별개다 (§4.1) | 아니오 |
 
