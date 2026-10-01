@@ -14,6 +14,7 @@ import {
 } from "../lib/api";
 import { useSession } from "../../lib/useSession";
 import { signOut } from "../../lib/supabase";
+import { LoadingScreen } from "../../lib/LoadingScreen";
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString("ko-KR") : "—";
@@ -75,7 +76,7 @@ export function AdminGhbotTokens() {
 
   // `?preview=1` is a local-development-only fixture. It deliberately does
   // not initialize a real Supabase session or call the API.
-  if (!preview && (session === undefined || checking)) return <Skeleton active style={{ padding: 24 }} />;
+  if (!preview && (session === undefined || checking)) return <LoadingScreen />;
   if (!preview && session === null) return <Navigate to="/login" replace />;
   if (!isAdmin) {
     return <Alert type="error" showIcon message="접근 권한이 없습니다" description="관리자만 GH Bot 토큰을 관리할 수 있습니다." />;
@@ -105,7 +106,7 @@ export function AdminGhbotTokens() {
       title: rotating ? `${target.displayName}님의 토큰을 재발급할까요?` : `${target.displayName}님에게 토큰을 발급할까요?`,
       content: rotating
         ? "기존 토큰은 즉시 사용할 수 없게 됩니다."
-        : "발급된 원문 토큰은 이 화면에서 한 번만 확인할 수 있습니다.",
+        : "발급 직후 원문을 확인할 수 있고, 이후에도 관리자 토큰 목록에서 복사할 수 있습니다.",
       okText: rotating ? "재발급" : "발급",
       cancelText: "취소",
       okButtonProps: { danger: rotating },
@@ -197,7 +198,21 @@ export function AdminGhbotTokens() {
     <div className="app-shell">
       <SidePane role="admin" current="admin" />
       <main>
-        <div className="row section-gap"><div><h1>GH Bot 접근 토큰</h1><p className="muted">활성 acting 회원만 발급 대상입니다. 마스킹된 토큰을 클릭하면 원문을 복사할 수 있습니다.</p></div><Space><Button onClick={() => navigate("/admin")}>회원 관리</Button><Button onClick={() => void signOut()}>로그아웃</Button></Space></div>
+        <div className="row section-gap">
+          <div>
+            <div className="hr-eyebrow">GH BOT ACCESS</div>
+            <Typography.Title level={3} style={{ marginBottom: 4 }}>
+              GH Bot 접근 토큰
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              활성 acting 회원만 발급 대상입니다. 마스킹된 토큰을 클릭하면 원문을 복사할 수 있습니다.
+            </Typography.Text>
+          </div>
+          <Space>
+            <Button onClick={() => navigate("/admin")}>회원 관리</Button>
+            <Button onClick={() => void signOut()}>로그아웃</Button>
+          </Space>
+        </div>
         {preview && <Alert className="feedback" type="info" showIcon message="개발용 화면 미리보기" description="실제 회원·토큰을 읽거나 쓰지 않습니다. 발급·회수 버튼은 화면 상태만 바꿉니다." />}
         {error && <Alert className="feedback" type="error" showIcon message={error} action={<Button onClick={() => void load()}>다시 불러오기</Button>} />}
         <div className="surface">{loading ? <Skeleton active paragraph={{ rows: 8 }} /> : <Table rowKey="memberId" dataSource={members} columns={columns} pagination={false} />}</div>
