@@ -50,6 +50,18 @@ npm test -w apps/backend
 | 이름 | 스크립트 |
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` (Supabase → API → `service_role`, 절대 프론트에 넣지 않음) | `images:migrate` |
+
+### GH Bot 구성원 토큰 연동
+
+관리자 발급 토큰은 `core.ghbot_access_tokens`에 인증용 SHA-256 해시와 관리자 재복사용 암호문을 저장한다.
+백엔드에는 다음 값을 추가한다.
+
+| 변수 | 용도 |
+| --- | --- |
+| `GHBOT_TOKEN_ENCRYPTION_KEY` | base64url 인코딩한 32바이트 키. 토큰 원문을 AES-256-GCM으로 암호화할 때만 사용한다. |
+| `GHBOT_AUTH_SHARED_SECRET` | ghbot MCP 서버와 동일하게 설정하는 서버 간 인증 비밀값. |
+
+ghbot은 `/api/v1/internal/ghbot/authenticate`로 토큰 해시 대조를 요청한다. 이 API는 사용자용 API가 아니며, 공유 비밀값 없이 호출하면 실패한다. ghbot 서비스에 admin DB 접속 문자열이나 Supabase service-role 키를 넣지 않는다.
 | `NOTION_PROJECTS_DATABASE_ID`, `NOTION_PROJECT_*` | `past-projects:import` |
 | `NOTION_COHORT_PROPERTY` 등 | `people:import` |
 

@@ -1,14 +1,10 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { withApiHandler } from "@/portal/lib/apiHandler";
 import { requireAdmin } from "@/portal/lib/auth";
 import { ApiError, successBody } from "@/portal/lib/errors";
 import { issueGhbotTokenSchema } from "@/portal/lib/validation/admin";
 import { prisma } from "@/lib/prisma";
-import { encryptGhbotToken } from "@/portal/lib/ghbotTokenCrypto";
-
-function tokenHash(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
+import { encryptGhbotToken, hashGhbotToken } from "@/portal/lib/ghbotTokenCrypto";
 
 function tokenPrefix(token: string) {
   return `${token.slice(0, 10)}…${token.slice(-6)}`;
@@ -80,7 +76,7 @@ export const POST = withApiHandler(async (req, { member, requestId }) => {
     return tx.ghbotAccessToken.create({
       data: {
         memberId: target.id,
-        tokenHash: tokenHash(rawToken),
+        tokenHash: hashGhbotToken(rawToken),
         tokenCiphertext: encryptGhbotToken(rawToken),
         tokenPrefix: tokenPrefix(rawToken),
         issuedByMemberId: member.id,

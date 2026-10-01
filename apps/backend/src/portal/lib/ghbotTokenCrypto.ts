@@ -1,7 +1,11 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
+
+export function hashGhbotToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 function encryptionKey() {
   const configured = process.env.GHBOT_TOKEN_ENCRYPTION_KEY;
