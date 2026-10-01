@@ -220,6 +220,8 @@ export function AdminQueue() {
             rowKey="id"
             dataSource={filtered}
             pagination={false}
+            // 좁은 화면에선 표를 가로로 밀어서 본다(열을 줄이지 않는다).
+            scroll={{ x: "max-content" }}
             onRow={(record) => ({ onClick: () => setDetail(record), style: { cursor: "pointer" } })}
             rowSelection={{
               selectedRowKeys: selectedIds,
@@ -247,6 +249,7 @@ export function AdminQueue() {
         <Modal
           open={detail !== null}
           onCancel={() => setDetail(null)}
+          width="min(720px, calc(100vw - 24px))"
           title={detail ? `${detail.requesterName}(${detail.requesterCohort ?? "-"}기) 수정 요청` : ""}
           footer={
             detail?.status === "pending"

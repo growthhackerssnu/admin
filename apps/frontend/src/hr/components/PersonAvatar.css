@@ -12,3 +12,13 @@
   justify-content: center;
   color: #bfbfbf;
 }
+
+/* 2026-10-01 UI 리프레시 — NUT 계열 톤 */
+.person-avatar {
+  border-radius: 12px;
+  background: #e9efe6;
+}
+.person-avatar-default {
+  background: #e4ece3;
+  color: #9bb3a5;
+}

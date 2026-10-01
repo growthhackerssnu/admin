@@ -3,22 +3,29 @@
 
 .directory-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: var(--space-xl);
   align-items: start;
+}
+
+/* 왼쪽 레일: 내 프로필 카드 + 패싯 패널. 레일 전체가 스크롤을 따라 붙는다. */
+.directory-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  position: sticky;
+  top: var(--space-lg);
+  /* 패싯 목록(특히 소속팀)이 메인 그리드보다 아래에 있으면, 페이지 전체
+     스크롤에 묶여서 271명을 다 지나야 보이는 문제가 있었다(2026-09-28,
+     실제 확인) — 이 레일만 독립적으로 스크롤되게 분리한다. */
+  max-height: calc(100vh - var(--space-lg) * 2);
+  overflow-y: auto;
 }
 
 .directory-facets {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
-  position: sticky;
-  top: var(--space-lg);
-  /* 패싯 목록(특히 소속팀)이 메인 그리드보다 아래에 있으면, 페이지 전체
-     스크롤에 묶여서 271명을 다 지나야 보이는 문제가 있었다(2026-09-28,
-     실제 확인) — 이 패널만 독립적으로 스크롤되게 분리한다. */
-  max-height: calc(100vh - var(--space-lg) * 2);
-  overflow-y: auto;
 }
 
 .facet-group {
@@ -33,9 +40,42 @@
   gap: 6px;
 }
 
-.directory-search {
+/* 검색창 + (모바일) 필터 버튼 한 줄 */
+.directory-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: var(--space-lg);
-  max-width: 360px;
+}
+.directory-toolbar .directory-search {
+  flex: 1;
+  max-width: 420px;
+}
+
+/* 사람 카드 그리드: 카드 최소 폭 기준으로 열 수가 정해진다 */
+.person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+  gap: 16px;
+}
+
+/* 태블릿 이하: 왼쪽 레일 없이 한 열 레이아웃 */
+.directory-layout-compact {
+  display: block;
+}
+.directory-me-compact {
+  margin-bottom: var(--space-lg);
+}
+.directory-layout-compact .directory-toolbar .directory-search {
+  max-width: none;
+}
+
+.filter-drawer-footer {
+  display: flex;
+  gap: 10px;
+}
+.filter-drawer-footer .ant-btn {
+  flex: 1;
 }
 
 .person-card-link {
@@ -78,4 +118,136 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ===== 2026-10-01 UI 리프레시 (NUT 계열 색·굵기, 구조는 그대로) ===== */
+
+/* 패싯 패널: 흰 카드 + 연한 초록 선. 제목은 NUT 라벨처럼 굵게. */
+.directory-facets {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hr-radius-card, 14px);
+  padding: 6px 14px;
+}
+.directory-facets .ant-collapse-header-text {
+  font-weight: 700;
+}
+.hr-count-badge {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--hr-lime, #d8f36a);
+  color: var(--hr-ink, #10241d);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+
+.directory-search.ant-input-affix-wrapper {
+  background: var(--color-surface);
+  border-radius: 12px;
+}
+
+/* 기수 그룹 헤더: 라임 점 + 굵은 제목 */
+.cohort-collapse.ant-collapse > .ant-collapse-item > .ant-collapse-header {
+  padding-left: 0;
+  padding-right: 0;
+}
+.cohort-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--hr-ink, #10241d);
+}
+.cohort-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--hr-lime, #d8f36a);
+  box-shadow: 0 0 0 3px rgba(216, 243, 106, 0.35);
+}
+.cohort-collapse .ant-collapse-content > .ant-collapse-content-box {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* 사람 카드 */
+.person-card.ant-card {
+  border-radius: var(--hr-radius-card, 14px);
+  border-color: var(--color-border);
+  box-shadow: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+/* 터치 기기에선 hover가 눌린 채 남아 어색해서, 마우스가 있는 기기에서만 적용 */
+@media (hover: hover) {
+  .person-card-link:hover .person-card {
+    border-color: var(--hr-green, #2c8c73);
+    box-shadow: 0 8px 22px rgba(16, 36, 29, 0.08);
+    transform: translateY(-2px);
+  }
+}
+.person-card-link:active .person-card {
+  border-color: var(--hr-green, #2c8c73);
+}
+
+/* 터치 영역: 접기 헤더·체크박스를 손가락으로 누르기 편한 높이로 */
+@media (max-width: 999px) {
+  .directory-facets .ant-collapse-header,
+  .cohort-collapse .ant-collapse-header {
+    min-height: 44px;
+    align-items: center;
+  }
+  .facet-options .ant-checkbox-wrapper {
+    padding: 6px 0;
+  }
+}
+.hr-filter-drawer .ant-collapse-header {
+  min-height: 44px;
+  align-items: center;
+}
+.hr-filter-drawer .facet-options .ant-checkbox-wrapper {
+  padding: 8px 0;
+}
+@media (max-width: 599px) {
+  .cohort-heading {
+    font-size: 17px;
+  }
+}
+.person-card-highlight.ant-card {
+  border-color: var(--hr-lime-strong, #b9d63a);
+  background: var(--hr-lime-soft, #f7fbe3);
+}
+.hr-badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--hr-lime, #d8f36a);
+  color: var(--hr-ink, #10241d);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.person-card-name {
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--hr-ink, #10241d);
+}
+.person-card-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hr-green, #2c8c73);
+}
+.person-card-career {
+  font-weight: 500;
 }
