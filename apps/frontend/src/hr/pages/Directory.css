@@ -120,7 +120,7 @@
   white-space: nowrap;
 }
 
-/* ===== 2026-10-01 UI 리프레시 (NUT 계열 색·굵기, 구조는 그대로) ===== */
+/* ===== 2026-10-01 UI 리프레시 (협의 팔레트 색, NUT 계열 굵기·모서리) ===== */
 
 /* 패싯 패널: 흰 카드 + 연한 초록 선. 제목은 NUT 라벨처럼 굵게. */
 .directory-facets {
@@ -138,8 +138,8 @@
   margin-left: 8px;
   padding: 0 6px;
   border-radius: 10px;
-  background: var(--hr-lime, #d8f36a);
-  color: var(--hr-ink, #10241d);
+  background: var(--hr-chip, #ccdcff);
+  color: var(--hr-ink, #001136);
   font-size: 11px;
   font-weight: 800;
   line-height: 20px;
@@ -163,14 +163,14 @@
   font-size: 18px;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: var(--hr-ink, #10241d);
+  color: var(--hr-ink, #001136);
 }
 .cohort-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--hr-lime, #d8f36a);
-  box-shadow: 0 0 0 3px rgba(216, 243, 106, 0.35);
+  background: var(--hr-accent, #7c96cf);
+  box-shadow: 0 0 0 3px rgba(124, 150, 207, 0.3);
 }
 .cohort-collapse .ant-collapse-content > .ant-collapse-content-box {
   padding-left: 0;
@@ -190,13 +190,13 @@
 /* 터치 기기에선 hover가 눌린 채 남아 어색해서, 마우스가 있는 기기에서만 적용 */
 @media (hover: hover) {
   .person-card-link:hover .person-card {
-    border-color: var(--hr-green, #2c8c73);
-    box-shadow: 0 8px 22px rgba(16, 36, 29, 0.08);
+    border-color: var(--hr-primary, #3e5c9c);
+    box-shadow: 0 8px 22px rgba(0, 17, 54, 0.1);
     transform: translateY(-2px);
   }
 }
 .person-card-link:active .person-card {
-  border-color: var(--hr-green, #2c8c73);
+  border-color: var(--hr-primary, #3e5c9c);
 }
 
 /* 터치 영역: 접기 헤더·체크박스를 손가락으로 누르기 편한 높이로 */
@@ -223,16 +223,16 @@
   }
 }
 .person-card-highlight.ant-card {
-  border-color: var(--hr-lime-strong, #b9d63a);
-  background: var(--hr-lime-soft, #f7fbe3);
+  border-color: var(--hr-accent, #7c96cf);
+  background: var(--hr-accent-soft, #eef3ff);
 }
 .hr-badge {
   display: inline-block;
   margin-bottom: 8px;
   padding: 1px 9px;
   border-radius: 999px;
-  background: var(--hr-lime, #d8f36a);
-  color: var(--hr-ink, #10241d);
+  background: var(--hr-chip, #ccdcff);
+  color: var(--hr-ink, #001136);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -241,12 +241,12 @@
   font-size: 15px;
   font-weight: 750;
   letter-spacing: -0.01em;
-  color: var(--hr-ink, #10241d);
+  color: var(--hr-ink, #001136);
 }
 .person-card-meta {
   font-size: 12px;
   font-weight: 600;
-  color: var(--hr-green, #2c8c73);
+  color: var(--hr-primary, #3e5c9c);
 }
 .person-card-career {
   font-weight: 500;

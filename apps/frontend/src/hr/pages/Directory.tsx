@@ -197,7 +197,7 @@ export function Directory() {
               <Input
                 className="directory-search"
                 placeholder="이름으로 검색"
-                prefix={<SearchOutlined style={{ color: "#9db0a5" }} />}
+                prefix={<SearchOutlined style={{ color: "#8da0c9" }} />}
                 size="large"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}

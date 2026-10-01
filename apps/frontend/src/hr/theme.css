@@ -1,27 +1,28 @@
-/* hr(그핵드인) 전용 시각 스타일. 색은 NUT(src/nut/nut.css)과 같은 계열이다.
+/* hr(그핵드인) 전용 시각 스타일. 색은 학회 협의 팔레트(네이비 계열 5색)다.
    공용 변수(--color-*, --radius, --font-family)를 hr 안에서만 덮어쓰기 때문에,
    app.css와 기존 hr 스타일이 그대로 새 색을 따라간다. body 클래스는 모달 등
-   body 밑 팝업까지 적용하기 위한 것(HrLayout.tsx). 값은 theme.ts와 같게 유지. */
+   body 밑 팝업까지 적용하기 위한 것(HrLayout.tsx). 값은 theme.ts와 같게 유지.
+   (구조·굵기·모서리는 NUT 화면과 맞췄고, 색만 협의 팔레트로 바꿨다.) */
 
 .hr-theme,
 body.hr-theme-active {
-  --color-primary: #2c8c73;
-  --color-canvas: #f5f7f3;
+  --color-primary: #3e5c9c;
+  --color-canvas: #f4f6fb;
   --color-surface: #ffffff;
-  --color-text: #10241d;
-  --color-muted: #72817a;
-  --color-border: #e2e9e3;
+  --color-text: #001136;
+  --color-muted: #5b6a8c;
+  --color-border: #e1e7f3;
   --radius: 10px;
   --font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
     "Malgun Gothic", sans-serif;
 
-  --hr-ink: #10241d;
-  --hr-ink-soft: #2a4439;
-  --hr-green: #2c8c73;
-  --hr-green-soft: #edf5ee;
-  --hr-lime: #d8f36a;
-  --hr-lime-strong: #b9d63a;
-  --hr-lime-soft: #f7fbe3;
+  /* 협의 팔레트: #001136 · #152F69 · #3E5C9C · #7C96CF · #CCDCFF */
+  --hr-ink: #001136;
+  --hr-ink-soft: #152f69;
+  --hr-primary: #3e5c9c;
+  --hr-accent: #7c96cf; /* 점·밑줄·막대·테두리 같은 선/포인트 */
+  --hr-chip: #ccdcff; /* 뱃지·칩 배경 */
+  --hr-accent-soft: #eef3ff; /* 내 프로필 카드 같은 은은한 바탕(chip의 연한 파생색) */
   --hr-radius-card: 14px;
 }
 
@@ -81,7 +82,7 @@ body.hr-theme-active {
   border-right: 0;
 }
 .hr-theme .side-pane-item {
-  color: #a9b8ae;
+  color: #aebbdb;
   font-weight: 500;
 }
 .hr-theme .side-pane-item:hover {
@@ -92,7 +93,7 @@ body.hr-theme-active {
   color: #fff;
   font-weight: 700;
   background: rgba(255, 255, 255, 0.1);
-  box-shadow: inset 3px 0 var(--hr-lime);
+  box-shadow: inset 3px 0 var(--hr-accent);
 }
 
 /* ---- 모달·드롭다운 등 body 밑 팝업 ---- */
@@ -125,7 +126,7 @@ body.hr-theme-active .ant-modal .ant-modal-title {
     padding: 8px 14px;
   }
   .hr-theme .side-pane-item-current {
-    box-shadow: inset 0 -3px var(--hr-lime);
+    box-shadow: inset 0 -3px var(--hr-accent);
   }
   .hr-theme .app-shell > main {
     width: 100%;

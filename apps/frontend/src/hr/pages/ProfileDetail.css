@@ -12,7 +12,7 @@
   margin-bottom: 6px;
 }
 
-/* Careers/Activities/Projects: NUT 라벨 같은 작은 제목 + 라임 막대, 본문은 흰 카드 */
+/* Careers/Activities/Projects: 작은 라벨 제목 + 포인트색 막대, 본문은 흰 카드 */
 .profile-section {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -23,12 +23,12 @@
   display: inline-block;
   margin: 0 0 10px;
   padding-left: 10px;
-  border-left: 3px solid var(--hr-lime-strong, #b9d63a);
+  border-left: 3px solid var(--hr-accent, #7c96cf);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--hr-ink-soft, #2a4439);
+  color: var(--hr-ink-soft, #152f69);
 }
 
 .profile-section-text {

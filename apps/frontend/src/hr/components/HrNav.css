@@ -20,11 +20,11 @@
   color: var(--color-text);
 }
 
-/* 현재 탭: 짙은 잉크 글씨 + 라임 밑줄(NUT의 활성 표시와 같은 포인트 색) */
+/* 현재 탭: 짙은 네이비 글씨 + 포인트색 밑줄 */
 .hr-nav-item-current {
   color: var(--color-text);
   font-weight: 800;
-  border-bottom-color: var(--hr-lime-strong, #b9d63a);
+  border-bottom-color: var(--hr-accent, #7c96cf);
 }
 
 /* 탭이 화면보다 길어지면 옆으로 밀어서 본다 */
