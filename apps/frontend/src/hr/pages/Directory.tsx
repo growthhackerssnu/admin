@@ -9,11 +9,11 @@ import {
   Drawer,
   Empty,
   Input,
-  Skeleton,
   Typography,
 } from "antd";
 import { FilterOutlined, SearchOutlined } from "@ant-design/icons";
 import { SidePane } from "@dhbot/ui-shell";
+import { LoadingScreen } from "../../lib/LoadingScreen";
 import { HrNav } from "../components/HrNav";
 import { PersonAvatar } from "../components/PersonAvatar";
 import { COMPACT_QUERY, PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
@@ -133,14 +133,9 @@ export function Directory() {
     />
   );
 
+  // 화면 코드 로딩 단계(RouteFallback)와 같은 로딩 화면을 이어서 보여준다(lib/LoadingScreen.tsx).
   if (session === undefined || session === null || (!people && !error)) {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <Skeleton active paragraph={{ rows: 4 }} />
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !people || !me) {

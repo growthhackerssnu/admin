@@ -14,6 +14,7 @@ import {
   Typography,
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
+import { LoadingScreen } from "../../lib/LoadingScreen";
 import { PersonAvatar } from "../components/PersonAvatar";
 import { gmailWebUrl, openMailAppIfPossible } from "../lib/mailCompose";
 import { PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
@@ -107,14 +108,9 @@ export function ProfileDetail() {
     }
   }
 
+  // 화면 코드 로딩 단계(RouteFallback)와 같은 로딩 화면을 이어서 보여준다(lib/LoadingScreen.tsx).
   if (session === undefined || session === null || (!person && !error)) {
-    return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <Skeleton active paragraph={{ rows: 4 }} />
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (error || !person || !me) {
