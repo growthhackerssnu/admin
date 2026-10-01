@@ -7,7 +7,6 @@ import {
   Form,
   Input,
   Segmented,
-  Skeleton,
   Typography,
 } from "antd";
 import {
@@ -16,6 +15,7 @@ import {
   getMe,
   verifySignupRequest,
 } from "../lib/api";
+import { AuthLoading, AuthStage } from "../components/AuthStage";
 import { signInWithGoogle, signOut } from "../../lib/supabase";
 import { useSession } from "../../lib/useSession";
 
@@ -178,173 +178,216 @@ export function Login() {
 
   if (session === undefined || redirecting) {
     return (
-      <div className="auth-page">
-        <div className="auth-card">
-          <Skeleton active paragraph={{ rows: 4 }} />
-        </div>
-      </div>
+      <AuthStage>
+        <AuthLoading />
+      </AuthStage>
     );
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <Typography.Title level={3} style={{ marginBottom: 4 }}>
-          GH 어드민
-        </Typography.Title>
-        <Typography.Text type="secondary">GROWTHHACKERS</Typography.Text>
-
-        <Segmented
-          block
-          style={{ margin: "24px 0" }}
-          value={mode}
-          onChange={(v) => {
-            setMode(v as Mode);
-            resetSignup();
-          }}
-          options={[
-            { label: "Google로 로그인", value: "login" },
-            { label: "Google로 회원가입", value: "signup" },
-          ]}
-        />
-
-        {mode === "login" && (
-          <div className="stack">
-            <Typography.Paragraph type="secondary">
-              이미 가입한 계정으로 Google 로그인합니다.
-            </Typography.Paragraph>
-            <Button
-              type="primary"
-              block
-              size="large"
-              loading={busy}
-              onClick={handleGoogleLogin}
-            >
-              Google로 로그인
-            </Button>
+    <AuthStage>
+      <div className="login-layout">
+        {/* 왼쪽 브랜드 소개(휴대폰에선 카드 위로 올라온다) */}
+        <section className="login-brand">
+          <div className="login-eyebrow">GROWTH HACKERS IN SNU</div>
+          <h1>
+            그로스해커스
+            <br />
+            어드민
+          </h1>
+          <p>
+            서울대 데이터 분석 학회 Growth Hackers의 운영과 네트워킹을 위한
+            공간입니다. 기수와 이름을 확인한 학회원만 이용할 수 있어요.
+          </p>
+          <div className="login-brand-points">
+            <span>그핵드인</span>
+            <span>대협봇</span>
+            <span>NUT</span>
           </div>
-        )}
+        </section>
 
-        {mode === "signup" && step === "form" && (
-          <Form layout="vertical" onFinish={submitSignupForm}>
-            <Form.Item label="기수" required>
-              <Input
-                value={cohort}
-                onChange={(e) => setCohort(e.target.value)}
-                placeholder="예: 19"
-                disabled={busy}
-              />
-            </Form.Item>
-            <Form.Item label="이름" required>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="예: 박지윤"
-                disabled={busy}
-              />
-            </Form.Item>
-            <Form.Item label="사용할 구글 이메일" required>
-              <Input
-                type="email"
-                value={desiredEmail}
-                onChange={(e) => setDesiredEmail(e.target.value)}
-                placeholder="앞으로 로그인에 쓸 구글 계정"
-                disabled={busy}
-              />
-            </Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
+        <div className="login-card">
+          <div className="login-card-body">
+            <h2 className="login-card-title">
+              {mode === "login" ? "로그인" : "회원가입"}
+            </h2>
+            <p className="login-card-sub">
+              {mode === "login"
+                ? "가입한 Google 계정으로 입장합니다."
+                : "기수·이름 확인 후 Google 계정으로 가입합니다."}
+            </p>
+
+            <Segmented
               block
-              size="large"
-              loading={busy}
-            >
-              인증코드 받기
-            </Button>
-          </Form>
-        )}
-
-        {mode === "signup" && step === "otp" && !terminalFailure && (
-          <div className="stack">
-            <Alert
-              type="info"
-              showIcon
-              message="인증코드가 발송됐습니다"
-              description={`그로스해커스 홈페이지에 등록된 이메일(${sentTo})로 인증코드를 보냈습니다. 메일함을 확인해 6자리 코드를 입력해주세요.`}
+              style={{ margin: "0 0 20px" }}
+              value={mode}
+              onChange={(v) => {
+                setMode(v as Mode);
+                resetSignup();
+              }}
+              options={[
+                { label: "Google로 로그인", value: "login" },
+                { label: "Google로 회원가입", value: "signup" },
+              ]}
             />
-            <Form layout="vertical" onFinish={submitOtp}>
-              <Form.Item
-                label="인증코드"
-                validateStatus={otpError ? "error" : undefined}
-                help={otpError}
-              >
-                <Input
-                  value={otp}
-                  onChange={(e) =>
-                    setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                  }
-                  placeholder="6자리 숫자"
-                  maxLength={6}
-                  disabled={busy}
-                  autoFocus
+
+            {mode === "login" && (
+              <div className="stack">
+                <Typography.Paragraph type="secondary">
+                  이미 가입한 계정으로 Google 로그인합니다.
+                </Typography.Paragraph>
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  loading={busy}
+                  onClick={handleGoogleLogin}
+                >
+                  Google로 로그인
+                </Button>
+              </div>
+            )}
+
+            {mode === "signup" && step === "form" && (
+              <Form layout="vertical" onFinish={submitSignupForm}>
+                <Form.Item label="기수" required>
+                  <Input
+                    value={cohort}
+                    onChange={(e) => setCohort(e.target.value)}
+                    placeholder="예: 19"
+                    disabled={busy}
+                  />
+                </Form.Item>
+                <Form.Item label="이름" required>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="예: 박지윤"
+                    disabled={busy}
+                  />
+                </Form.Item>
+                <Form.Item label="사용할 구글 이메일" required>
+                  <Input
+                    type="email"
+                    value={desiredEmail}
+                    onChange={(e) => setDesiredEmail(e.target.value)}
+                    placeholder="앞으로 로그인에 쓸 구글 계정"
+                    disabled={busy}
+                  />
+                </Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  block
+                  size="large"
+                  loading={busy}
+                >
+                  인증코드 받기
+                </Button>
+              </Form>
+            )}
+
+            {mode === "signup" && step === "otp" && !terminalFailure && (
+              <div className="stack">
+                <Alert
+                  type="info"
+                  showIcon
+                  message="인증코드가 발송됐습니다"
+                  description={`그로스해커스 홈페이지에 등록된 이메일(${sentTo})로 인증코드를 보냈습니다. 메일함을 확인해 6자리 코드를 입력해주세요.`}
                 />
-              </Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                block
-                size="large"
-                loading={busy}
-                disabled={otp.length !== 6}
-              >
-                인증하기
-              </Button>
-            </Form>
-            <Button block disabled={cooldown > 0 || busy} onClick={resendOtp}>
-              {cooldown > 0
-                ? `인증코드 재전송 (${cooldown}초 후 가능)`
-                : "인증코드 재전송"}
-            </Button>
-            <Button type="link" onClick={resetSignup}>
-              ← 처음부터 다시
-            </Button>
-          </div>
-        )}
+                <Form layout="vertical" onFinish={submitOtp}>
+                  <Form.Item
+                    label="인증코드"
+                    validateStatus={otpError ? "error" : undefined}
+                    help={otpError}
+                  >
+                    <Input
+                      value={otp}
+                      onChange={(e) =>
+                        setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                      }
+                      placeholder="6자리 숫자"
+                      maxLength={6}
+                      disabled={busy}
+                      autoFocus
+                    />
+                  </Form.Item>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    block
+                    size="large"
+                    loading={busy}
+                    disabled={otp.length !== 6}
+                  >
+                    인증하기
+                  </Button>
+                </Form>
+                <Button
+                  block
+                  disabled={cooldown > 0 || busy}
+                  onClick={resendOtp}
+                >
+                  {cooldown > 0
+                    ? `인증코드 재전송 (${cooldown}초 후 가능)`
+                    : "인증코드 재전송"}
+                </Button>
+                <Button type="link" onClick={resetSignup}>
+                  ← 처음부터 다시
+                </Button>
+              </div>
+            )}
 
-        {mode === "signup" && terminalFailure && (
-          <div className="stack">
-            <Alert
-              type="error"
-              showIcon
-              message="인증에 실패했습니다"
-              description="관리자에게 문의하세요."
-            />
-            <Button block onClick={resetSignup}>
-              처음부터 다시 신청
-            </Button>
-          </div>
-        )}
+            {mode === "signup" && terminalFailure && (
+              <div className="stack">
+                <Alert
+                  type="error"
+                  showIcon
+                  message="인증에 실패했습니다"
+                  description="관리자에게 문의하세요."
+                />
+                <Button block onClick={resetSignup}>
+                  처음부터 다시 신청
+                </Button>
+              </div>
+            )}
 
-        {mode === "signup" && step === "done" && (
-          <div className="stack">
-            <Alert
-              type="success"
-              showIcon
-              message="가입이 완료됐습니다"
-              description={`${desiredEmail} 계정으로 Google 로그인해주세요.`}
-            />
-            <Button
-              type="primary"
-              block
-              size="large"
-              loading={busy}
-              onClick={handleGoogleLogin}
+            {mode === "signup" && step === "done" && (
+              <div className="stack">
+                <Alert
+                  type="success"
+                  showIcon
+                  message="가입이 완료됐습니다"
+                  description={`${desiredEmail} 계정으로 Google 로그인해주세요.`}
+                />
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  loading={busy}
+                  onClick={handleGoogleLogin}
+                >
+                  Google로 로그인
+                </Button>
+              </div>
+            )}
+          </div>
+          <div className="login-card-foot">
+            <span>
+              {mode === "login" ? "처음이신가요?" : "이미 가입하셨나요?"}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "login" ? "signup" : "login");
+                resetSignup();
+              }}
             >
-              Google로 로그인
-            </Button>
+              {mode === "login" ? "회원가입" : "로그인"}
+            </button>
           </div>
-        )}
+        </div>
       </div>
-    </div>
+    </AuthStage>
   );
 }

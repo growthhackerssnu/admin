@@ -11,6 +11,7 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SidePane } from "@dhbot/ui-shell";
@@ -55,11 +56,24 @@ const OPS_ROLE_LABEL: Record<OpsRole, string> = {
 };
 
 // single: 그 직책을 한 명만 가질 수 있다(임원·팀장). 서버도 같은 규칙으로 거절한다.
-const OPS_ROLE_GROUPS: { label: string; single: boolean; roles: OpsRole[] }[] = [
-  { label: "임원", single: true, roles: ["president", "vice_president", "treasurer"] },
-  { label: "팀장", single: true, roles: ["external_lead", "hr_lead", "pr_lead", "edu_lead"] },
-  { label: "팀원", single: false, roles: ["external_member", "hr_member", "pr_member"] },
-];
+const OPS_ROLE_GROUPS: { label: string; single: boolean; roles: OpsRole[] }[] =
+  [
+    {
+      label: "임원",
+      single: true,
+      roles: ["president", "vice_president", "treasurer"],
+    },
+    {
+      label: "팀장",
+      single: true,
+      roles: ["external_lead", "hr_lead", "pr_lead", "edu_lead"],
+    },
+    {
+      label: "팀원",
+      single: false,
+      roles: ["external_member", "hr_member", "pr_member"],
+    },
+  ];
 const SINGLE_HOLDER_ROLES = new Set<OpsRole>(
   OPS_ROLE_GROUPS.filter((g) => g.single).flatMap((g) => g.roles),
 );
@@ -195,7 +209,9 @@ export function AdminMembers() {
   });
 
   // 선택한 사람이 전부 이미 acting이면 이 버튼은 "직책만 바꾸는" 동작이 된다.
-  const allSelectedActing = selectedMembers.length > 0 && selectedMembers.every((m) => m.role === "acting");
+  const allSelectedActing =
+    selectedMembers.length > 0 &&
+    selectedMembers.every((m) => m.role === "acting");
 
   // 1인 직책을 지금 누가 맡고 있는지. 선택 목록 안의 사람이면 자기 자리를 다시
   // 지정하는 것이라 막지 않는다(그 외에는 서버가 422로 거절하므로 미리 잠근다).
@@ -209,14 +225,20 @@ export function AdminMembers() {
     if (selectedIds.length > 1) return "한 명만 가능";
     const holder = opsRoleHolders.get(role);
     if (holder && !selectedIds.includes(holder.id)) {
-      return holder.active ? holder.displayName : `${holder.displayName} · 비활성`;
+      return holder.active
+        ? holder.displayName
+        : `${holder.displayName} · 비활성`;
     }
     return undefined;
   }
 
   function openOpsRoleModal() {
     // 한 명만 골랐고 이미 직책이 있으면 그 값에서 시작한다.
-    setOpsRoleDraft(selectedMembers.length === 1 ? (selectedMembers[0]?.opsRole ?? undefined) : undefined);
+    setOpsRoleDraft(
+      selectedMembers.length === 1
+        ? (selectedMembers[0]?.opsRole ?? undefined)
+        : undefined,
+    );
     setOpsRoleModalOpen(true);
   }
 
@@ -224,8 +246,14 @@ export function AdminMembers() {
     if (!opsRoleDraft) return;
     setOpsRoleModalOpen(false);
     void withBusyReload(
-      () => changeMemberRole(token!, selectedIds, { role: "acting", opsRole: opsRoleDraft }),
-      allSelectedActing ? "운영팀 직책을 변경했습니다." : "acting으로 변경했습니다.",
+      () =>
+        changeMemberRole(token!, selectedIds, {
+          role: "acting",
+          opsRole: opsRoleDraft,
+        }),
+      allSelectedActing
+        ? "운영팀 직책을 변경했습니다."
+        : "acting으로 변경했습니다.",
     );
   }
 
@@ -237,7 +265,10 @@ export function AdminMembers() {
       okText: "alumni로 변경",
       cancelText: "취소",
       onOk: () =>
-        withBusyReload(() => changeMemberRole(token!, selectedIds, { role: "alumni" }), "alumni로 변경했습니다."),
+        withBusyReload(
+          () => changeMemberRole(token!, selectedIds, { role: "alumni" }),
+          "alumni로 변경했습니다.",
+        ),
     });
   }
 
@@ -301,8 +332,13 @@ export function AdminMembers() {
       <main>
         <div className="row section-gap">
           <div>
-            <h1>회원 관리</h1>
-            <p className="muted">기수, 이름, 이메일, 권한, 가입일, 최근 접속일</p>
+            <div className="hr-eyebrow">MEMBER ADMIN</div>
+            <Typography.Title level={3} style={{ marginBottom: 4 }}>
+              회원 관리
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              기수, 이름, 이메일, 권한, 가입일, 최근 접속일
+            </Typography.Text>
           </div>
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
@@ -333,27 +369,48 @@ export function AdminMembers() {
           />
 
           {selectedIds.length > 0 && (
-            <div className="actions" style={{ marginTop: 0, paddingTop: 0, borderTop: "none", marginBottom: 16 }}>
+            <div
+              className="actions"
+              style={{
+                marginTop: 0,
+                paddingTop: 0,
+                borderTop: "none",
+                marginBottom: 16,
+              }}
+            >
               <span>{selectedIds.length}명 선택됨</span>
               <Space wrap>
-                <Button disabled={busy || hasAdminSelected} onClick={openOpsRoleModal}>
+                <Button
+                  disabled={busy || hasAdminSelected}
+                  onClick={openOpsRoleModal}
+                >
                   {allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
                 </Button>
-                <Button disabled={busy || hasAdminSelected} onClick={confirmToAlumni}>
+                <Button
+                  disabled={busy || hasAdminSelected}
+                  onClick={confirmToAlumni}
+                >
                   alumni로 변경
                 </Button>
                 {hasInactiveSelected && (
                   <Button
                     disabled={busy}
                     onClick={() =>
-                      withBusyReload(() => reactivateMembers(token!, selectedIds), "선택한 회원을 재활성화했습니다.")
+                      withBusyReload(
+                        () => reactivateMembers(token!, selectedIds),
+                        "선택한 회원을 재활성화했습니다.",
+                      )
                     }
                   >
                     재활성화
                   </Button>
                 )}
                 {hasActiveSelected && (
-                  <Button danger disabled={busy || hasAdminSelected} onClick={confirmDeactivate}>
+                  <Button
+                    danger
+                    disabled={busy || hasAdminSelected}
+                    onClick={confirmDeactivate}
+                  >
                     삭제
                   </Button>
                 )}
@@ -369,6 +426,8 @@ export function AdminMembers() {
               dataSource={visibleMembers}
               columns={columns}
               pagination={false}
+              // 좁은 화면에선 표를 가로로 밀어서 본다(승인 큐와 같은 방식).
+              scroll={{ x: "max-content" }}
               rowSelection={{
                 selectedRowKeys: selectedIds,
                 onChange: (keys) => setSelectedIds(keys as string[]),
@@ -388,8 +447,8 @@ export function AdminMembers() {
           okButtonProps={{ disabled: !opsRoleDraft || busy }}
         >
           <p className="muted">
-            acting 회원에게는 운영팀 직책이 반드시 있어야 합니다. 선택한 {selectedIds.length}명에게 지정할 직책을
-            고르세요.
+            acting 회원에게는 운영팀 직책이 반드시 있어야 합니다. 선택한{" "}
+            {selectedIds.length}명에게 지정할 직책을 고르세요.
           </p>
           <Select
             style={{ width: "100%" }}
@@ -403,7 +462,9 @@ export function AdminMembers() {
                 return {
                   value: role,
                   disabled: note !== undefined,
-                  label: note ? `${OPS_ROLE_LABEL[role]} (${note})` : OPS_ROLE_LABEL[role],
+                  label: note
+                    ? `${OPS_ROLE_LABEL[role]} (${note})`
+                    : OPS_ROLE_LABEL[role],
                 };
               }),
             }))}

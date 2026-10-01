@@ -2,16 +2,35 @@ import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { App as AntApp, ConfigProvider, Skeleton } from "antd";
 import koKR from "antd/locale/ko_KR";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import { installTokens, theme } from "@dhbot/ui-shell";
-import { Login } from "./portal/pages/Login";
-import { Index } from "./portal/pages/Index";
-import { AdminMembers } from "./portal/pages/AdminMembers";
 import { RequireApp } from "./portal/components/RequireApp";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
 
 installTokens();
+
+// /admin(회원 관리)은 hr 승인 큐와 같은 밝은 앱 화면이라 hr 레이아웃(브랜드 테마) 안에서 보인다.
+const AdminMembers = lazy(() =>
+  import("./portal/pages/AdminMembers").then((m) => ({
+    default: m.AdminMembers,
+  })),
+);
+// 로그인·index는 브랜드 테마(Pretendard 포함)와 함께 지연 로딩되는 portal 레이아웃 안에서 보인다.
+// /admin(회원 관리)은 아래 hr 레이아웃(밝은 앱 화면) 쪽이다.
+const PortalLayout = lazy(() => import("./portal/PortalLayout"));
+const Login = lazy(() =>
+  import("./portal/pages/Login").then((m) => ({ default: m.Login })),
+);
+const Index = lazy(() =>
+  import("./portal/pages/Index").then((m) => ({ default: m.Index })),
+);
 
 // 화면별 코드는 처음 들어갈 때만 불러온다. 한 번 불러오면 이후 이동은 새로고침 없다.
 const DhWorkspace = lazy(() => import("./dh/Workspace"));
@@ -22,7 +41,9 @@ const HrDirectory = lazy(() =>
   import("./hr/pages/Directory").then((m) => ({ default: m.Directory })),
 );
 const HrProfileDetail = lazy(() =>
-  import("./hr/pages/ProfileDetail").then((m) => ({ default: m.ProfileDetail })),
+  import("./hr/pages/ProfileDetail").then((m) => ({
+    default: m.ProfileDetail,
+  })),
 );
 const HrMyRequests = lazy(() =>
   import("./hr/pages/MyRequests").then((m) => ({ default: m.MyRequests })),
@@ -32,18 +53,32 @@ const HrAdminQueue = lazy(() =>
 );
 const Nut = lazy(() => import("./nut"));
 
+// 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 어두운 네이비 화면이라 같은 색
+// 바탕만 깔아서(CSS 파일이 아직 안 왔으므로 인라인) 흰/회색 스켈레톤이 번쩍이지 않게 한다.
+const AUTH_PATHS = ["/", "/login", "/index"];
+function RouteFallback() {
+  const { pathname } = useLocation();
+  if (AUTH_PATHS.includes(pathname)) {
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "#001136" }} />
+    );
+  }
+  return <Skeleton active style={{ padding: 24 }} />;
+}
+
 function Root() {
   return (
     <ConfigProvider locale={koKR} theme={theme}>
       <AntApp>
         <BrowserRouter>
-          <Suspense fallback={<Skeleton active style={{ padding: 24 }} />}>
+          <Suspense fallback={<RouteFallback />}>
             <Routes>
               {/* portal: "/"는 Google OAuth redirectTo(origin) 착지점이기도 하다 */}
-              <Route path="/" element={<Login />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/index" element={<Index />} />
-              <Route path="/admin" element={<AdminMembers />} />
+              <Route element={<PortalLayout />}>
+                <Route path="/" element={<Login />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/index" element={<Index />} />
+              </Route>
 
               {/* dh·nut은 role이 맞지 않으면(예: alumni) 화면 대신 안내를 보여준다.
                   /admin은 AdminMembers가 자체 가드를 갖고 있다. */}
@@ -66,9 +101,13 @@ function Root() {
 
               <Route element={<HrLayout />}>
                 <Route path="/hr" element={<HrDirectory />} />
-                <Route path="/hr/people/:notionPageId" element={<HrProfileDetail />} />
+                <Route
+                  path="/hr/people/:notionPageId"
+                  element={<HrProfileDetail />}
+                />
                 <Route path="/hr/requests" element={<HrMyRequests />} />
                 <Route path="/hr/admin" element={<HrAdminQueue />} />
+                <Route path="/admin" element={<AdminMembers />} />
               </Route>
 
               <Route
