@@ -15,6 +15,8 @@ import {
 } from "antd";
 import { SidePane } from "@dhbot/ui-shell";
 import { PersonAvatar } from "../components/PersonAvatar";
+import { gmailWebUrl, openGmailAppIfPossible } from "../lib/mailCompose";
+import { PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
 import {
   ApiClientError,
   getFieldOptions,
@@ -50,6 +52,7 @@ export function ProfileDetail() {
   const [fieldOptions, setFieldOptions] = useState<FieldOptions>();
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm<EditRequestFormValues>();
+  const phone = useMediaQuery(PHONE_QUERY);
 
   useEffect(() => {
     if (session === undefined) return;
@@ -139,7 +142,7 @@ export function ProfileDetail() {
         </div>
 
         <div className="profile-header section-gap">
-          <PersonAvatar src={person.profileImageUrl} size={120} />
+          <PersonAvatar src={person.profileImageUrl} size={phone ? 88 : 120} />
           <div>
             <Typography.Title level={3} style={{ marginBottom: 4 }}>
               {person.name}
@@ -151,7 +154,7 @@ export function ProfileDetail() {
         </div>
 
         {mode === "view" ? (
-          <ProfileView person={person} isOwnProfile={isOwnProfile} onEdit={enterEditMode} />
+          <ProfileView person={person} isOwnProfile={isOwnProfile} onEdit={enterEditMode} phone={phone} />
         ) : (
           <ProfileEditForm
             form={form}
@@ -170,14 +173,23 @@ function ProfileView({
   person,
   isOwnProfile,
   onEdit,
+  phone,
 }: {
   person: PersonDetail;
   isOwnProfile: boolean;
   onEdit: () => void;
+  phone: boolean;
 }) {
   return (
     <>
-      <Descriptions column={1} bordered size="small" className="section-gap">
+      {/* 휴대폰에선 라벨 위·값 아래(vertical)로 쌓아 좁은 폭에서도 읽히게 한다 */}
+      <Descriptions
+        column={1}
+        bordered
+        size="small"
+        className="section-gap"
+        layout={phone ? "vertical" : "horizontal"}
+      >
         <Descriptions.Item label="학과">{person.department.join(", ") || "-"}</Descriptions.Item>
         <Descriptions.Item label="직무 계열">{person.jobField.join(", ") || "-"}</Descriptions.Item>
         {/* 직책은 읽기 전용 참고 정보(§12.3, 2026-09-28 결정) — 권한 판단엔 안 쓰지만
@@ -196,10 +208,15 @@ function ProfileView({
           {person.email ? (
             <Space>
               {person.email}
+              {/* 기본은 Gmail 웹 컴포즈. Android에선 Gmail 앱으로 먼저 열고 앱이 없으면
+                  같은 웹 주소로 넘어간다(lib/mailCompose.ts). */}
               <a
-                href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(person.email)}`}
+                href={gmailWebUrl(person.email)}
                 target="_blank"
                 rel="noreferrer"
+                onClick={(e) => {
+                  if (person.email && openGmailAppIfPossible(person.email)) e.preventDefault();
+                }}
               >
                 <Button size="small">메일 보내기</Button>
               </a>
@@ -298,7 +315,7 @@ function ProfileEditForm({
       <Form.Item name="projectsText" label="Projects">
         <Input.TextArea rows={4} />
       </Form.Item>
-      <Space>
+      <Space className="profile-form-actions">
         <Button type="primary" htmlType="submit" loading={submitting}>
           제출
         </Button>

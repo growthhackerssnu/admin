@@ -16,6 +16,8 @@ installTokens();
 // 화면별 코드는 처음 들어갈 때만 불러온다. 한 번 불러오면 이후 이동은 새로고침 없다.
 const DhWorkspace = lazy(() => import("./dh/Workspace"));
 const DhListup = lazy(() => import("./dh/listup/main"));
+// hr 화면 전용 겉옷(테마·폰트). hr 라우트 전체를 이 레이아웃 라우트로 감싼다.
+const HrLayout = lazy(() => import("./hr/HrLayout"));
 const HrDirectory = lazy(() =>
   import("./hr/pages/Directory").then((m) => ({ default: m.Directory })),
 );
@@ -62,10 +64,12 @@ function Root() {
                 }
               />
 
-              <Route path="/hr" element={<HrDirectory />} />
-              <Route path="/hr/people/:notionPageId" element={<HrProfileDetail />} />
-              <Route path="/hr/requests" element={<HrMyRequests />} />
-              <Route path="/hr/admin" element={<HrAdminQueue />} />
+              <Route element={<HrLayout />}>
+                <Route path="/hr" element={<HrDirectory />} />
+                <Route path="/hr/people/:notionPageId" element={<HrProfileDetail />} />
+                <Route path="/hr/requests" element={<HrMyRequests />} />
+                <Route path="/hr/admin" element={<HrAdminQueue />} />
+              </Route>
 
               <Route
                 path="/nut/*"

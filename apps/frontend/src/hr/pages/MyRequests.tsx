@@ -88,6 +88,7 @@ export function MyRequests() {
             rowKey="id"
             dataSource={requests}
             pagination={false}
+            scroll={{ x: "max-content" }}
             onRow={(record) => ({ onClick: () => setSelected(record), style: { cursor: "pointer" } })}
             columns={[
               {
@@ -109,7 +110,13 @@ export function MyRequests() {
           />
         )}
 
-        <Modal open={selected !== null} onCancel={() => setSelected(null)} footer={null} title="수정 요청 상세">
+        <Modal
+          open={selected !== null}
+          onCancel={() => setSelected(null)}
+          footer={null}
+          title="수정 요청 상세"
+          width="min(720px, calc(100vw - 24px))"
+        >
           {selected && <EditRequestDiff diff={selected.diff} />}
         </Modal>
       </main>

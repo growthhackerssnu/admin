@@ -7,18 +7,32 @@
 
 .hr-nav-item {
   display: inline-block;
-  padding: var(--space-sm) 0;
+  padding: var(--space-sm) 0 10px;
   color: var(--color-muted);
+  font-weight: 600;
   text-decoration: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease;
 }
 
 .hr-nav-item:hover {
   color: var(--color-text);
 }
 
+/* 현재 탭: 짙은 네이비 글씨 + 포인트색 밑줄 */
 .hr-nav-item-current {
   color: var(--color-text);
-  font-weight: 650;
-  border-bottom-color: var(--color-primary);
+  font-weight: 800;
+  border-bottom-color: var(--hr-accent, #7c96cf);
+}
+
+/* 탭이 화면보다 길어지면 옆으로 밀어서 본다 */
+.hr-nav {
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.hr-nav::-webkit-scrollbar {
+  display: none;
 }

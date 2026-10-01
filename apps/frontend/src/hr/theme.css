@@ -1,0 +1,164 @@
+/* hr(그핵드인) 전용 시각 스타일. 색은 학회 협의 팔레트(네이비 계열 5색)다.
+   공용 변수(--color-*, --radius, --font-family)를 hr 안에서만 덮어쓰기 때문에,
+   app.css와 기존 hr 스타일이 그대로 새 색을 따라간다. body 클래스는 모달 등
+   body 밑 팝업까지 적용하기 위한 것(HrLayout.tsx). 값은 theme.ts와 같게 유지.
+   (구조·굵기·모서리는 NUT 화면과 맞췄고, 색만 협의 팔레트로 바꿨다.) */
+
+.hr-theme,
+body.hr-theme-active {
+  --color-primary: #3e5c9c;
+  --color-canvas: #f4f6fb;
+  --color-surface: #ffffff;
+  --color-text: #001136;
+  --color-muted: #5b6a8c;
+  --color-border: #e1e7f3;
+  --radius: 10px;
+  --font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Malgun Gothic", sans-serif;
+
+  /* 협의 팔레트: #001136 · #152F69 · #3E5C9C · #7C96CF · #CCDCFF */
+  --hr-ink: #001136;
+  --hr-ink-soft: #152f69;
+  --hr-primary: #3e5c9c;
+  --hr-accent: #7c96cf; /* 점·밑줄·막대·테두리 같은 선/포인트 */
+  --hr-chip: #ccdcff; /* 뱃지·칩 배경 */
+  --hr-accent-soft: #eef3ff; /* 내 프로필 카드 같은 은은한 바탕(chip의 연한 파생색) */
+  --hr-radius-card: 14px;
+}
+
+body.hr-theme-active {
+  background: var(--color-canvas);
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+.hr-theme {
+  min-height: 100vh;
+  font-family: var(--font-family);
+  background: var(--color-canvas);
+  color: var(--color-text);
+}
+
+/* ---- 본문 세로 위치 ----
+   공용 main은 margin: auto(가로 가운데 정렬용)인데, .app-shell(flex) 안에서는 세로
+   auto가 남는 높이를 위아래로 나눠 가져서, 내용이 짧은 화면(승인 큐·내 수정 요청 등)이
+   화면 세로 가운데로 내려앉는다. hr 안에서는 위쪽을 고정하고 남는 높이는 아래로 보낸다. */
+.hr-theme .app-shell > main,
+.hr-theme > main {
+  margin: 0 auto auto;
+}
+
+/* ---- 공통 타이포 ---- */
+.hr-theme h1,
+.hr-theme h2,
+.hr-theme h3,
+.hr-theme h4 {
+  color: var(--hr-ink);
+}
+
+.hr-eyebrow {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+  color: var(--color-muted);
+  margin-bottom: 6px;
+}
+
+.hr-theme h3.ant-typography.hr-page-title {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 6px;
+}
+
+.hr-theme .ant-btn {
+  letter-spacing: -0.005em;
+}
+
+/* ---- 사이드 패널(공용 컴포넌트)에 색만 맞춘다. 구조는 건드리지 않는다. ---- */
+.hr-theme .side-pane {
+  background: var(--hr-ink);
+  border-right: 0;
+}
+.hr-theme .side-pane-item {
+  color: #aebbdb;
+  font-weight: 500;
+}
+.hr-theme .side-pane-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.hr-theme .side-pane-item-current {
+  color: #fff;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 3px 0 var(--hr-accent);
+}
+
+/* ---- 모달·드롭다운 등 body 밑 팝업 ---- */
+body.hr-theme-active .ant-modal .ant-modal-title {
+  font-weight: 750;
+}
+
+/* =====================================================================
+   모바일/태블릿 (2026-10-01). 기준은 useMediaQuery.ts와 같다:
+   COMPACT ≤999px, PHONE ≤599px
+   ===================================================================== */
+
+/* 공용 side pane(admin·acting에게만 보임)을 좁은 화면에선 위쪽 가로 바로 바꾼다.
+   hr 화면 안에서만 덮어쓰고 공용 컴포넌트·다른 화면은 건드리지 않는다. */
+@media (max-width: 999px) {
+  .hr-theme .app-shell {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .hr-theme .side-pane {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    overflow-x: auto;
+  }
+  .hr-theme .side-pane-item {
+    white-space: nowrap;
+    padding: 8px 14px;
+  }
+  .hr-theme .side-pane-item-current {
+    box-shadow: inset 0 -3px var(--hr-accent);
+  }
+  .hr-theme .app-shell > main {
+    width: 100%;
+  }
+}
+
+@media (max-width: 599px) {
+  .hr-theme h3.ant-typography.hr-page-title {
+    font-size: 30px;
+  }
+
+  /* 입력 글자가 16px보다 작으면 iPhone이 입력할 때 화면을 확대해버린다 */
+  .hr-theme input,
+  .hr-theme textarea,
+  .hr-theme .ant-select-selection-search-input,
+  body.hr-theme-active .ant-select-selection-search-input,
+  body.hr-theme-active input,
+  body.hr-theme-active textarea {
+    font-size: 16px;
+  }
+
+  /* 버튼 터치 높이 */
+  .hr-theme .ant-btn:not(.ant-btn-sm) {
+    min-height: 40px;
+  }
+
+  /* 검색·상태 필터 줄이 화면 폭을 넘지 않게 */
+  .hr-theme .filters .ant-input-search {
+    width: 100%;
+  }
+  .hr-theme .filters .ant-segmented {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

@@ -5,18 +5,18 @@ import {
   Button,
   Card,
   Checkbox,
-  Col,
   Collapse,
+  Drawer,
   Empty,
   Input,
-  Row,
   Skeleton,
-  Tag,
   Typography,
 } from "antd";
+import { FilterOutlined, SearchOutlined } from "@ant-design/icons";
 import { SidePane } from "@dhbot/ui-shell";
 import { HrNav } from "../components/HrNav";
 import { PersonAvatar } from "../components/PersonAvatar";
+import { COMPACT_QUERY, PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
 import { ApiClientError, getMe, getPeople, peekCached, type Me, type PersonSummary } from "../lib/api";
 import {
   computeFacets,
@@ -47,6 +47,10 @@ export function Directory() {
   // 접어둔 기수 목록. "펼친 기수"가 아니라 "접은 기수"를 기억해서, 필터로 새로
   // 나타나는 기수는 항상 기본(펼침)으로 보이게 한다. 표시 전용 상태라 필터와 무관.
   const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set());
+  // 태블릿 이하에선 왼쪽 레일(내 프로필+패싯)이 없어지고, 필터는 서랍으로 연다.
+  const compact = useMediaQuery(COMPACT_QUERY);
+  const phone = useMediaQuery(PHONE_QUERY);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   useEffect(() => {
     if (session === undefined) return; // 아직 세션 확인 중
@@ -105,6 +109,30 @@ export function Directory() {
   // 화면 표시용으로만 기수별로 묶는다(필터·정렬 결과는 그대로).
   const cohortGroups = useMemo(() => groupByCohort(filtered), [filtered]);
 
+  const activeFilterCount = cohorts.size + jobFields.size + teams.size;
+
+  function resetFilters() {
+    setCohorts(new Set());
+    setJobFields(new Set());
+    setTeams(new Set());
+  }
+
+  // 패싯 섹션 묶음. 데스크톱 레일에서는 기본이 모두 접힘(defaultOpen=false)이고,
+  // 모바일 서랍에서는 서랍 자체가 필터 전용 화면이라 모두 펼쳐서 보여준다.
+  // 접혀 있어도 선택된 개수는 제목 옆에 보여준다.
+  const facetPanel = (defaultOpen: boolean) => (
+    <Collapse
+      ghost
+      size="small"
+      defaultActiveKey={defaultOpen ? ["cohort", "jobField", "team"] : []}
+      items={[
+        facetItem("cohort", "기수", facets.cohorts, cohorts, setCohorts),
+        facetItem("jobField", "직무 계열", facets.jobFields, jobFields, setJobFields),
+        facetItem("team", "소속팀", facets.teams, teams, setTeams),
+      ].filter((item) => item !== null)}
+    />
+  );
+
   if (session === undefined || session === null || (!people && !error)) {
     return (
       <div className="auth-page">
@@ -136,7 +164,8 @@ export function Directory() {
       <main>
         <div className="row section-gap">
           <div>
-            <Typography.Title level={3} style={{ marginBottom: 4 }}>
+            <div className="hr-eyebrow">ALUMNI DIRECTORY</div>
+            <Typography.Title level={3} className="hr-page-title">
               그핵드인
             </Typography.Title>
             <Typography.Text type="secondary">알럼나이 디렉토리 · {people.length}명</Typography.Text>
@@ -146,35 +175,41 @@ export function Directory() {
 
         <HrNav role={me.role} />
 
-        {myProfile && (
-          <div className="section-gap">
-            <PersonCard person={myProfile} highlight />
-          </div>
-        )}
-
-        <div className="directory-layout">
-          <aside className="directory-facets">
-            {/* 패싯 섹션은 기본이 모두 접힘(activeKey 미지정 = 전부 닫힘). 접혀 있어도
-                선택된 개수는 제목 옆에 보여준다. */}
-            <Collapse
-              ghost
-              size="small"
-              items={[
-                facetItem("cohort", "기수", facets.cohorts, cohorts, setCohorts),
-                facetItem("jobField", "직무 계열", facets.jobFields, jobFields, setJobFields),
-                facetItem("team", "소속팀", facets.teams, teams, setTeams),
-              ].filter((item) => item !== null)}
-            />
-          </aside>
+        <div className={compact ? "directory-layout directory-layout-compact" : "directory-layout"}>
+          {!compact && (
+            <aside className="directory-side">
+              {/* 내 프로필은 본문 전체 폭이 아니라 왼쪽 레일(패싯 위)에 그리드 카드와 같은 모양으로 둔다 —
+                  본문 폭만큼 늘어나 옆이 휑해 보이던 문제(2026-10-01 피드백). */}
+              {myProfile && <PersonCard person={myProfile} highlight />}
+              <div className="directory-facets">{facetPanel(false)}</div>
+            </aside>
+          )}
 
           <div className="directory-main">
-            <Input
-              className="directory-search"
-              placeholder="이름으로 검색"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              allowClear
-            />
+            {/* 레일이 없는 화면에선 내 프로필을 목록 맨 위에 그리드 한 칸 폭으로 둔다. */}
+            {compact && myProfile && (
+              <div className="person-grid directory-me-compact">
+                <PersonCard person={myProfile} highlight />
+              </div>
+            )}
+
+            <div className="directory-toolbar">
+              <Input
+                className="directory-search"
+                placeholder="이름으로 검색"
+                prefix={<SearchOutlined style={{ color: "#8da0c9" }} />}
+                size="large"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                allowClear
+              />
+              {compact && (
+                <Button size="large" icon={<FilterOutlined />} onClick={() => setFilterOpen(true)}>
+                  필터
+                  {activeFilterCount > 0 && <span className="hr-count-badge">{activeFilterCount}</span>}
+                </Button>
+              )}
+            </div>
 
             {filtered.length === 0 ? (
               <Empty description="조건에 맞는 사람이 없습니다" style={{ marginTop: 48 }} />
@@ -193,19 +228,22 @@ export function Directory() {
                 }}
                 items={cohortGroups.map((group) => ({
                   key: String(group.cohort),
+                  // 인원수는 표시하지 않는다 — "내 프로필"이 위로 따로 빠져 있어 이 그룹의
+                  // 숫자가 실제 기수 인원과 달라 보인다(패싯에 전체 인원수가 있다).
                   label: (
-                    <Typography.Text strong>
-                      {group.cohort}기 <Typography.Text type="secondary">({group.people.length}명)</Typography.Text>
-                    </Typography.Text>
+                    <span className="cohort-heading">
+                      <span className="cohort-dot" aria-hidden="true" />
+                      {group.cohort}기
+                    </span>
                   ),
+                  // 카드 최소 폭을 기준으로 열 수가 알아서 정해진다(데스크톱 4열 → 태블릿
+                  // 2~3열 → 휴대폰 1열). 고정 4열이던 걸 반응형으로 바꾼 것.
                   children: (
-                    <Row gutter={[16, 16]}>
+                    <div className="person-grid">
                       {group.people.map((person) => (
-                        <Col span={6} key={person.notionPageId}>
-                          <PersonCard person={person} />
-                        </Col>
+                        <PersonCard key={person.notionPageId} person={person} />
                       ))}
-                    </Row>
+                    </div>
                   ),
                 }))}
               />
@@ -213,6 +251,28 @@ export function Directory() {
           </div>
         </div>
       </main>
+
+      {/* 모바일 필터 서랍(아래에서 올라오는 시트) */}
+      <Drawer
+        open={compact && filterOpen}
+        onClose={() => setFilterOpen(false)}
+        placement="bottom"
+        rootClassName="hr-filter-drawer"
+        height={phone ? "82%" : 520}
+        title="필터"
+        footer={
+          <div className="filter-drawer-footer">
+            <Button size="large" onClick={resetFilters} disabled={activeFilterCount === 0}>
+              초기화
+            </Button>
+            <Button size="large" type="primary" onClick={() => setFilterOpen(false)}>
+              {filtered.length}명 보기
+            </Button>
+          </div>
+        }
+      >
+        {facetPanel(true)}
+      </Drawer>
     </div>
   );
 }
@@ -221,11 +281,7 @@ function PersonCard({ person, highlight }: { person: PersonSummary; highlight?: 
   return (
     <Link to={`/hr/people/${person.notionPageId}`} className="person-card-link">
       <Card size="small" className={highlight ? "person-card person-card-highlight" : "person-card"}>
-        {highlight && (
-          <Tag color="blue" style={{ marginBottom: 8 }}>
-            내 프로필
-          </Tag>
-        )}
+        {highlight && <span className="hr-badge">내 프로필</span>}
         <div className="person-card-body">
           <PersonAvatar src={person.profileImageUrl} size={64} />
           <div className="person-card-info">
@@ -269,7 +325,7 @@ function facetItem(
     label: (
       <Typography.Text strong>
         {title}
-        {selected.size > 0 && <Tag color="blue" style={{ marginLeft: 6 }}>{selected.size}</Tag>}
+        {selected.size > 0 && <span className="hr-count-badge">{selected.size}</span>}
       </Typography.Text>
     ),
     children: (

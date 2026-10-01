@@ -29,3 +29,9 @@
   max-height: 240px;
   overflow-y: auto;
 }
+
+@media (max-width: 599px) {
+  .diff-freetext {
+    grid-template-columns: 1fr;
+  }
+}
