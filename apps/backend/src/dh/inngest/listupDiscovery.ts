@@ -1,4 +1,8 @@
 import type { Company, Prisma } from "@/generated/prisma";
+import {
+  getDiscoveryAffinitySnapshot,
+  type DiscoveryAffinitySnapshot,
+} from "@/dh/config/discoveryAffinity";
 import type { ConditionsSnapshot } from "@/dh/config/listupExecution";
 import { prisma } from "@/lib/prisma";
 import { enqueueResearchTask } from "@/dh/lib/listup/tasks";
@@ -10,7 +14,7 @@ import {
   runWebSearch,
   type WebSearchResult,
   type WebSearchUsage,
-} from "@/dh/lib/listup/openaiWebSearch";
+} from "@/dh/lib/listup/gemini";
 
 const STARTUP_RECIPE_ARCHIVE =
   "https://startuprecipe.co.kr/archives/invest-newsletter";
@@ -289,31 +293,17 @@ export function buildGoogleQueries(
   source: ConditionsSnapshot["sources"][number],
   filters: ConditionsSnapshot["filters"],
   round = 1,
+  affinity: DiscoveryAffinitySnapshot = getDiscoveryAffinitySnapshot(),
 ) {
   const terms = queryTerms(source, filters);
   const stages = filters.companyStages.length
     ? filters.companyStages.join(" OR ")
     : "투자 유치 OR 시드 OR 프리시리즈A OR 시리즈A";
-  if (round > 1) {
-    const lenses = [
-      [
-        "customer acquisition retention conversion",
-        "partnership hiring market expansion",
-        "data AI operations automation",
-      ],
-      [
-        "monetization pricing revenue",
-        "new market enterprise adoption",
-        "product experiment service expansion",
-      ],
-    ][Math.min(round, 3) - 2]!;
-    return lenses.map((lens) => `${terms} (${stages}) (${lens})`);
-  }
-  return [
-    `${terms} (스타트업 OR 기업) (${stages})`,
-    `${terms} (정식 출시 OR 서비스 출시 OR 론칭 OR 베타)`,
-    `${terms} 스타트업`,
-  ];
+  const lenses =
+    affinity.queryLenses[Math.min(Math.max(round, 1), 3) - 1] ??
+    affinity.queryLenses[0] ??
+    [];
+  return lenses.slice(0, 3).map((lens) => `${terms} (${stages}) (${lens})`);
 }
 
 async function runGoogleSource(
@@ -321,10 +311,11 @@ async function runGoogleSource(
   filters: ConditionsSnapshot["filters"],
   round: number,
   excludedCompanyNames: string[],
+  affinity: DiscoveryAffinitySnapshot,
   reporter?: LocalTaskReporter,
 ): Promise<SourceOutput> {
   const results: WebSearchResult[] = [];
-  for (const query of buildGoogleQueries(source, filters, round)) {
+  for (const query of buildGoogleQueries(source, filters, round, affinity)) {
     try {
       results.push(
         await runWebSearch(
@@ -332,6 +323,7 @@ async function runGoogleSource(
             "Perform one focused Korean web lookup for startup discovery.",
             `Discovery round: ${round}. Use this distinct search lens rather than prior results.`,
             `Search focus: ${query}`,
+            "The lens reflects recurring public business patterns from past projects. It is only a discovery preference, not proof that a company has internal data access or is fit.",
             ...(excludedCompanyNames.length
               ? [
                   `Do not return already-reviewed companies: ${excludedCompanyNames.slice(0, 80).join(" / ")}`,
@@ -413,7 +405,7 @@ async function runGoogleSource(
       companyName: candidate.companyName.trim(),
       sourceKey: "Google",
       url: candidate.sourceUrl,
-      title: "OpenAI web search",
+      title: "Gemini Google Search",
       excerpt: candidate.quote,
       publishedAt: null,
       searchableText: candidate.quote,
@@ -442,6 +434,7 @@ async function collectSource(
   filters: ConditionsSnapshot["filters"],
   round: number,
   excludedCompanyNames: string[],
+  affinity: DiscoveryAffinitySnapshot,
   reporter?: LocalTaskReporter,
 ) {
   if (source.key === "Google")
@@ -450,6 +443,7 @@ async function collectSource(
       filters,
       round,
       excludedCompanyNames,
+      affinity,
       reporter,
     );
   if (source.key === "뉴스레터") return runNewsletterSource(source);
@@ -485,12 +479,15 @@ function scoreFinding(
     ...searchTokens(snapshot.filters.additionalConditions),
     ...snapshot.sources.flatMap((source) => searchTokens(source.query)),
   ];
+  const affinity = snapshot.discoveryAffinity ?? getDiscoveryAffinitySnapshot();
+  const affinityScore = Math.min(matchCount([...affinity.rankingTerms]), 4);
   const score =
     matchCount(snapshot.filters.keywords) * 3 +
     matchCount(snapshot.filters.industries) * 2 +
     matchCount(snapshot.filters.companyStages) * 2 +
     matchCount(snapshot.filters.regions) +
     matchCount(additionalTerms) +
+    affinityScore +
     Math.max(0, sourceCount - 1) * 2 +
     freshness;
   return { score, newestPublishedAt: newest };
@@ -769,6 +766,7 @@ export async function executeDiscoveryTask(
     });
     const snapshot = task.searchRun
       .conditionsSnapshot as unknown as ConditionsSnapshot;
+    const affinity = snapshot.discoveryAffinity ?? getDiscoveryAffinitySnapshot();
     const round = discoveryRound(task.requestedInformation);
     const limit = discoveryLimit(
       task.requestedInformation,
@@ -802,6 +800,7 @@ export async function executeDiscoveryTask(
             snapshot.filters,
             round,
             excludedCompanyNames,
+            affinity,
             reporter,
           ),
         ),

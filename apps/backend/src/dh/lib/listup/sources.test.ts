@@ -4,6 +4,7 @@ import {
   isSourceAvailable,
   sourceUnavailableReason,
 } from "./sources";
+import { getDiscoveryAffinitySnapshot } from "@/dh/config/discoveryAffinity";
 import { buildGoogleQueries } from "@/dh/inngest/listupDiscovery";
 
 describe("discovery source availability", () => {
@@ -44,5 +45,12 @@ describe("discovery source availability", () => {
     );
     expect(queries).toHaveLength(3);
     expect(queries.every((query) => query.includes("B2C 구독"))).toBe(true);
+    const firstRoundLenses =
+      getDiscoveryAffinitySnapshot().queryLenses[0] ?? [];
+    expect(
+      firstRoundLenses.every((lens) =>
+        queries.some((query) => query.includes(lens)),
+      ),
+    ).toBe(true);
   });
 });

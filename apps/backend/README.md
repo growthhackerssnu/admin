@@ -38,7 +38,7 @@ npm test -w apps/backend
 | `DIRECT_URL` | 같은 화면 → **Session pooler**(포트 5432) | Prisma 스키마가 참조(마이그레이션용) |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL | 전체(토큰 검증) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 같은 화면 → `anon` `public` 키 | 전체(토큰 검증) |
-| `OPENAI_API_KEY` | platform.openai.com → API keys | dh 리서치·초안 생성 |
+| `GEMINI_API_KEY` | aistudio.google.com → Get API key | dh 리서치·초안 생성 |
 | `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | Inngest 대시보드 → 앱 → Event Keys / Signing Key | dh 비동기 작업 |
 | `RESEND_API_KEY` | resend.com → API Keys | portal 가입 OTP 메일 |
 | `NOTION_API_KEY` | notion.so/my-integrations → integration 토큰 | hr 디렉토리·승인(Notion 읽기/쓰기) |

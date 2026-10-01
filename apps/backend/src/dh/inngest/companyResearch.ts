@@ -8,7 +8,7 @@ import {
   runStructuredOutput,
   runWebSearch,
   type WebSearchResult,
-} from "@/dh/lib/listup/openaiWebSearch";
+} from "@/dh/lib/listup/gemini";
 
 const CLAIM_CATEGORIES = [
   "product_service",
@@ -273,7 +273,7 @@ export async function executeCompanyResearchTask(
     );
     const webRefs = searchOutputs.map((output, index) =>
       sourceRef(
-        `OpenAI web search: ${searches[index]?.key ?? "unknown"}`,
+        `Gemini Google Search: ${searches[index]?.key ?? "unknown"}`,
         output,
       ),
     );
@@ -294,7 +294,7 @@ export async function executeCompanyResearchTask(
           ] as Prisma.InputJsonValue,
         },
       });
-      throw new Error("All OpenAI web-search calls failed.");
+      throw new Error("All Gemini Google Search calls failed.");
     }
 
     const urls = selectResearchUrls(company.websiteUrl, successfulSearches);
@@ -374,7 +374,7 @@ export async function executeCompanyResearchTask(
         );
         extractionRef = {
           type: "source",
-          sourceKey: "OpenAI structured extraction",
+          sourceKey: "Gemini structured extraction",
           status: "succeeded",
           foundCount: extracted.value.claims.length,
           acceptedCount: claims.length,
@@ -432,7 +432,7 @@ export async function executeCompanyResearchTask(
             sourceKey:
               company.websiteUrl && page.url === company.websiteUrl
                 ? "Official website"
-                : "OpenAI web search",
+                : "Gemini Google Search",
             title: page.title,
             excerpt: claim.quote,
           },
@@ -450,7 +450,7 @@ export async function executeCompanyResearchTask(
               sourceKey:
                 company.websiteUrl && page.url === company.websiteUrl
                   ? "Official website"
-                  : "OpenAI web search",
+                  : "Gemini Google Search",
               title: page.title,
               excerpt: page.text.slice(0, 1_000),
             },

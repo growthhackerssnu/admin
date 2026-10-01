@@ -15,6 +15,7 @@ import {
   type ConditionsSnapshot,
 } from "@/dh/config/listupExecution";
 import { getFitCriteriaSnapshot } from "@/dh/config/fitCriteria";
+import { getDiscoveryAffinitySnapshot } from "@/dh/config/discoveryAffinity";
 import { prisma } from "@/lib/prisma";
 
 const runInclude = {
@@ -109,6 +110,7 @@ export const POST = withListupApiHandler(async (req, { member }) => {
       schemaVersion: LISTUP_EXECUTION_VERSION,
       // 기준은 코드의 시스템 프롬프트로 관리하되, 이 배치가 실제 사용한 원문을 고정한다.
       fitCriteria: getFitCriteriaSnapshot(),
+      discoveryAffinity: getDiscoveryAffinitySnapshot(),
       sources: input.sources,
       filters: input.filters,
       execution: createListupExecution(input.maxCompanies),
