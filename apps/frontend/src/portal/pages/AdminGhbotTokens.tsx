@@ -6,6 +6,7 @@ import { SidePane } from "@dhbot/ui-shell";
 import {
   ApiClientError,
   getMe,
+  getGhbotTokenSecret,
   issueGhbotToken,
   listGhbotTokenMembers,
   revokeGhbotToken,
@@ -139,10 +140,50 @@ export function AdminGhbotTokens() {
     });
   }
 
+  async function copyIssuedToken() {
+    if (!newToken?.value) return;
+    try {
+      await navigator.clipboard.writeText(newToken.value);
+      void message.success("토큰을 복사했습니다.");
+    } catch {
+      void message.error("토큰 복사에 실패했습니다. 토큰을 선택해 직접 복사해 주세요.");
+    }
+  }
+
+  async function copyStoredToken(target: GhbotTokenMember) {
+    if (!target.token) return;
+    setBusyMemberId(target.memberId);
+    try {
+      const token = preview
+        ? "ghbot_preview_token_visible_once_only"
+        : (await getGhbotTokenSecret(accessToken!, target.token.id)).token;
+      await navigator.clipboard.writeText(token);
+      void message.success(`${target.displayName}님의 토큰을 복사했습니다.`);
+    } catch (e) {
+      void message.error(e instanceof ApiClientError ? e.message : "토큰 복사에 실패했습니다.");
+    } finally {
+      setBusyMemberId(undefined);
+    }
+  }
+
   const columns: ColumnsType<GhbotTokenMember> = [
     { title: "기수", dataIndex: "cohort", width: 90, render: (value) => value ?? "—" },
     { title: "회원", key: "member", render: (_, row) => <><div>{row.displayName}</div><Typography.Text type="secondary">{row.email}</Typography.Text></> },
-    { title: "토큰", key: "token", render: (_, row) => row.token ? <Tag color="green">{row.token.prefix}</Tag> : <Tag>미발급</Tag> },
+    {
+      title: "토큰",
+      key: "token",
+      render: (_, row) => row.token ? (
+        <Button
+          type="text"
+          size="small"
+          loading={busyMemberId === row.memberId}
+          title="클릭하면 원문 토큰을 복사합니다"
+          onClick={() => void copyStoredToken(row)}
+        >
+          <Tag color="green">{row.token.prefix}</Tag>
+        </Button>
+      ) : <Tag>미발급</Tag>,
+    },
     { title: "발급일", key: "issuedAt", render: (_, row) => formatDate(row.token?.issuedAt ?? null) },
     { title: "마지막 사용", key: "lastUsedAt", render: (_, row) => formatDate(row.token?.lastUsedAt ?? null) },
     {
@@ -156,13 +197,20 @@ export function AdminGhbotTokens() {
     <div className="app-shell">
       <SidePane role="admin" current="admin" />
       <main>
-        <div className="row section-gap"><div><h1>GH Bot 접근 토큰</h1><p className="muted">활성 acting 회원만 발급 대상입니다. 토큰 원문은 발급 직후 한 번만 표시됩니다.</p></div><Space><Button onClick={() => navigate("/admin")}>회원 관리</Button><Button onClick={() => void signOut()}>로그아웃</Button></Space></div>
+        <div className="row section-gap"><div><h1>GH Bot 접근 토큰</h1><p className="muted">활성 acting 회원만 발급 대상입니다. 마스킹된 토큰을 클릭하면 원문을 복사할 수 있습니다.</p></div><Space><Button onClick={() => navigate("/admin")}>회원 관리</Button><Button onClick={() => void signOut()}>로그아웃</Button></Space></div>
         {preview && <Alert className="feedback" type="info" showIcon message="개발용 화면 미리보기" description="실제 회원·토큰을 읽거나 쓰지 않습니다. 발급·회수 버튼은 화면 상태만 바꿉니다." />}
         {error && <Alert className="feedback" type="error" showIcon message={error} action={<Button onClick={() => void load()}>다시 불러오기</Button>} />}
         <div className="surface">{loading ? <Skeleton active paragraph={{ rows: 8 }} /> : <Table rowKey="memberId" dataSource={members} columns={columns} pagination={false} />}</div>
         <Modal title={`${newToken?.name ?? ""}님의 GH Bot 토큰`} open={Boolean(newToken)} onCancel={() => setNewToken(undefined)} footer={<Button type="primary" onClick={() => setNewToken(undefined)}>확인했습니다</Button>}>
-          <Alert type="warning" showIcon message="이 토큰은 지금만 표시됩니다" description="안전한 곳에 복사해 전달하세요. 창을 닫으면 다시 볼 수 없으며, 필요하면 재발급해야 합니다." />
-          <Typography.Paragraph copyable={{ text: newToken?.value }} style={{ wordBreak: "break-all", marginTop: 16 }}>{newToken?.value}</Typography.Paragraph>
+          <Alert type="warning" showIcon message="토큰을 안전하게 전달하세요" description="창을 닫은 뒤에도 관리자 토큰 목록의 마스킹된 값을 클릭하면 원문을 다시 복사할 수 있습니다." />
+          <Typography.Paragraph
+            copyable={{ text: newToken?.value, tooltips: ["복사", "복사됨"] }}
+            onClick={() => void copyIssuedToken()}
+            title="클릭하면 토큰을 복사합니다"
+            style={{ wordBreak: "break-all", marginTop: 16, cursor: "copy", padding: 12, background: "#fafafa", borderRadius: 6 }}
+          >
+            {newToken?.value}
+          </Typography.Paragraph>
         </Modal>
       </main>
     </div>

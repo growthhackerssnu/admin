@@ -194,3 +194,8 @@ export function revokeGhbotToken(token: string, tokenId: string) {
     body: JSON.stringify({}),
   });
 }
+
+// 목록에는 마스킹된 접두사만 포함한다. 이 요청은 관리자가 명시적으로 복사할 때만 쓴다.
+export function getGhbotTokenSecret(token: string, tokenId: string) {
+  return request<{ token: string }>(`/api/v1/admin/ghbot-tokens/${tokenId}/secret`, { token });
+}

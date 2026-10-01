@@ -4,6 +4,7 @@ import { requireAdmin } from "@/portal/lib/auth";
 import { ApiError, successBody } from "@/portal/lib/errors";
 import { issueGhbotTokenSchema } from "@/portal/lib/validation/admin";
 import { prisma } from "@/lib/prisma";
+import { encryptGhbotToken } from "@/portal/lib/ghbotTokenCrypto";
 
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -14,7 +15,7 @@ function tokenPrefix(token: string) {
 }
 
 // GET /api/v1/admin/ghbot-tokens — 발급 대상인 활성 acting 회원과 현재 토큰 상태.
-// 원문은 어떤 경우에도 이 API로 다시 반환하지 않는다.
+// 목록은 원문을 반환하지 않으며, 원문 복사는 토큰별 별도 관리자 요청만 사용한다.
 export const GET = withApiHandler(async (_req, { member, requestId }) => {
   requireAdmin(member);
   const members = await prisma.member.findMany({
@@ -80,6 +81,7 @@ export const POST = withApiHandler(async (req, { member, requestId }) => {
       data: {
         memberId: target.id,
         tokenHash: tokenHash(rawToken),
+        tokenCiphertext: encryptGhbotToken(rawToken),
         tokenPrefix: tokenPrefix(rawToken),
         issuedByMemberId: member.id,
       },

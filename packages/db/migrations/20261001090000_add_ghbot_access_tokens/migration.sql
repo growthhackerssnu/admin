@@ -1,10 +1,12 @@
 -- ghbot 구성원 토큰은 portal의 회원 권한(role/active)에 종속된다.
--- 원문 토큰은 저장하지 않고 SHA-256 해시만 저장한다.
+-- 인증 검증에는 SHA-256 해시를 쓰고, 관리자 재복사용 원문은 서버 전용 키로
+-- AES-256-GCM 암호화한 값만 저장한다. 이 마이그레이션은 아직 실행하지 않았다.
 
 CREATE TABLE "core"."ghbot_access_tokens" (
   "id" TEXT NOT NULL,
   "member_id" TEXT NOT NULL,
   "token_hash" TEXT NOT NULL,
+  "token_ciphertext" TEXT NOT NULL,
   "token_prefix" TEXT NOT NULL,
   "issued_by_member_id" TEXT NOT NULL,
   "issued_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
