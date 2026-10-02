@@ -34,8 +34,9 @@ const Index = lazy(() =>
 );
 
 // 화면별 코드는 처음 들어갈 때만 불러온다. 한 번 불러오면 이후 이동은 새로고침 없다.
-const DhWorkspace = lazy(() => import("./dh/Workspace"));
-const DhListup = lazy(() => import("./dh/listup/main"));
+const DhReviewWorkspace = lazy(() =>
+  import("./dh/listup/review/ReviewWorkspace"),
+);
 // hr 화면 전용 겉옷(테마·폰트). hr 라우트 전체를 이 레이아웃 라우트로 감싼다.
 const HrLayout = lazy(() => import("./hr/HrLayout"));
 const HrDirectory = lazy(() =>
@@ -75,6 +76,16 @@ function RouteFallback() {
   return <Skeleton active style={{ padding: 24 }} />;
 }
 
+function LegacyDhRedirect() {
+  const location = useLocation();
+  return (
+    <Navigate
+      to={{ pathname: "/dh", search: location.search, hash: location.hash }}
+      replace
+    />
+  );
+}
+
 function Root() {
   return (
     <ConfigProvider locale={koKR} theme={theme}>
@@ -95,7 +106,7 @@ function Root() {
                 path="/dh"
                 element={
                   <RequireApp app="dh">
-                    <DhWorkspace />
+                    <DhReviewWorkspace />
                   </RequireApp>
                 }
               />
@@ -103,7 +114,7 @@ function Root() {
                 path="/dh/listup"
                 element={
                   <RequireApp app="dh">
-                    <DhListup />
+                    <LegacyDhRedirect />
                   </RequireApp>
                 }
               />
