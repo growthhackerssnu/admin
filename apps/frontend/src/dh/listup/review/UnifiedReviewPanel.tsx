@@ -203,7 +203,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedId);
   const focused = visible.find((candidate) => candidate.id === selectedId) ?? (dirty ? selectedCandidate : undefined) ?? visible[0];
   return <SidebarProvider defaultOpen className="uw-shell">
-    <Sidebar collapsible="icon" className="uw-rail"><SidebarBrand />
+    <Sidebar collapsible="icon" expandOnHover className="uw-rail"><SidebarBrand />
       <SidebarContent><SidebarGroup><SidebarGroupLabel>워크스페이스</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
         <SidebarMenuItem><SidebarMenuButton asChild tooltip="그핵드인"><a href="/hr"><UsersRound /><span>그핵드인</span></a></SidebarMenuButton></SidebarMenuItem>
         <SidebarMenuItem><SidebarMenuButton asChild tooltip="NUT"><a href="/nut"><Wallet /><span>NUT</span></a></SidebarMenuButton></SidebarMenuItem>
