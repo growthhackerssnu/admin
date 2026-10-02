@@ -23,6 +23,11 @@ const AdminMembers = lazy(() =>
     default: m.AdminMembers,
   })),
 );
+const AdminGhbotTokens = lazy(() =>
+  import("./portal/pages/AdminGhbotTokens").then((m) => ({
+    default: m.AdminGhbotTokens,
+  })),
+);
 // 로그인·index는 브랜드 테마(Pretendard 포함)와 함께 지연 로딩되는 portal 레이아웃 안에서 보인다.
 // /admin(회원 관리)은 아래 hr 레이아웃(밝은 앱 화면) 쪽이다.
 const PortalLayout = lazy(() => import("./portal/PortalLayout"));
@@ -128,6 +133,7 @@ function Root() {
                 <Route path="/hr/requests" element={<HrMyRequests />} />
                 <Route path="/hr/admin" element={<HrAdminQueue />} />
                 <Route path="/admin" element={<AdminMembers />} />
+                <Route path="/admin/ghbot" element={<AdminGhbotTokens />} />
               </Route>
 
               <Route

@@ -32,3 +32,7 @@ export const bulkRoleChangeSchema = z.discriminatedUnion("role", [
 export const bulkDeactivateSchema = z.object({
   memberIds,
 });
+
+export const issueGhbotTokenSchema = z.object({
+  memberId: z.string().min(1),
+});

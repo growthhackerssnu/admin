@@ -155,3 +155,47 @@ export function reactivateMembers(token: string, memberIds: string[]) {
     body: JSON.stringify({ memberIds }),
   });
 }
+
+// --- 관리자: GH Bot 접근 토큰 ---
+
+export interface GhbotTokenSummary {
+  id: string;
+  prefix: string;
+  issuedAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+}
+
+export interface GhbotTokenMember {
+  memberId: string;
+  displayName: string;
+  cohort: string | null;
+  email: string;
+  token: GhbotTokenSummary | null;
+}
+
+export function listGhbotTokenMembers(token: string) {
+  return request<{ items: GhbotTokenMember[] }>("/api/v1/admin/ghbot-tokens", { token });
+}
+
+// 원문은 이 응답에서만 제공된다. 호출자는 즉시 표시하고 상태에는 저장하지 않는다.
+export function issueGhbotToken(token: string, memberId: string) {
+  return request<{ token: string; tokenId: string; prefix: string; issuedAt: string }>(
+    "/api/v1/admin/ghbot-tokens",
+    { method: "POST", token, body: JSON.stringify({ memberId }) },
+  );
+}
+
+export function revokeGhbotToken(token: string, tokenId: string) {
+  return request<{ id: string; revokedAt: string }>(`/api/v1/admin/ghbot-tokens/${tokenId}/revoke`, {
+    method: "POST",
+    token,
+    headers: { "Idempotency-Key": idempotencyKey() },
+    body: JSON.stringify({}),
+  });
+}
+
+// 목록에는 마스킹된 접두사만 포함한다. 이 요청은 관리자가 명시적으로 복사할 때만 쓴다.
+export function getGhbotTokenSecret(token: string, tokenId: string) {
+  return request<{ token: string }>(`/api/v1/admin/ghbot-tokens/${tokenId}/secret`, { token });
+}

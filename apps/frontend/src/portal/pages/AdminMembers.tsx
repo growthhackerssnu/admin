@@ -15,6 +15,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SidePane } from "@dhbot/ui-shell";
+import { AdminNav } from "../components/AdminNav";
 import {
   ApiClientError,
   changeMemberRole,
@@ -339,6 +340,8 @@ export function AdminMembers() {
           </div>
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
+
+        <AdminNav />
 
         {error && (
           <Alert
