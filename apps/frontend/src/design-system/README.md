@@ -49,7 +49,7 @@ MDC에서 전달받은 크기는 `--ds-type-*` 토큰과 `.ds-*` 클래스로 �
 
 가운데 칸의 제목·관계자 상태·입력 폼·판단 메모는 같은 가변 너비를 사용한다. 칸이 620px 이하로 좁아지면 관계자 입력을 한 열로 배치한다. 목록 필터도 목록 칸 자체가 320px 이하일 때 두 줄로 배치한다.
 
-구현은 `src/dh/listup/review/UnifiedReviewPanel.tsx`와 `unified-review.css`에 있다. `/dh/listup?reviewPreview=1&view=review`는 인증된 앱의 React 검토 화면이고, `/review-workspace-dev.html?view=review`는 로그인 없이 같은 React 코드를 검사하는 로컬 개발 진입점이다. 정적 HTML 시안은 별도로 남아 있다. 기본 실데이터 화면 전환은 새 API 연결 작업에서 진행한다.
+구현은 `src/dh/listup/review/UnifiedReviewPanel.tsx`와 `unified-review.css`에 있다. `/dh`는 인증된 앱의 React 검토 화면이며 현재 샘플 데이터를 사용한다. 기존 `/dh/listup` 주소는 `/dh`로 이동한다. `/review-workspace-dev.html?view=review`는 로그인 없이 같은 React 코드를 검사하는 로컬 개발 진입점이다. 정적 HTML 시안은 별도로 남아 있다. 실데이터 연결은 새 API 작업에서 진행한다.
 
 이 단계에서는 기존 화면의 정보 구조나 업무 정책을 변경하지 않는다. 간격, 버튼 크기, 세부 컴포넌트 스타일은 실제 검토 화면을 적용하면서 고정한다.
 

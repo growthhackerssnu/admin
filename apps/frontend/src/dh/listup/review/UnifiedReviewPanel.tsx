@@ -90,7 +90,7 @@ function Filter({
   );
 }
 
-function ContactWork({ candidate, pending, change, onDirty }: { candidate: Candidate; pending: boolean; change: Change; onDirty: (dirty: boolean) => void }) {
+function ContactWork({ candidate, pending, change, onDirty, preview }: { candidate: Candidate; pending: boolean; change: Change; onDirty: (dirty: boolean) => void; preview: boolean }) {
   const owned = !candidate.owner || candidate.owner.id === currentActor.id;
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [contact, setContact] = useState<Recipient>(candidate.recipient ?? blankContact);
@@ -123,7 +123,7 @@ function ContactWork({ candidate, pending, change, onDirty }: { candidate: Candi
   return (
     <section className="uw-focus" aria-label={`${candidate.name} 검토`}>
       <header className="uw-pane-head">
-        <div className="uw-head-copy"><h1>{candidate.name}</h1><p>{candidate.summary}</p></div>
+        <div className="uw-head-copy"><h1>{candidate.name}{preview && <span className="uw-preview-tag" title="샘플 데이터 · 변경 내용은 이 브라우저에만 저장됩니다">샘플 데이터</span>}</h1><p>{candidate.summary}</p></div>
         {candidate.owner && !owned && <span className="uw-readonly">{candidate.owner.name} · 조회 전용</span>}
       </header>
       <div className="uw-focus-scroll">
@@ -191,7 +191,7 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, selectedId, pending, error, change, onDirty, onSelect, onMessage }: {
+export function UnifiedReviewPanel({ candidates, selectedId, pending, error, change, onDirty, onSelect, onMessage, preview = false }: {
   candidates: Candidate[];
   selectedId: string | null;
   pending: boolean;
@@ -200,6 +200,7 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
   onDirty: (dirty: boolean) => void;
   onSelect: (id: string) => void;
   onMessage: (id: string) => void;
+  preview?: boolean;
 }) {
   const [owner, setOwner] = useState<OwnerFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -250,7 +251,7 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
               {!visible.length && <p className="uw-empty">조건에 맞는 기업이 없습니다.</p>}</div>
           </aside></ResizablePanel>{!compact && <ResizableHandle withHandle className="uw-handle" />}</>}
         {(!compact || !queueOpen) && <ResizablePanel defaultSize={compact ? "100%" : detailsOpen ? (queueOpen ? "52%" : "72%") : "100%"} minSize={compact ? "100%" : "34%"}>
-          <div className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""} ${focused?.reviewStatus === "approved" ? "uw-message-ready" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={focused.id} candidate={focused} pending={pending} change={change} onDirty={reportDirty} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
+          <div className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""} ${focused?.reviewStatus === "approved" ? "uw-message-ready" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={focused.id} candidate={focused} pending={pending} change={change} onDirty={reportDirty} preview={preview} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
             <div className="uw-pane-controls"><WorkspaceIconButton icon={queueOpen ? "leftClose" : "leftOpen"} label={queueOpen ? "목록 닫기" : "목록 열기"} onClick={() => setQueueOpen(!queueOpen)} />
               {!compact && <WorkspaceIconButton icon={detailsOpen ? "rightClose" : "rightOpen"} label={detailsOpen ? "기업 정보 닫기" : "기업 정보 열기"} onClick={() => setDetailsOpen(!detailsOpen)} />}
               {focused?.reviewStatus === "approved" && <Button size="sm" variant="outline" onClick={() => onMessage(focused.id)}>메시지 열기</Button>}</div>

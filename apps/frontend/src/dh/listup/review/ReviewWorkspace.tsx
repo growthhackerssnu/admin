@@ -237,6 +237,7 @@ export default function ReviewWorkspace({
     if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><button onClick={() => void load()}>다시 불러오기</button></main>;
     return <UnifiedReviewPanel candidates={candidates} selectedId={params.get("candidate")}
       pending={pending} error={error} change={change} onDirty={trackDirty}
+      preview={repository.mode === "preview"}
       onSelect={(id) => navigate({ candidate: id })}
       onMessage={openMessage} />;
   }
@@ -258,7 +259,6 @@ export default function ReviewWorkspace({
         <div className="rv-preview">
           <strong>개발 미리보기</strong>
           <span>시연 기업 · 이 브라우저에만 저장 · 실제 조사와 전송 없음</span>
-          <a href="/dh/listup">실데이터 화면 ↗</a>
         </div>
       )}
       {!message && (

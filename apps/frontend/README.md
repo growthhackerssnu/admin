@@ -5,7 +5,7 @@
 | 경로 | 화면 | 코드 | 상세 |
 |---|---|---|---|
 | `/`, `/login`, `/index`, `/admin` | 로그인·가입(OTP)·앱 선택·회원 관리 | `src/portal` | [docs/portal.md](docs/portal.md) |
-| `/dh`, `/dh/listup` | 대협봇 목업 / 실데이터 리스트업(`?preview=1`은 샘플) | `src/dh` | [docs/dh.md](docs/dh.md) |
+| `/dh`, `/dh/listup` | 사람 검토 화면(현재 샘플 데이터). `/dh/listup`은 `/dh`로 이동 | `src/dh/listup/review` | [docs/dh.md](docs/dh.md) |
 | `/hr`, `/hr/people/:id`, `/hr/requests`, `/hr/admin` | 그핵드인 | `src/hr` | [docs/hr.md](docs/hr.md) |
 | `/nut` | NUT 재무 | `src/nut` | [docs/nut.md](docs/nut.md) |
 
