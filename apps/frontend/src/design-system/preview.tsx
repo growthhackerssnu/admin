@@ -62,7 +62,7 @@ function Palette({ title, items }: { title: string; items: string[][] }) {
 function App() {
   const [ownerFilter, setOwnerFilter] = React.useState("mine");
   return <SidebarProvider className="ds-preview-layout">
-    <Sidebar collapsible="icon" aria-label="워크스페이스 탐색">
+    <Sidebar collapsible="icon" expandOnHover aria-label="워크스페이스 탐색">
       <SidebarBrand />
       <SidebarContent>
         <SidebarGroup><SidebarGroupLabel>워크스페이스</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
