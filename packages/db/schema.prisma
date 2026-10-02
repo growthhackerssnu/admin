@@ -897,6 +897,7 @@ enum ResearchPipeline {
 enum CollectionSourceKind {
   web_archive
   gmail
+  public_api
   @@schema("dh")
 }
 
