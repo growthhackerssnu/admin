@@ -27,18 +27,8 @@ export function applyCommand(
     );
   if (candidate.owner && candidate.owner.id !== actor.id)
     throw new Error("다른 담당자가 검토 중입니다.");
-  if (
-    !candidate.owner &&
-    (command.type === "contact" || command.type === "decide")
-  ) {
-    if (candidate.researchStatus !== "ready")
-      throw new Error("조사가 완료된 후 저장할 수 있습니다.");
-    candidate.owner = actor;
-    if (candidate.reviewStatus === "unreviewed")
-      candidate.reviewStatus = "reviewing";
-  }
   if (command.type !== "claim" && command.type !== "retry" && !candidate.owner)
-    throw new Error("관계자 또는 검토 결과를 먼저 저장해주세요.");
+    throw new Error("배정된 기업만 변경할 수 있습니다.");
   const invalidate = () => {
     if (candidate.draft) candidate.draft.approvedRevision = null;
   };
@@ -69,6 +59,8 @@ export function applyCommand(
       }
       candidate.contacts = contacts;
       candidate.recipient = savedRecipient;
+      if (candidate.reviewStatus === "unreviewed")
+        candidate.reviewStatus = "reviewing";
       invalidate();
       break;
     case "selectContact": {
@@ -173,13 +165,9 @@ export function applyCommand(
       break;
     case "send":
       if (!canCopy(candidate))
-        throw new Error("현재 초안을 먼저 확인해주세요.");
-      if (
-        candidate.sent.some(
-          (item) => item.draft.revision === candidate.draft!.revision,
-        )
-      )
-        throw new Error("이미 완료 표시한 초안입니다.");
+        throw new Error("현재 조사·분기·수신자와 일치하는 초안이 필요합니다.");
+      if (candidate.sent.length)
+        throw new Error("이 기업의 첫 발송은 이미 기록됐습니다.");
       candidate.sent.push({
         id: crypto.randomUUID(),
         actor,

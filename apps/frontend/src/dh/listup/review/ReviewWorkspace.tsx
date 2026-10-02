@@ -27,6 +27,7 @@ export default function ReviewWorkspace({
 }) {
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<ReviewData>();
+  const actor = data?.actor ?? currentActor;
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -47,6 +48,22 @@ export default function ReviewWorkspace({
   const message = data?.candidates.find(
     (item) => item.id === params.get("message"),
   );
+  const detailId = params.get("message") ?? params.get("candidate");
+  useEffect(() => {
+    if (!repository.loadCandidate || !detailId || detailId === "none" || !data) return;
+    let cancelled = false;
+    void repository.loadCandidate(detailId).then((candidate) => {
+      if (cancelled || !active.current) return;
+      setData((previous) => previous ? {
+        ...previous,
+        candidates: previous.candidates.map((item) => item.id === candidate.id ? candidate : item),
+      } : previous);
+    }).catch((failure) => {
+      if (!cancelled && active.current)
+        setError(failure instanceof Error ? failure.message : "기업 상세를 불러오지 못했습니다.");
+    });
+    return () => { cancelled = true; };
+  }, [repository, detailId, data?.actor?.id]);
   useLayoutEffect(() => {
     const split = document.querySelector<HTMLElement>(".rv-review-split");
     if (!split) return;
@@ -192,7 +209,7 @@ export default function ReviewWorkspace({
         if (
           filter === "mine" &&
           !(
-            item.owner?.id === currentActor.id &&
+            item.owner?.id === actor.id &&
             item.reviewStatus === "reviewing"
           )
         )
@@ -205,7 +222,7 @@ export default function ReviewWorkspace({
       const q = (params.get("q") ?? "").toLocaleLowerCase();
       if (q && !`${item.name} ${item.summary}`.toLocaleLowerCase().includes(q))
         return false;
-      if (params.get("owner") === "mine" && item.owner?.id !== currentActor.id)
+      if (params.get("owner") === "mine" && item.owner?.id !== actor.id)
         return false;
       if (params.get("owner") === "unassigned" && item.owner) return false;
       if (
@@ -235,9 +252,11 @@ export default function ReviewWorkspace({
   if (tab === "review" && !message) {
     if (loading) return <UnifiedReviewLoading />;
     if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><button onClick={() => void load()}>다시 불러오기</button></main>;
-    return <UnifiedReviewPanel candidates={candidates} selectedId={params.get("candidate")}
+    return <UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true}
+      owner={params.get("owner") === "all" ? "all" : "mine"}
+      onOwnerChange={(owner) => navigate({ owner, candidate: null })}
+      selectedId={params.get("candidate")}
       pending={pending} error={error} change={change} onDirty={trackDirty}
-      preview={repository.mode === "preview"}
       onSelect={(id) => navigate({ candidate: id })}
       onMessage={openMessage} />;
   }
@@ -252,13 +271,14 @@ export default function ReviewWorkspace({
         </div>
         <div className="rv-account">
           <span className="rv-avatar">A</span>
-          {currentActor.name}
+          {actor.name}
         </div>
       </header>
       {repository.mode === "preview" && (
         <div className="rv-preview">
           <strong>개발 미리보기</strong>
           <span>시연 기업 · 이 브라우저에만 저장 · 실제 조사와 전송 없음</span>
+          <a href="/dh">실데이터 화면 ↗</a>
         </div>
       )}
       {!message && (
@@ -302,6 +322,7 @@ export default function ReviewWorkspace({
         <MessagePage
           key={message.id}
           candidate={message}
+          actor={actor}
           quarters={data.quarters}
           change={change}
           addQuarter={addQuarter}
@@ -458,7 +479,7 @@ export default function ReviewWorkspace({
                             : value === "mine"
                               ? candidates.filter(
                                   (c) =>
-                                    c.owner?.id === currentActor.id &&
+                                    c.owner?.id === actor.id &&
                                     c.reviewStatus === "reviewing",
                                 ).length
                               : value === "rejected"
@@ -567,6 +588,7 @@ export default function ReviewWorkspace({
                       key={focused.id}
                       inline
                       candidate={focused}
+                      actor={actor}
                       pending={pending}
                       error={error}
                       change={change}
@@ -646,9 +668,7 @@ export default function ReviewWorkspace({
                             </td>
                             <td>
                               {tab === "messages" ? (
-                                c.sent.some(
-                                  (s) => s.draft.revision === c.draft?.revision,
-                                ) ? (
+                                c.sent.length > 0 ? (
                                   "발송 완료"
                                 ) : c.draft ? (
                                   "초안 있음"
@@ -726,6 +746,7 @@ export default function ReviewWorkspace({
         <CandidateReview
           key={selected.id}
           candidate={selected}
+          actor={actor}
           pending={pending}
           error={error}
           change={change}

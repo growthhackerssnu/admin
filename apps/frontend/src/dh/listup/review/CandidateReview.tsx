@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  currentActor,
   reviewLabels,
   researchLabels,
   safeUrl,
   validRecipient,
   type Candidate,
   type CandidateCommand,
+  type Actor,
   type Recipient,
 } from "./contracts";
 
@@ -31,6 +31,7 @@ export function SourceLink({
 }
 export function RecipientEditor({
   candidate,
+  actor,
   change,
   pending,
   onDirty,
@@ -38,6 +39,7 @@ export function RecipientEditor({
   emphasize = false,
 }: {
   candidate: Candidate;
+  actor: Actor;
   change: Change;
   pending: boolean;
   onDirty?: (dirty: boolean) => void;
@@ -61,7 +63,7 @@ export function RecipientEditor({
   }, [dirty, onDirty]);
   const locked =
     pending ||
-    Boolean(candidate.owner && candidate.owner.id !== currentActor.id) ||
+    candidate.owner?.id !== actor.id ||
     candidate.researchStatus !== "ready";
   const update = (patch: Partial<Recipient>) => {
     setValue({ ...value, ...patch });
@@ -205,6 +207,7 @@ export function RecipientEditor({
 
 export function CandidateReview({
   candidate,
+  actor,
   pending,
   error,
   change,
@@ -215,6 +218,7 @@ export function CandidateReview({
   onDirty,
 }: {
   candidate: Candidate;
+  actor: Actor;
   pending: boolean;
   error: string;
   change: Change;
@@ -253,7 +257,7 @@ export function CandidateReview({
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
-  const owned = !candidate.owner || candidate.owner.id === currentActor.id;
+  const owned = candidate.owner?.id === actor.id;
   const decided = ["approved", "rejected_fit", "rejected_contact"].includes(
     candidate.reviewStatus,
   );
@@ -434,6 +438,7 @@ export function CandidateReview({
         {candidate.research && (
           <RecipientEditor
             candidate={candidate}
+            actor={actor}
             pending={pending}
             change={change}
             onDirty={setContactDirty}

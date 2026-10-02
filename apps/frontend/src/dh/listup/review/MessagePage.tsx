@@ -6,14 +6,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { projectSchedule } from "../messageTemplate";
 import {
   canCopy,
-  currentActor,
   draftCurrent,
+  type Actor,
   type Candidate,
 } from "./contracts";
-import { RecipientEditor, SourceLink, type Change } from "./CandidateReview";
+import { SourceLink, type Change } from "./CandidateReview";
 
 export function MessagePage({
   candidate,
+  actor,
   quarters,
   change,
   addQuarter,
@@ -22,6 +23,7 @@ export function MessagePage({
   back,
 }: {
   candidate: Candidate;
+  actor: Actor;
   quarters: string[];
   change: Change;
   addQuarter: (value: string) => Promise<boolean>;
@@ -32,8 +34,6 @@ export function MessagePage({
   const [editing, setEditing] = useState(false);
   const [subject, setSubject] = useState(candidate.draft?.subject ?? "");
   const [body, setBody] = useState(candidate.draft?.body ?? "");
-  const [recipientOpen, setRecipientOpen] = useState(false);
-  const [recipientDirty, setRecipientDirty] = useState(false);
   const [addingQuarter, setAddingQuarter] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
   const [part, setPart] = useState(1);
@@ -42,7 +42,7 @@ export function MessagePage({
     editing &&
     (subject !== (candidate.draft?.subject ?? "") ||
       body !== (candidate.draft?.body ?? ""));
-  const dirty = draftDirty || recipientDirty;
+  const dirty = draftDirty;
   useEffect(() => {
     if (!editing) {
       setSubject(candidate.draft?.subject ?? "");
@@ -56,14 +56,12 @@ export function MessagePage({
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
-  const owned = candidate.owner?.id === currentActor.id;
+  const owned = candidate.owner?.id === actor.id;
   const locked = pending || !owned;
   const approved = candidate.reviewStatus === "approved";
   const current = draftCurrent(candidate);
   const copied = canCopy(candidate) && !dirty;
-  const sent = candidate.sent.some(
-    (item) => item.draft.revision === candidate.draft?.revision,
-  );
+  const sent = candidate.sent.length > 0;
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -96,8 +94,8 @@ export function MessagePage({
         <span className={`rv-badge ${sent ? "approved" : "reviewing"}`}>
           {sent
             ? "발송 완료"
-            : candidate.draft?.approvedRevision && current
-              ? "초안 확인 완료"
+            : candidate.draft && current
+              ? "메시지 준비됨"
               : candidate.draft
                 ? "초안 작성 중"
                 : "미생성"}
@@ -199,7 +197,7 @@ export function MessagePage({
                 id="rv-message-quarter"
                 className="rv-native-select"
                 aria-label="메시지 목표 분기"
-                disabled={locked || editing || recipientDirty}
+                disabled={locked || editing}
                 value={candidate.quarter ?? ""}
                 onChange={(e) =>
                   void change(candidate, {
@@ -220,7 +218,7 @@ export function MessagePage({
             </Field>
             <button
               className="rv-text-button"
-              disabled={locked || editing || recipientDirty}
+              disabled={locked || editing}
               onClick={() => setAddingQuarter(!addingQuarter)}
             >
               ＋ 분기 추가
@@ -297,7 +295,6 @@ export function MessagePage({
                 disabled={
                   locked ||
                   editing ||
-                  recipientDirty ||
                   !approved ||
                   !candidate.quarter ||
                   !candidate.recipient
@@ -311,9 +308,7 @@ export function MessagePage({
                   )
                     return;
                   if (await change(candidate, { type: "generate" }))
-                    setNotice(
-                      "저장된 자료로 시연 메시지를 생성했습니다. 실제 AI 호출은 하지 않았습니다.",
-                    );
+                    setNotice("저장된 조사 자료로 메시지를 생성했습니다.");
                 }}
               >
                 {pending && <Spinner />} {candidate.draft ? "다시 생성" : "메시지 생성"}
@@ -354,25 +349,12 @@ export function MessagePage({
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      disabled={locked || !approved || recipientDirty}
-                      onClick={() => setEditing(true)}
-                    >
-                      내용 수정
-                    </button>
-                    <button
-                      className="rv-primary"
-                      disabled={
-                        locked || !approved || !current || copied || dirty
-                      }
-                      onClick={() =>
-                        void change(candidate, { type: "approveDraft" })
-                      }
-                    >
-                      초안 확인 완료
-                    </button>
-                  </>
+                  <button
+                    disabled={locked || !approved || !candidate.draft}
+                    onClick={() => setEditing(true)}
+                  >
+                    내용 수정
+                  </button>
                 ))}
             </div>
             <p className="rv-help">
@@ -403,29 +385,7 @@ export function MessagePage({
             ) : (
               <p>관계자가 없습니다.</p>
             )}
-            <button
-              disabled={locked || editing}
-              onClick={() => {
-                if (
-                  !recipientDirty ||
-                  window.confirm("저장하지 않은 관계자 입력을 버릴까요?")
-                ) {
-                  setRecipientOpen(!recipientOpen);
-                  setRecipientDirty(false);
-                }
-              }}
-            >
-              {recipientOpen ? "관계자 입력 닫기" : "수신자·채널 변경"}
-            </button>
-            {recipientOpen && (
-              <RecipientEditor
-                candidate={candidate}
-                startEditing
-                change={change}
-                pending={pending}
-                onDirty={setRecipientDirty}
-              />
-            )}
+            {!sent && <p className="rv-help">수신자를 바꾸려면 기업 검토에서 판단 변경을 진행해주세요.</p>}
             <div className="rv-copy">
               <button
                 disabled={locked || !copied}
@@ -446,7 +406,7 @@ export function MessagePage({
               onClick={() => {
                 if (
                   window.confirm(
-                    "발송 완료를 시연 기록에 표시할까요? 실제 메시지는 전송되지 않습니다.",
+                    "외부 채널에서 실제 전송을 마쳤나요? 완료를 기록하면 첫 발송 상태로 저장됩니다.",
                   )
                 )
                   void change(candidate, { type: "send" });
@@ -460,7 +420,7 @@ export function MessagePage({
                   ? "수정 내용을 저장해주세요."
                   : !current
                     ? "현재 설정으로 메시지를 다시 생성해주세요."
-                    : "초안 확인 후 복사할 수 있습니다."}
+                    : "메시지를 다시 불러와주세요."}
               </p>
             )}
           </section>

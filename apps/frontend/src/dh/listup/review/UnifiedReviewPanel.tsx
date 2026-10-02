@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Handshake, Search, Plus, UserRound, UsersRound, Wallet } from "lucide-react";
+import { ClipboardList, Handshake, Search, Plus, UserRound, UsersRound, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -20,8 +20,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
 import {
-  currentActor, researchLabels, reviewLabels, safeUrl, validRecipient,
-  type Candidate, type CandidateCommand, type Recipient,
+  researchLabels, reviewLabels, safeUrl, validRecipient,
+  type Actor, type Candidate, type CandidateCommand, type Recipient,
 } from "./contracts";
 import "@/design-system/globals.css";
 import "./unified-review.css";
@@ -90,8 +90,8 @@ function Filter({
   );
 }
 
-function ContactWork({ candidate, pending, change, onDirty, preview }: { candidate: Candidate; pending: boolean; change: Change; onDirty: (dirty: boolean) => void; preview: boolean }) {
-  const owned = !candidate.owner || candidate.owner.id === currentActor.id;
+function ContactWork({ candidate, actor, pending, change, onDirty }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void }) {
+  const owned = candidate.owner?.id === actor.id;
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [contact, setContact] = useState<Recipient>(candidate.recipient ?? blankContact);
   const [error, setError] = useState("");
@@ -123,7 +123,7 @@ function ContactWork({ candidate, pending, change, onDirty, preview }: { candida
   return (
     <section className="uw-focus" aria-label={`${candidate.name} 검토`}>
       <header className="uw-pane-head">
-        <div className="uw-head-copy"><h1>{candidate.name}{preview && <span className="uw-preview-tag" title="샘플 데이터 · 변경 내용은 이 브라우저에만 저장됩니다">샘플 데이터</span>}</h1><p>{candidate.summary}</p></div>
+        <div className="uw-head-copy"><h1>{candidate.name}</h1><p>{candidate.summary}</p></div>
         {candidate.owner && !owned && <span className="uw-readonly">{candidate.owner.name} · 조회 전용</span>}
       </header>
       <div className="uw-focus-scroll">
@@ -191,8 +191,12 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, selectedId, pending, error, change, onDirty, onSelect, onMessage, preview = false }: {
+export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, change, onDirty, onSelect, onMessage }: {
   candidates: Candidate[];
+  actor: Actor;
+  canManageOps: boolean;
+  owner: OwnerFilter;
+  onOwnerChange: (value: OwnerFilter) => void;
   selectedId: string | null;
   pending: boolean;
   error: string;
@@ -200,14 +204,12 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
   onDirty: (dirty: boolean) => void;
   onSelect: (id: string) => void;
   onMessage: (id: string) => void;
-  preview?: boolean;
 }) {
-  const [owner, setOwner] = useState<OwnerFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [compact, setCompact] = useState(() => matchMedia("(max-width: 900px)").matches);
-  const [queueOpen, setQueueOpen] = useState(() => !matchMedia("(max-width: 900px)").matches);
+  const [queueOpen, setQueueOpen] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(() => !matchMedia("(max-width: 900px)").matches);
   const [dirty, setDirty] = useState(false);
   const reportDirty = useCallback((value: boolean) => { setDirty(value); onDirty(value); }, [onDirty]);
@@ -218,10 +220,10 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
     return () => media.removeEventListener("change", update);
   }, []);
   const visible = useMemo(() => candidates.filter((candidate) =>
-    (owner === "all" || candidate.owner?.id === currentActor.id) &&
+    (owner === "all" || candidate.owner?.id === actor.id) &&
     (status === "all" || statusOf(candidate) === status) &&
     `${candidate.name} ${candidate.summary}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())
-  ), [candidates, owner, status, query]);
+  ), [candidates, actor.id, owner, status, query]);
   useEffect(() => { if (!selectedId && visible[0]) onSelect(visible[0].id); }, [selectedId, visible, onSelect]);
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedId);
   const focused = visible.find((candidate) => candidate.id === selectedId) ?? (dirty ? selectedCandidate : undefined) ?? visible[0];
@@ -231,7 +233,11 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
         <SidebarMenuItem><SidebarMenuButton asChild tooltip="그핵드인"><a href="/hr"><UsersRound /><span>그핵드인</span></a></SidebarMenuButton></SidebarMenuItem>
         <SidebarMenuItem><SidebarMenuButton asChild tooltip="NUT"><a href="/nut"><Wallet /><span>NUT</span></a></SidebarMenuButton></SidebarMenuItem>
         <SidebarMenuItem><SidebarMenuButton asChild isActive tooltip="대협"><a href="/dh"><Handshake /><span>대협</span></a></SidebarMenuButton></SidebarMenuItem>
-      </SidebarMenu></SidebarGroupContent></SidebarGroup></SidebarContent>
+      </SidebarMenu></SidebarGroupContent></SidebarGroup>
+      {canManageOps && <SidebarGroup><SidebarGroupLabel>대외협력 운영</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
+        <SidebarMenuItem><SidebarMenuButton asChild tooltip="검토 큐와 배정"><a href="/dh?view=operations"><ClipboardList /><span>검토 큐와 배정</span></a></SidebarMenuButton></SidebarMenuItem>
+      </SidebarMenu></SidebarGroupContent></SidebarGroup>}
+      </SidebarContent>
     </Sidebar>
     <SidebarInset className="uw-inset">
       {error && <div className="uw-error" role="alert">{error}</div>}
@@ -240,7 +246,7 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
           <aside className="uw-queue" aria-label="기업 목록">
             <header className="uw-pane-head uw-queue-head"><RailToggle />{compact && <WorkspaceIconButton icon="close" label="목록 닫기" onClick={() => setQueueOpen(false)} />}</header>
             <div className="uw-queue-tools"><div className="uw-filter-row"><div className="uw-filter-leading"><WorkspaceIconButton className="uw-search-toggle" icon={searchOpen ? "close" : "search"} label={searchOpen ? "검색 닫기" : "검색 열기"} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }} /><span>{visible.length}건</span></div><div className="uw-filter-actions">
-              <Filter label="담당 필터" value={owner} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={(value) => setOwner(value as OwnerFilter)} />
+              <Filter label="담당 필터" value={owner} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={(value) => onOwnerChange(value as OwnerFilter)} />
               <Filter label="상태 필터" value={status} options={statusOptions} onChange={(value) => setStatus(value as StatusFilter)} />
             </div></div>
               {searchOpen && <InputGroup className="uw-search"><InputGroupAddon><Search size={15} /></InputGroupAddon><InputGroupInput autoFocus aria-label="기업명 또는 설명 검색" placeholder="기업명 또는 설명 검색" value={query} onChange={(e) => setQuery(e.target.value)} /></InputGroup>}</div>
@@ -248,10 +254,14 @@ export function UnifiedReviewPanel({ candidates, selectedId, pending, error, cha
               <span className="uw-item-head"><strong>{candidate.name}</strong><StatusBadge candidate={candidate} /></span>
               <span className="uw-item-meta"><span className="uw-item-summary" title={candidate.summary}>{candidate.summary}</span>
                 {owner === "all" && <small className="uw-item-owner">{candidate.owner?.name ?? "미배정"}</small>}</span></button>)}
-              {!visible.length && <p className="uw-empty">조건에 맞는 기업이 없습니다.</p>}</div>
+              {!visible.length && <p className="uw-empty">{candidates.length === 0
+                ? "아직 수집된 기업이 없습니다. 수집·조사가 완료되면 이 목록에 표시됩니다."
+                : owner === "mine"
+                  ? "내게 배정된 기업이 없습니다. 전체 담당 필터에서 다른 기업을 볼 수 있습니다."
+                  : "조건에 맞는 기업이 없습니다."}</p>}</div>
           </aside></ResizablePanel>{!compact && <ResizableHandle withHandle className="uw-handle" />}</>}
         {(!compact || !queueOpen) && <ResizablePanel defaultSize={compact ? "100%" : detailsOpen ? (queueOpen ? "52%" : "72%") : "100%"} minSize={compact ? "100%" : "34%"}>
-          <div className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""} ${focused?.reviewStatus === "approved" ? "uw-message-ready" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={focused.id} candidate={focused} pending={pending} change={change} onDirty={reportDirty} preview={preview} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
+          <div className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""} ${focused?.reviewStatus === "approved" ? "uw-message-ready" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={focused.id} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
             <div className="uw-pane-controls"><WorkspaceIconButton icon={queueOpen ? "leftClose" : "leftOpen"} label={queueOpen ? "목록 닫기" : "목록 열기"} onClick={() => setQueueOpen(!queueOpen)} />
               {!compact && <WorkspaceIconButton icon={detailsOpen ? "rightClose" : "rightOpen"} label={detailsOpen ? "기업 정보 닫기" : "기업 정보 열기"} onClick={() => setDetailsOpen(!detailsOpen)} />}
               {focused?.reviewStatus === "approved" && <Button size="sm" variant="outline" onClick={() => onMessage(focused.id)}>메시지 열기</Button>}</div>
