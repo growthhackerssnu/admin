@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
@@ -15,6 +15,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SidePane } from "@dhbot/ui-shell";
+import { AdminNav } from "../components/AdminNav";
 import {
   ApiClientError,
   changeMemberRole,
@@ -84,7 +85,6 @@ function formatDate(value: string | null) {
 }
 
 export function AdminMembers() {
-  const navigate = useNavigate();
   const session = useSession();
   const { message, modal } = AntApp.useApp();
 
@@ -338,8 +338,10 @@ export function AdminMembers() {
               기수, 이름, 이메일, 권한, 가입일, 최근 접속일
             </Typography.Text>
           </div>
-          <Space><Button onClick={() => navigate("/admin/ghbot")}>GH Bot 토큰 관리</Button><Button onClick={() => void signOut()}>로그아웃</Button></Space>
+          <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
+
+        <AdminNav />
 
         {error && (
           <Alert

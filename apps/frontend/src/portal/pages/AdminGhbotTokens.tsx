@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { Alert, App as AntApp, Button, Modal, Skeleton, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SidePane } from "@dhbot/ui-shell";
+import { AdminNav } from "../components/AdminNav";
 import {
   ApiClientError,
   getMe,
@@ -23,7 +24,6 @@ function formatDate(value: string | null) {
 export function AdminGhbotTokens() {
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has("preview");
   const session = useSession();
-  const navigate = useNavigate();
   const { message, modal } = AntApp.useApp();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -202,17 +202,15 @@ export function AdminGhbotTokens() {
           <div>
             <div className="hr-eyebrow">GH BOT ACCESS</div>
             <Typography.Title level={3} style={{ marginBottom: 4 }}>
-              GH Bot 접근 토큰
+              GH Bot API 키 발급
             </Typography.Title>
             <Typography.Text type="secondary">
               활성 acting 회원만 발급 대상입니다. 마스킹된 토큰을 클릭하면 원문을 복사할 수 있습니다.
             </Typography.Text>
           </div>
-          <Space>
-            <Button onClick={() => navigate("/admin")}>회원 관리</Button>
-            <Button onClick={() => void signOut()}>로그아웃</Button>
-          </Space>
+          <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
+        <AdminNav />
         {preview && <Alert className="feedback" type="info" showIcon message="개발용 화면 미리보기" description="실제 회원·토큰을 읽거나 쓰지 않습니다. 발급·회수 버튼은 화면 상태만 바꿉니다." />}
         {error && <Alert className="feedback" type="error" showIcon message={error} action={<Button onClick={() => void load()}>다시 불러오기</Button>} />}
         <div className="surface">{loading ? <Skeleton active paragraph={{ rows: 8 }} /> : <Table rowKey="memberId" dataSource={members} columns={columns} pagination={false} />}</div>
