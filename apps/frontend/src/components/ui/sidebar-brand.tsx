@@ -7,7 +7,7 @@ export function SidebarBrand() {
   const collapsed = !isMobile && state === "collapsed";
   return <SidebarHeader className="ds-sidebar-brand-header">
     <div className="ds-sidebar-brand" data-collapsed={collapsed}>
-      <BrandLogo variant={collapsed ? "signature-blue" : "inline-black"} width={collapsed ? 32 : 160} />
+      <BrandLogo variant={collapsed ? "signature-blue" : "inline-blue"} width={collapsed ? 32 : 160} />
     </div>
   </SidebarHeader>;
 }
