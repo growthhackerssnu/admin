@@ -1,4 +1,7 @@
 import { LiveRoot } from "./LiveRoot";
+import { lazy, Suspense } from "react";
+const HumanReviewPreview = lazy(() => import("./review/ReviewWorkspace"));
+const DesignCheck = lazy(() => import("./review/DesignCheck"));
 import { changeMessageQuarter } from "./messageTemplate";
 import { useEffect, useState } from "react";
 import {
@@ -316,8 +319,16 @@ export default function Listup() {
   }, []);
   return (
     <div className="lu-scope">
-      {params.get("preview") === "1" ||
-      params.get("selectionPreview") === "1" ? (
+      {params.get("reviewPreview") === "1" ? (
+        <Suspense fallback={<p>검토 화면을 불러오는 중…</p>}>
+          {params.get("designCheck") === "1" ? (
+            <DesignCheck />
+          ) : (
+            <HumanReviewPreview />
+          )}
+        </Suspense>
+      ) : params.get("preview") === "1" ||
+        params.get("selectionPreview") === "1" ? (
         <Root />
       ) : (
         <LiveRoot />

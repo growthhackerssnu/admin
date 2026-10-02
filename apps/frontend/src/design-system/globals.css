@@ -1,0 +1,148 @@
+@import "@fontsource-variable/open-sans/wght.css";
+@import "@fontsource-variable/noto-sans-kr/wght.css";
+@import "tailwindcss";
+@import "./typography.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* This stylesheet is opt-in. Import it only from screens using the new system. */
+:root {
+  --ds-brand-0: #000205;
+  --ds-brand-100: #001136;
+  --ds-brand-200: #00226b;
+  --ds-brand-300: #00329e;
+  --ds-brand-400: #0042d1;
+  --ds-brand-500: #0554ff;
+  --ds-brand-600: #3877ff;
+  --ds-brand-700: #6b9aff;
+  --ds-brand-800: #9ebdff;
+  --ds-brand-900: #d1e0ff;
+  --ds-action-approval: #0042d1;
+  --ds-action-reject: #c52a2a;
+
+  --ds-gray-100: #f4f6fb;
+  --ds-gray-200: #e1e7f3;
+  --ds-gray-300: #d0d9ec;
+  --ds-gray-400: #b8c6de;
+  --ds-gray-500: #9fb2dc;
+  --ds-gray-600: #5f7193;
+  --ds-gray-700: #526380;
+  --ds-gray-800: #32415e;
+  --ds-gray-900: #172641;
+
+  --ds-surface-canvas: #f8fafe;
+  --ds-surface-details: #ffffff;
+  --ds-surface-selected: #eef3ff;
+  --ds-surface-selected-border: #c5d4f1;
+
+  --ds-success: #7eff38;
+  --ds-danger: #ff3838;
+  --ds-warning: #f8ff38;
+  --ds-info: #3877ff;
+
+  --ds-font-family: "Open Sans Variable", "Noto Sans KR Variable", sans-serif;
+  --ds-type-headline-1: 96px;
+  --ds-type-headline-2: 60px;
+  --ds-type-headline-3: 48px;
+  --ds-type-headline-4: 34px;
+  --ds-type-headline-5: 24px;
+  --ds-type-headline-6: 20px;
+  --ds-type-body-1: 16px;
+  --ds-type-body-2: 14px;
+  --ds-type-subtitle-1: 16px;
+  --ds-type-subtitle-2: 14px;
+  --ds-type-button: 14px;
+  --ds-type-overline: 10px;
+  --ds-type-caption: 12px;
+
+  /* shadcn/ui semantic contract */
+  --background: #ffffff;
+  --foreground: var(--ds-gray-900);
+  --card: #ffffff;
+  --card-foreground: var(--ds-gray-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--ds-gray-900);
+  --primary: var(--ds-brand-100);
+  --primary-foreground: #ffffff;
+  --secondary: var(--ds-gray-100);
+  --secondary-foreground: var(--ds-gray-900);
+  --muted: var(--ds-gray-100);
+  --muted-foreground: var(--ds-gray-700);
+  --accent: var(--ds-surface-selected);
+  --accent-foreground: var(--ds-brand-100);
+  --destructive: var(--ds-action-reject);
+  --destructive-foreground: #ffffff;
+  --border: var(--ds-gray-200);
+  --input: var(--ds-gray-300);
+  --ring: var(--ds-brand-100);
+  --radius: 0.5rem;
+  --sidebar: var(--ds-brand-100);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--ds-brand-400);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--ds-brand-200);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--ds-brand-200);
+  --sidebar-ring: var(--ds-brand-700);
+}
+
+@theme inline {
+  --font-sans: var(--ds-font-family);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+}
+
+@layer base {
+  body {
+    font-family: var(--ds-font-family);
+    color: var(--foreground);
+    background: var(--background);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+.dark {
+  --sidebar: hsl(240 5.9% 10%);
+  --sidebar-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(240 3.7% 15.9%);
+  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
+  --sidebar-border: hsl(240 3.7% 15.9%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+}
