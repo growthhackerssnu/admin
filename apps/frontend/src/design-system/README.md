@@ -26,6 +26,17 @@ MDC에서 전달받은 크기는 `--ds-type-*` 토큰과 `.ds-*` 클래스로 �
 
 공식 shadcn/ui CLI로 Button, Badge, Input, Textarea, Label, Separator, Select, Sidebar, Navigation Menu, Input Group, Field, Empty, Resizable, Skeleton, Spinner를 `src/components/ui`에 생성했다. Sidebar의 의존 컴포넌트인 Sheet·Tooltip과 필터 대안용 Dropdown Menu도 설치되어 있다. 색상은 CSS 토큰을 통해 맞춘다. 이 파일들은 프로젝트 소유 코드이므로 필요할 때 직접 수정할 수 있다. 새 컴포넌트를 추가한 뒤에는 `npm run typecheck -w apps/frontend`로 누락된 의존성을 확인한다.
 
+### 공용 컴포넌트가 관리하는 범위
+
+| 위치 | 관리하는 내용 |
+|---|---|
+| `design-system/globals.css` | 색상·폰트·글자 크기·모서리의 기준 토큰. |
+| `components/ui/button.tsx` | Button의 variant, 크기, 여백, 아이콘 배치, hover·focus·disabled·invalid 스타일. 기본 Button은 `--primary` 배경과 `--primary-foreground` 글씨를 사용한다. |
+| `components/ui/button.css` | 기존 전역 form reset이 단색 버튼의 글자색을 덮지 않도록 default·destructive·secondary 글자색을 보장한다. 색상 값은 토큰을 참조한다. |
+| 화면 컴포넌트·화면 CSS | 버튼의 위치, 표시 여부, 라벨, 동작, 비활성 조건과 승인 버튼 같은 명시적인 화면 예외. |
+
+shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로부터 자동 격리되지 않는다. `className`이나 화면 CSS도 공용 스타일을 덮을 수 있다. 같은 종류의 버튼에 공통으로 필요한 수정은 `components/ui`에 적용하고, 화면 예외는 디자인 토큰을 참조하는 화면 범위의 규칙으로 기록한다. 데이터 저장·승인 같은 업무 동작은 Button에 저장되지 않으며 부모 화면의 이벤트 처리로 전달된다.
+
 ### 연락 업무 화면 적용
 
 | 컴포넌트 | 적용 위치와 규칙 |

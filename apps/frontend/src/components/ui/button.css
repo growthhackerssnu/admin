@@ -1,0 +1,13 @@
+/* Keep solid-button foregrounds above the legacy, unlayered form reset.
+   Color values remain owned by the design-system tokens. */
+.ds-button[data-variant="default"] {
+  color: var(--primary-foreground);
+}
+
+.ds-button[data-variant="destructive"] {
+  color: var(--destructive-foreground);
+}
+
+.ds-button[data-variant="secondary"] {
+  color: var(--secondary-foreground);
+}
