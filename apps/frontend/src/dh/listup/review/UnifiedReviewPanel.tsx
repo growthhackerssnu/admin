@@ -6,10 +6,7 @@ import { Empty, EmptyContent, EmptyHeader, EmptyMedia, EmptyTitle } from "@/comp
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import {
-  NavigationMenu, NavigationMenuContent, NavigationMenuItem,
-  NavigationMenuList, NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
+import { ListFilter } from "@/components/ui/list-filter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -65,29 +62,6 @@ function statusOf(candidate: Candidate): StatusFilter {
 function RailToggle() {
   const { toggleSidebar } = useSidebar();
   return <WorkspaceIconButton icon="menu" label="주 메뉴 열기 또는 닫기" onClick={toggleSidebar} />;
-}
-
-function Filter({
-  label, options, value, onChange,
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState("");
-  return (
-    <NavigationMenu viewport={false} className="uw-filter" value={open} onValueChange={setOpen}>
-      <NavigationMenuList><NavigationMenuItem value={label}>
-        <NavigationMenuTrigger className="uw-filter-trigger" aria-label={label}>{options.find((option) => option.value === value)?.label ?? label}</NavigationMenuTrigger>
-        <NavigationMenuContent className="uw-filter-content">
-          {options.map((option) => <button type="button" key={option.value} aria-pressed={option.value === value} onClick={() => { onChange(option.value); setOpen(""); }}>
-            {option.label}{option.value === value && <span aria-hidden="true">✓</span>}
-          </button>)}
-        </NavigationMenuContent>
-      </NavigationMenuItem></NavigationMenuList>
-    </NavigationMenu>
-  );
 }
 
 function ContactWork({ candidate, actor, pending, change, onDirty }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void }) {
@@ -246,8 +220,8 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
           <aside className="uw-queue" aria-label="기업 목록">
             <header className="uw-pane-head uw-queue-head"><RailToggle />{compact && <WorkspaceIconButton icon="close" label="목록 닫기" onClick={() => setQueueOpen(false)} />}</header>
             <div className="uw-queue-tools"><div className="uw-filter-row"><div className="uw-filter-leading"><WorkspaceIconButton className="uw-search-toggle" icon={searchOpen ? "close" : "search"} label={searchOpen ? "검색 닫기" : "검색 열기"} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }} /><span>{visible.length}건</span></div><div className="uw-filter-actions">
-              <Filter label="담당 필터" value={owner} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={(value) => onOwnerChange(value as OwnerFilter)} />
-              <Filter label="상태 필터" value={status} options={statusOptions} onChange={(value) => setStatus(value as StatusFilter)} />
+              <ListFilter label="담당 필터" value={owner} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={(value) => onOwnerChange(value as OwnerFilter)} />
+              <ListFilter label="상태 필터" value={status} options={statusOptions} onChange={(value) => setStatus(value as StatusFilter)} />
             </div></div>
               {searchOpen && <InputGroup className="uw-search"><InputGroupAddon><Search size={15} /></InputGroupAddon><InputGroupInput autoFocus aria-label="기업명 또는 설명 검색" placeholder="기업명 또는 설명 검색" value={query} onChange={(e) => setQuery(e.target.value)} /></InputGroup>}</div>
             <div className="uw-items">{visible.map((candidate) => <button className="uw-item" type="button" key={candidate.id} aria-current={focused?.id === candidate.id} onClick={() => { onSelect(candidate.id); if (compact) setQueueOpen(false); }}>

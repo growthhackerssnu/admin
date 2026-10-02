@@ -34,12 +34,6 @@
 .uw-filter-leading span { font-size: var(--ds-type-caption); color: var(--ds-gray-700); white-space: nowrap; }
 .uw-filter-leading .uw-search-toggle { width: 28px; height: 28px; flex: 0 0 28px; }
 .uw-filter-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; }
-.uw-filter-trigger { height: 30px; padding: 0 5px; font-size: var(--ds-type-caption); font-weight: 500; color: var(--ds-brand-100); box-shadow: none; }
-.uw-filter-trigger:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--ds-gray-500); }
-.uw-filter-trigger[data-state="open"], .uw-filter-trigger[data-state="open"]:hover, .uw-filter-trigger[data-state="open"]:focus-visible { background: var(--ds-gray-200); color: var(--ds-brand-100); outline: none; box-shadow: none; }
-.uw-filter-content { z-index: 50; min-width: 130px; padding: 5px; border-color: var(--ds-gray-200); }
-.uw-filter-content button { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; min-height: 30px; padding: 5px 8px; border: 0; border-radius: 4px; background: transparent; color: var(--ds-gray-900); font-size: var(--ds-type-caption); text-align: left; white-space: nowrap; }
-.uw-filter-content button:hover, .uw-filter-content button:focus-visible { background: var(--ds-gray-100); }
 .uw-search { height: 32px; margin-top: 7px; background: #fff; }
 .uw-search input { height: 30px; font-size: var(--ds-type-caption); }
 .uw-items { min-height: 0; overflow: auto; padding: 8px; }
