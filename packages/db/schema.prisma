@@ -10,7 +10,7 @@
 //          (DB_SCHEMA_HR.md 참고). 다른 앱은 접근하지 않는다.
 //
 // 설계 근거: docs/admin/integration/05_데이터 모델 제안.md (목업 기준 테이블 설계).
-// 소싱·수집 파이프라인(sources/articles/funding_events 등)은 이번 범위 밖이다.
+// 사람 검토 파이프라인의 뉴스레터 수집 원문·기업명은 dh에 저장한다.
 // DB 컬럼(snake_case)과 API DTO(camelCase)의 이름 차이는 각 앱의 serializer가 흡수한다.
 
 // Prisma Client는 apps/backend의 postinstall(prisma generate --schema 이 파일)이
@@ -123,6 +123,12 @@ enum SendStatus {
   @@schema("dh")
 }
 
+enum OutreachSendStatus {
+  before_send
+  sent
+  @@schema("dh")
+}
+
 enum JobType {
   cycle_search
   contact_search
@@ -171,6 +177,12 @@ model Member {
   fitDecisions        HumanFitDecision[]   @relation("FitDecisionDecidedBy")
   dhIdempotencyKeys   DhIdempotencyKey[]   @relation("DhIdempotencyActor")
   coreIdempotencyKeys CoreIdempotencyKey[] @relation("CoreIdempotencyActor")
+  reviewCandidates    Candidate[]           @relation("CandidateReviewOwner")
+  reviewDecisions     CandidateReviewDecision[] @relation("CandidateReviewDecider")
+  recordedSends       SentMessage[] @relation("SentMessageRecordedBy")
+  createdReviewAssignmentBatches ReviewAssignmentBatch[] @relation("ReviewAssignmentBatchCreator")
+  reviewAssignmentItems ReviewAssignmentItem[] @relation("ReviewAssignmentItemMember")
+  changedCollectionIntake CollectionIntakeControl[] @relation("CollectionIntakeChangedBy")
   claimedPersonEntry  PeopleDirectory?
 
   // hr(그핵드인) — 프로필 수정 승인 큐. 본인이 제출한 요청(alumni 포함 누구나)과
@@ -244,7 +256,7 @@ model SignupRequest {
 // 3분기로 집계한다(P-15). 지표는 sent_messages.sent_at을 한국 달력 분기로 변환해
 // 세며, 이 테이블은 거기에 관여하지 않는다.
 //
-// 전역 "현재 분기" 상태는 두지 않는다. 각 컨택 건·탐색이 자기 분기를 들고 있다.
+// 전역 "현재 분기" 상태는 두지 않는다. 메시지 준비 시 컨택 건에서 목표 분기를 선택한다.
 model TargetQuarter {
   id        String   @id @default(cuid())
   year      Int
@@ -255,6 +267,7 @@ model TargetQuarter {
   lastSentOutreaches Outreach[]                   @relation("OutreachLastSentQuarter")
   skipOutreaches     Outreach[]                   @relation("OutreachSkipQuarter")
   sentMessages       SentMessage[]
+  draftRevisions    MessageDraftRevision[] @relation("DraftTargetQuarter")
   searchRuns         SearchRun[]
   changedFrom        OutreachTargetQuarterChange[] @relation("QuarterChangeFrom")
   changedTo          OutreachTargetQuarterChange[] @relation("QuarterChangeTo")
@@ -317,6 +330,8 @@ model Company {
   evidence           Evidence[]
   researches         CompanyResearch[]
   candidates         Candidate[]
+  collectedCompanies CollectedCompany[]
+  nameKeys           CompanyNameKey[]
 
   @@index([canonicalDomain])
   @@map("companies")
@@ -347,6 +362,9 @@ model Contact {
   endpoints             ContactEndpoint[]
   recipientOnOutreaches Outreach[]        @relation("OutreachRecipientContact")
   recipientOnSends      SentMessage[]     @relation("SentMessageRecipientContact")
+  selectedOnCandidates Candidate[]       @relation("CandidateSelectedContact")
+  candidateReviewDecisions CandidateReviewDecision[] @relation("CandidateDecisionContact")
+  draftRecipients MessageDraftRevision[] @relation("DraftRecipientContact")
 
   @@index([companyId])
   @@map("contacts")
@@ -379,6 +397,9 @@ model ContactEndpoint {
   optionAssessments     ContactOptionAssessment[]
   recipientOnOutreaches Outreach[]                @relation("OutreachRecipientEndpoint")
   recipientOnSends      SentMessage[]             @relation("SentMessageRecipientEndpoint")
+  selectedOnCandidates Candidate[]               @relation("CandidateSelectedEndpoint")
+  candidateReviewDecisions CandidateReviewDecision[] @relation("CandidateDecisionEndpoint")
+  draftRecipients MessageDraftRevision[] @relation("DraftRecipientEndpoint")
 
   @@unique([companyId, channel, address])
   @@index([companyId])
@@ -402,13 +423,17 @@ model PrelaunchContact {
 }
 
 // ---------- 컨택 건 ----------
-// 기업당 진행 중인 건은 하나다(unique companyId). 분기가 바뀌어도 새 행을 만들지
-// 않고 quarterId만 갱신한다 — 05_데이터 모델 제안.md에서 이미 확정.
+// 기업당 Outreach는 한 행이다(unique companyId). 이번 제품 범위에서는
+// 첫 발송 한 번만 허용한다. 과거 SentMessage는 변경하지 않는다.
 
 model Outreach {
   id                    String            @id @default(cuid())
   companyId             String            @unique @map("company_id")
   company               Company           @relation(fields: [companyId], references: [id])
+  candidateId           String?           @map("candidate_id")
+  candidate             Candidate?        @relation(fields: [candidateId], references: [id])
+  contactPurpose        String?           @map("contact_purpose")
+  sendStatus            OutreachSendStatus? @map("send_status")
   ownerId               String            @map("owner_id")
   owner                 Member            @relation("OutreachOwner", fields: [ownerId], references: [id])
   currentTargetQuarterId String           @map("current_target_quarter_id")
@@ -458,6 +483,7 @@ model Outreach {
   responses             Response[]
   targetQuarterChanges  OutreachTargetQuarterChange[]
 
+  @@index([candidateId])
   @@index([currentTargetQuarterId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("outreaches")
   @@schema("dh")
@@ -499,6 +525,19 @@ model MessageDraftRevision {
   templateVersion Int?        @map("template_version")
   createdBy       DraftOrigin @map("created_by")
   createdAt       DateTime    @default(now()) @map("created_at")
+  generationResearchId       String?    @map("generation_research_id")
+  generationResearch         CompanyResearch? @relation(fields: [generationResearchId], references: [id])
+  generationReviewDecisionId String?    @map("generation_review_decision_id")
+  generationReviewDecision   CandidateReviewDecision? @relation(fields: [generationReviewDecisionId], references: [id])
+  recipientContactId         String?    @map("recipient_contact_id")
+  recipientContact           Contact?   @relation("DraftRecipientContact", fields: [recipientContactId], references: [id])
+  recipientEndpointId        String?    @map("recipient_endpoint_id")
+  recipientEndpoint          ContactEndpoint? @relation("DraftRecipientEndpoint", fields: [recipientEndpointId], references: [id])
+  recipientSnapshot          Json?      @map("recipient_snapshot")
+  targetQuarterId            String?    @map("target_quarter_id")
+  targetQuarter              TargetQuarter? @relation("DraftTargetQuarter", fields: [targetQuarterId], references: [id])
+  contactPurposeSnapshot     String?    @map("contact_purpose_snapshot")
+  historySourceIds           Json?      @map("history_source_ids")
 
   @@unique([outreachId, revision])
   @@map("message_draft_revisions")
@@ -528,9 +567,13 @@ model SentMessage {
   status                 SendStatus  @default(sent)
   sentAt                 DateTime    @map("sent_at")
   createdAt              DateTime    @default(now()) @map("created_at")
+  draftRevision          Int?        @map("draft_revision")
+  recordedById           String?     @map("recorded_by_id")
+  recordedBy             Member?     @relation("SentMessageRecordedBy", fields: [recordedById], references: [id])
 
   responses Response[]
 
+  @@unique([outreachId, draftRevision])
   @@map("sent_messages")
   @@schema("dh")
 }
@@ -798,6 +841,8 @@ enum ResearchTaskTrigger {
   fit_changed
   searchRun
   userRequest
+  cron
+  retry
   @@schema("dh")
 }
 
@@ -816,6 +861,174 @@ enum ResearchTaskStatus {
   @@schema("dh")
 }
 
+// 구 worker가 신규 사람 검토 작업을 가져가지 않도록 실행 경로를 분리한다.
+enum ResearchPipeline {
+  legacy
+  human_review
+  @@schema("dh")
+}
+
+enum CollectionSourceKind {
+  web_archive
+  gmail
+  @@schema("dh")
+}
+
+enum CollectionItemStatus {
+  pending
+  processing
+  completed
+  failed
+  @@schema("dh")
+}
+
+enum CollectedCompanyResult {
+  created
+  duplicate
+  error
+  @@schema("dh")
+}
+
+enum CandidateResearchStatus {
+  queued
+  running
+  ready
+  error
+  @@schema("dh")
+}
+
+enum CandidateReviewStatus {
+  unreviewed
+  reviewing
+  approved
+  rejected_fit
+  rejected_contact
+  @@schema("dh")
+}
+
+enum CandidateReviewAction {
+  approve
+  reject_fit
+  reject_contact
+  reopen
+  @@schema("dh")
+}
+
+enum HumanReviewFit {
+  fit
+  unfit
+  @@schema("dh")
+}
+
+enum ContactCheckResult {
+  confirmed
+  not_found
+  unchecked
+  @@schema("dh")
+}
+
+// 수집원 설정. 인증 비밀은 config에 넣지 않고 서버 환경에서 읽는다.
+model CollectionSource {
+  id            String               @id @default(cuid())
+  kind          CollectionSourceKind
+  key           String               @unique
+  name          String
+  enabled       Boolean              @default(true)
+  config        Json
+  parserVersion String               @map("parser_version")
+
+  searchRuns SearchRun[]
+  items      CollectionItem[]
+  nameKeys   CompanyNameKey[]
+
+  @@map("collection_sources")
+  @@schema("dh")
+}
+
+// 전체 수집 유입 스위치. id="dh" 한 행만 사용하며 개별 CollectionSource.enabled와 별개다.
+model CollectionIntakeControl {
+  id          String   @id
+  paused      Boolean  @default(false)
+  version     Int      @default(1)
+  changedById String?  @map("changed_by_id")
+  changedBy   Member?  @relation("CollectionIntakeChangedBy", fields: [changedById], references: [id])
+  changedAt   DateTime @default(now()) @map("changed_at")
+
+  @@map("collection_intake_controls")
+  @@schema("dh")
+}
+
+// 웹 아카이브 글 하나 또는 향후 이메일 한 통. source+externalKey가 재실행 키다.
+model CollectionItem {
+  id            String               @id @default(cuid())
+  sourceId      String               @map("source_id")
+  source        CollectionSource     @relation(fields: [sourceId], references: [id])
+  firstRunId    String               @map("first_run_id")
+  firstRun      SearchRun            @relation(fields: [firstRunId], references: [id])
+  externalKey   String               @map("external_key")
+  url           String?
+  title         String?
+  publishedAt   DateTime?            @map("published_at")
+  contentHash   String?              @map("content_hash")
+  parserVersion String               @map("parser_version")
+  status        CollectionItemStatus @default(pending)
+  attempt       Int                  @default(0)
+  leaseToken    String?              @map("lease_token")
+  leaseUntil    DateTime?            @map("lease_until")
+  errorCode     String?              @map("error_code")
+  errorMessage  String?              @map("error_message")
+  retryable     Boolean?
+  extractedAt   DateTime?            @map("extracted_at")
+
+  companies CollectedCompany[]
+
+  @@unique([sourceId, externalKey])
+  @@index([status, leaseUntil])
+  @@index([firstRunId])
+  @@map("collection_items")
+  @@schema("dh")
+}
+
+// 원문에서 본 기업 이름과 한 줄 설명. 중복이어도 추출 사실은 남긴다.
+model CollectedCompany {
+  id             String                 @id @default(cuid())
+  itemId         String                 @map("item_id")
+  item           CollectionItem         @relation(fields: [itemId], references: [id])
+  name           String
+  normalizedName String                 @map("normalized_name")
+  summary        String
+  companyId      String?                @map("company_id")
+  company        Company?               @relation(fields: [companyId], references: [id])
+  candidateId    String?                @map("candidate_id")
+  candidate      Candidate?             @relation("CollectedCompanyCandidate", fields: [candidateId], references: [id])
+  result         CollectedCompanyResult
+  errorCode      String?                @map("error_code")
+
+  originForCandidate Candidate? @relation("CandidateOriginCollectedCompany")
+
+  @@unique([itemId, normalizedName])
+  @@index([companyId])
+  @@index([candidateId])
+  @@map("collected_companies")
+  @@schema("dh")
+}
+
+// 같은 소스에서 재등장한 이름을 이미 저장한 기업에 연결하는 키.
+model CompanyNameKey {
+  id             String           @id @default(cuid())
+  sourceId       String           @map("source_id")
+  source         CollectionSource @relation(fields: [sourceId], references: [id])
+  normalizedName String           @map("normalized_name")
+  companyId      String           @map("company_id")
+  company        Company          @relation(fields: [companyId], references: [id])
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  @@unique([sourceId, normalizedName])
+  @@index([companyId])
+  @@map("company_name_keys")
+  @@schema("dh")
+}
+
 // 탐색 배치.
 //
 // conditionsSnapshot은 생성 당시의 업무 입력(sources·filters)과 **실제 실행 설정**을
@@ -831,16 +1044,19 @@ enum ResearchTaskStatus {
 // duplicateExcludedCount는 화면의 "중복 N개 제외" 표시용이다.
 model SearchRun {
   id                     String             @id @default(cuid())
-  targetQuarterId        String             @map("target_quarter_id")
-  targetQuarter          TargetQuarter      @relation(fields: [targetQuarterId], references: [id])
+  sourceId               String?            @map("source_id")
+  source                 CollectionSource?  @relation(fields: [sourceId], references: [id])
+  scheduledFor           DateTime?          @map("scheduled_for")
+  targetQuarterId        String?            @map("target_quarter_id")
+  targetQuarter          TargetQuarter?     @relation(fields: [targetQuarterId], references: [id])
   conditionsSnapshot     Json               @map("conditions_snapshot")
   status                 SearchRunStatus    @default(queued)
   duplicateExcludedCount Int                @default(0) @map("duplicate_excluded_count")
   finishReason           String?            @map("finish_reason")
-  assignedMemberId       String             @map("assigned_member_id")
-  assignedMember         Member             @relation("SearchRunAssignee", fields: [assignedMemberId], references: [id])
-  createdById            String             @map("created_by_id")
-  createdBy              Member             @relation("SearchRunCreatedBy", fields: [createdById], references: [id])
+  assignedMemberId       String?            @map("assigned_member_id")
+  assignedMember         Member?            @relation("SearchRunAssignee", fields: [assignedMemberId], references: [id])
+  createdById            String?            @map("created_by_id")
+  createdBy              Member?            @relation("SearchRunCreatedBy", fields: [createdById], references: [id])
   createdAt              DateTime           @default(now()) @map("created_at")
   startedAt              DateTime?          @map("started_at")
   finishedAt             DateTime?          @map("finished_at")
@@ -850,7 +1066,9 @@ model SearchRun {
   researches CompanyResearch[]
   tasks      ResearchTask[]
   outreaches Outreach[]
+  collectionItems CollectionItem[]
 
+  @@unique([sourceId, scheduledFor])
   @@index([status, createdAt(sort: Desc), id(sort: Desc)])
   @@index([targetQuarterId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("search_runs")
@@ -883,8 +1101,8 @@ model CompanyResearch {
   id                 String    @id @default(cuid())
   companyId          String    @map("company_id")
   company            Company   @relation(fields: [companyId], references: [id])
-  originSearchRunId  String    @map("origin_search_run_id")
-  originSearchRun    SearchRun @relation(fields: [originSearchRunId], references: [id])
+  originSearchRunId  String?   @map("origin_search_run_id")
+  originSearchRun    SearchRun? @relation(fields: [originSearchRunId], references: [id])
   taskId             String?   @map("task_id")
   missingInformation String[]  @map("missing_information")
   createdAt          DateTime  @default(now()) @map("created_at")
@@ -892,6 +1110,8 @@ model CompanyResearch {
   claims               ResearchClaim[]
   fitAssessments       FitAssessment[]
   currentForCandidates Candidate[]     @relation("CandidateCurrentResearch")
+  reviewDecisions      CandidateReviewDecision[]
+  draftRevisions       MessageDraftRevision[]
 
   @@index([companyId, createdAt(sort: Desc)])
   @@map("company_researches")
@@ -919,8 +1139,20 @@ model ResearchClaim {
 // null인 effective_fit은 wire에서 "not_assessed"로 나간다.
 model Candidate {
   id                            String            @id @default(cuid())
-  originSearchRunId             String            @map("origin_search_run_id")
-  originSearchRun               SearchRun         @relation(fields: [originSearchRunId], references: [id])
+  originCollectedCompanyId      String?           @unique @map("origin_collected_company_id")
+  originCollectedCompany        CollectedCompany? @relation("CandidateOriginCollectedCompany", fields: [originCollectedCompanyId], references: [id])
+  researchStatus                CandidateResearchStatus? @map("research_status")
+  reviewStatus                  CandidateReviewStatus? @map("review_status")
+  reviewOwnerId                 String?           @map("review_owner_id")
+  reviewOwner                   Member?           @relation("CandidateReviewOwner", fields: [reviewOwnerId], references: [id])
+  selectedContactId             String?           @map("selected_contact_id")
+  selectedContact               Contact?          @relation("CandidateSelectedContact", fields: [selectedContactId], references: [id])
+  selectedEndpointId            String?           @map("selected_endpoint_id")
+  selectedEndpoint              ContactEndpoint?  @relation("CandidateSelectedEndpoint", fields: [selectedEndpointId], references: [id])
+  activeReviewDecisionId        String?           @unique @map("active_review_decision_id")
+  activeReviewDecision          CandidateReviewDecision? @relation("CandidateActiveReviewDecision", fields: [activeReviewDecisionId], references: [id])
+  originSearchRunId             String?           @map("origin_search_run_id")
+  originSearchRun               SearchRun?        @relation(fields: [originSearchRunId], references: [id])
   companyId                     String            @map("company_id")
   company                       Company           @relation(fields: [companyId], references: [id])
   discoveryEvidenceIds          String[]          @map("discovery_evidence_ids")
@@ -943,12 +1175,81 @@ model Candidate {
   humanFitDecisions HumanFitDecision[] @relation("CandidateDecisions")
   contactOptions    ContactOptionAssessment[]
   tasks             ResearchTask[]
+  matchedCollectedCompanies CollectedCompany[] @relation("CollectedCompanyCandidate")
+  reviewDecisions CandidateReviewDecision[] @relation("CandidateReviewHistory")
+  reviewAssignmentItem ReviewAssignmentItem?
+  outreaches Outreach[]
 
   @@unique([companyId])
   @@index([originSearchRunId, effectiveFit, contactResearchStatus, createdAt(sort: Desc), id(sort: Desc)])
   @@index([originSearchRunId, updatedAt(sort: Desc), id(sort: Desc)])
   @@index([companyId])
+  @@index([researchStatus, reviewStatus, reviewOwnerId, createdAt, id])
   @@map("candidates")
+  @@schema("dh")
+}
+
+// 팀장이 현재 배정 가능 큐에서 확정한 고정 회차. 날짜는 작업 계획이며 자동 상태 전이는 없다.
+model ReviewAssignmentBatch {
+  id                      String   @id @default(cuid())
+  workStartsOn            DateTime @db.Date @map("work_starts_on")
+  workEndsOn              DateTime @db.Date @map("work_ends_on")
+  snapshotAt              DateTime @map("snapshot_at")
+  eligibleCountAtSnapshot Int      @map("eligible_count_at_snapshot")
+  perMemberCount          Int      @map("per_member_count")
+  selectedMemberCount     Int      @map("selected_member_count")
+  createdById             String   @map("created_by_id")
+  createdBy               Member   @relation("ReviewAssignmentBatchCreator", fields: [createdById], references: [id])
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  items ReviewAssignmentItem[]
+
+  @@index([createdAt(sort: Desc)])
+  @@map("review_assignment_batches")
+  @@schema("dh")
+}
+
+// 회차의 기업·담당자 스냅샷. 빠르게 완료해도 자동 보충하지 않는다.
+model ReviewAssignmentItem {
+  id         String   @id @default(cuid())
+  batchId    String   @map("batch_id")
+  batch      ReviewAssignmentBatch @relation(fields: [batchId], references: [id])
+  candidateId String  @unique @map("candidate_id")
+  candidate  Candidate @relation(fields: [candidateId], references: [id])
+  memberId   String   @map("member_id")
+  member     Member   @relation("ReviewAssignmentItemMember", fields: [memberId], references: [id])
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  @@index([batchId, memberId])
+  @@index([memberId, assignedAt(sort: Desc)])
+  @@map("review_assignment_items")
+  @@schema("dh")
+}
+
+// 사람 판단은 이전 결정을 덮어쓰지 않고 이어서 남긴다.
+model CandidateReviewDecision {
+  id            String              @id @default(cuid())
+  candidateId   String              @map("candidate_id")
+  candidate     Candidate           @relation("CandidateReviewHistory", fields: [candidateId], references: [id])
+  action        CandidateReviewAction
+  fit           HumanReviewFit?
+  contactResult ContactCheckResult  @map("contact_result")
+  researchId    String              @map("research_id")
+  research      CompanyResearch     @relation(fields: [researchId], references: [id])
+  contactId     String?             @map("contact_id")
+  contact       Contact?            @relation("CandidateDecisionContact", fields: [contactId], references: [id])
+  endpointId    String?             @map("endpoint_id")
+  endpoint      ContactEndpoint?    @relation("CandidateDecisionEndpoint", fields: [endpointId], references: [id])
+  note          String?
+  decidedById   String              @map("decided_by_id")
+  decidedBy     Member              @relation("CandidateReviewDecider", fields: [decidedById], references: [id])
+  createdAt     DateTime            @default(now()) @map("created_at")
+
+  activeForCandidate Candidate? @relation("CandidateActiveReviewDecision")
+  draftRevisions MessageDraftRevision[]
+
+  @@index([candidateId, createdAt(sort: Desc), id(sort: Desc)])
+  @@map("candidate_review_decisions")
   @@schema("dh")
 }
 
@@ -1051,23 +1352,26 @@ model ContactOptionAssessment {
 // 인덱스로 찾아야 하기 때문이다.
 model ResearchTask {
   id                   String              @id @default(cuid())
-  searchRunId          String              @map("search_run_id")
-  searchRun            SearchRun           @relation(fields: [searchRunId], references: [id])
+  searchRunId          String?             @map("search_run_id")
+  searchRun            SearchRun?          @relation(fields: [searchRunId], references: [id])
   jobId                String?             @map("job_id")
   candidateId          String?             @map("candidate_id")
   candidate            Candidate?          @relation(fields: [candidateId], references: [id])
   parentTaskId         String?             @map("parent_task_id")
   parentTask           ResearchTask?       @relation("ResearchTaskChildren", fields: [parentTaskId], references: [id])
   type                 ResearchTaskType
+  pipeline             ResearchPipeline    @default(legacy)
   trigger              ResearchTaskTrigger
   requestedInformation String[]            @map("requested_information")
-  followupPolicy       FollowupPolicy      @map("followup_policy")
+  followupPolicy       FollowupPolicy?     @map("followup_policy")
   status               ResearchTaskStatus  @default(queued)
   attempt              Int                 @default(1)
   resultRefs           Json                @default("[]") @map("result_refs")
   errorCode            String?             @map("error_code")
   errorMessage         String?             @map("error_message")
   errorRetryable       Boolean?            @map("error_retryable")
+  leaseToken           String?             @map("lease_token")
+  leaseUntil           DateTime?           @map("lease_until")
   createdAt            DateTime            @default(now()) @map("created_at")
   startedAt            DateTime?           @map("started_at")
   finishedAt           DateTime?           @map("finished_at")
@@ -1075,6 +1379,7 @@ model ResearchTask {
   childTasks ResearchTask[] @relation("ResearchTaskChildren")
 
   @@index([candidateId, type, status])
+  @@index([pipeline, type, status, createdAt(sort: Desc)])
   @@index([searchRunId, status])
   @@index([status, createdAt(sort: Desc), id(sort: Desc)])
   @@map("research_tasks")

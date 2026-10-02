@@ -37,6 +37,8 @@ export const POST = withListupApiHandler<{ candidateId: string }>(
         });
         if (!candidate)
           throw new ApiError("NOT_FOUND", "조사 기록을 찾을 수 없습니다.");
+        if (!candidate.originSearchRunId || !candidate.originSearchRun?.assignedMemberId)
+          throw new ApiError("NOT_FOUND", "기존 탐색 후보를 찾을 수 없습니다.");
         // 추가 조사도 담당자의 작업이다(P-22, P-23).
         assertCanModify(member, candidate.originSearchRun.assignedMemberId);
 

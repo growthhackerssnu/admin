@@ -48,6 +48,7 @@ export const GET = withListupApiHandler(async (req) => {
 
   const rows = await prisma.searchRun.findMany({
     where: {
+      sourceId: null,
       ...(status ? { status: status as SearchRunStatus } : {}),
       ...(targetQuarterId ? { targetQuarterId } : {}),
       ...(assignedMemberId ? { assignedMemberId } : {}),

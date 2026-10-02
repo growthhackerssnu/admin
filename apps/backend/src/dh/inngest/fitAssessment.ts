@@ -454,9 +454,9 @@ function savedRefs(value: unknown): ResultRef[] {
 
 async function claimFitTask(taskId: string, runId: string) {
   const task = await prisma.researchTask.findUnique({ where: { id: taskId } });
-  if (!task || task.type !== "fit_assessment") return null;
+  if (!task || task.type !== "fit_assessment" || task.pipeline !== "legacy") return null;
   const claim = await prisma.researchTask.updateMany({
-    where: { id: taskId, status: "queued" },
+    where: { id: taskId, pipeline: "legacy", status: "queued" },
     data: {
       status: "running",
       jobId: runId,
@@ -492,6 +492,9 @@ export async function executeFitAssessmentTask(taskId: string, runId: string) {
         },
       },
     });
+    if (!task.searchRun || !task.searchRunId)
+      throw new Error("Fit assessment task has no legacy search run.");
+    const legacySearchRunId = task.searchRunId;
     if (task.searchRun.status === "cancelled") {
       await prisma.researchTask.update({
         where: { id: task.id },
@@ -583,7 +586,7 @@ export async function executeFitAssessmentTask(taskId: string, runId: string) {
         ? null
         : await applyFitFollowup(tx, {
             candidateId: running.candidate.id,
-            searchRunId: task.searchRunId,
+            searchRunId: legacySearchRunId,
             verdict,
             usableContactCount: running.candidate.usableContactCount,
             maxContactSearchRounds: snapshot.execution.maxContactSearchRounds,

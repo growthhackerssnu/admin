@@ -1,0 +1,690 @@
+format: human-readable-api-contract
+formatVersion: 2
+phase: TO-BE
+status: partially-implemented-not-live
+basePath: /api/v1
+scope: 수집·AI 정보 조사 → 사람 fit/관계자 판단 → 메시지 생성·수동 전송 기록. 최종 목표 계약이며 임시 legacy 호환과 구분.
+common:
+  authentication: Bearer Supabase session token
+  allowedRoles:
+    - acting
+    - admin
+  candidateMutationRevision: expectedRevision 필수. 조건부 UPDATE와 관계자/판단 저장은 같은 트랜잭션.
+  outreachMutationVersion: expectedVersion 필수. 초안 수정은 expectedRevision도 검사. 별도 초안 승인 없음.
+  idempotency: 모든 mutation은 Idempotency-Key 필수. 같은 재시도는 같은 키, 다른 행동은 새 키. 동일 키/다른 payload는 409.
+  assignment: 팀장이 회차 확정 시 선택한 후보 ID에만 owner를 원자 배정. 열람·첫 입력·처리 완료는 추가 배정을 유발하지 않음.
+  authorization: 활성 대외협력 팀원은 다른 팀원의 후보도 조회 가능하지만 자신의 배정 후보만 수정. 회차 확정과 전체 수집 유입 일시정지는 external_lead 또는 admin만 가능. 서버에서 모든 쓰기 권한 검사.
+  successEnvelope: "{data: ...}"
+  listEnvelope: "{data: [...], page: {nextCursor, hasMore}}"
+  errorEnvelope: "{error: {code, message, details?, requestId}}"
+  errors:
+    "400":
+      - VALIDATION_ERROR
+    "401":
+      - UNAUTHENTICATED
+    "403":
+      - OWNER_CONFLICT
+    "404":
+      - NOT_FOUND
+    "409":
+      - REVISION_CONFLICT
+      - VERSION_CONFLICT
+      - ASSIGNMENT_CONFLICT
+      - PREVIEW_EXPIRED
+      - STATE_CONFLICT
+      - OUTREACH_EXISTS
+      - STALE_GENERATION
+      - DRAFT_CONTEXT_CHANGED
+      - ALREADY_EXISTS
+      - IDEMPOTENCY_CONFLICT
+    "422":
+      - RESEARCH_REQUIRED
+      - REVIEW_REQUIRED
+      - HISTORY_REQUIRED
+      - PURPOSE_REQUIRED
+      - RECIPIENT_REQUIRED
+      - QUARTER_REQUIRED
+      - DRAFT_REQUIRED
+      - INSUFFICIENT_CANDIDATES
+    "503":
+      - SERVICE_UNAVAILABLE
+  unknownFields: 새 mutation은 선언되지 않은 필드 거절. 수집·후보 API에 targetQuarterId/AI fit 평가를 입력할 수 없음.
+  versionSemantics:
+    candidate: 후보 관계자·판단·현재 조사 결과 변경 시 revision 증가
+    outreach: 분기·수신자·현재 초안·발송 상태 변경 시 version 증가
+    draft: 내용 변경은 기존 행 수정 없이 새 revision 저장
+    replay: 동일 키·동일 요청 재시도는 저장된 응답 반환. 먼저 현재 인증/권한을 검증하고 버전 재검사보다 기존 결과 재사용 우선
+  sentMutationPolicy: 기업당 Outreach 한 건·첫 발송 한 번. SentMessage가 이미 있는 업무의 초안·수신자·분기 변경 및 추가 발송은 409 STATE_CONFLICT. 과거 SentMessage는 불변.
+definitions:
+  ResearchStatus:
+    - queued
+    - running
+    - ready
+    - error
+  ReviewStatus:
+    - unreviewed
+    - reviewing
+    - approved
+    - rejected_fit
+    - rejected_contact
+  ReviewAction:
+    - approve
+    - reject_fit
+    - reject_contact
+    - reopen
+  RecipientInput:
+    name: required-nonempty-string
+    title: optional-string
+    channel:
+      - linkedin
+      - email
+    address: required-valid-email-or-https-linkedin-person-profile
+  CandidateDetail:
+    extends: CandidateSummary
+    research: Research|null
+    latestDecision: ReviewDecision|null
+  ResearchClaim:
+    id: string
+    category: enum(product_service,target_customer,revenue_model,user_journey,operations,recent_change,public_challenge)
+    content: string
+    basis: enum(reported_fact,inference)
+    evidenceIds: string[]
+  Evidence:
+    id: string
+    url: string
+    title: string|null
+    excerpt: string|null
+    publishedAt: datetime|null
+    retrievedAt: datetime
+  MemberSummary:
+    id: string
+    name: string
+  Recipient:
+    contactId: string
+    endpointId: string
+    name: string
+    title: string|null
+    channel: enum(linkedin,email)
+    address: string
+  Research:
+    id: string
+    createdAt: datetime
+    claims: ResearchClaim[]
+    evidence: Evidence[]
+    missingInformation: string[]; 저장값 반환, UI 상시 노출 의무 없음
+  ReviewDecision:
+    id: string
+    candidateId: string
+    action: ReviewAction
+    fit: enum(fit,unfit)|null
+    contactResult: enum(confirmed,not_found,unchecked)
+    researchId: string
+    contactId: string|null
+    endpointId: string|null
+    note: string|null
+    decidedBy: MemberSummary
+    createdAt: datetime
+  TargetQuarter:
+    id: string
+    year: integer
+    quarter: integer(1..4)
+  CandidateSummary:
+    id: string
+    revision: integer
+    company:
+      id: string
+      name: string
+      summary: string|null
+      websiteUrl: string|null
+    discovery:
+      sourceId: string|null
+      sourceName: string|null
+      url: string|null
+      collectedAt: datetime
+    researchStatus: ResearchStatus
+    reviewStatus: ReviewStatus
+    owner: MemberSummary|null
+    selectedRecipient: Recipient|null
+    outreachId: string|null
+    createdAt: datetime
+    updatedAt: datetime
+    error: "{code: string, message: string, retryable: boolean}|null"
+    canEdit: boolean; 현재 사용자가 담당자인지 서버가 계산. 클라이언트 필터만으로 권한을 정하지 않음
+  ReviewQueueSummary:
+    assignable: integer; ready + unreviewed + unassigned + Company의 Outreach/PastProject 없음
+    researching: integer; queued 또는 running
+    researchError: integer
+    assigned: integer; 담당자 지정됨
+    intakePaused: boolean; 이후 새 수집 실행 시작을 막는 전체 설정
+    intakeVersion: integer
+    countNote: 상태별 참고 수치에는 중복이 있을 수 있음. 배정 가능 수량은 assignable만 사용
+  AssignmentPreview:
+    workStartsOn: date; Asia/Seoul 기준 작업 계획일
+    workEndsOn: date; Asia/Seoul 기준 작업 계획일
+    eligibleCount: integer; 미리보기 생성 시 배정 가능 수
+    perMemberCount: integer
+    selectedCount: integer; 참여 팀원 수와 perMemberCount의 곱
+    items: "{candidateId: string, companyName: string, memberId: string}[]; 확정할 정확한 후보 ID와 담당자"
+  ReviewAssignmentBatch:
+    id: string
+    workStartsOn: date
+    workEndsOn: date
+    snapshotAt: datetime
+    eligibleCountAtSnapshot: integer
+    perMemberCount: integer
+    selectedMemberCount: integer
+    createdBy: MemberSummary
+    items: "{candidateId: string, memberId: string, assignedAt: datetime, reviewStatus: ReviewStatus}[]"
+  CompanySummary:
+    id: string
+    name: string
+    latestPastProject: "{year: integer|null, quarter: integer|null}|null"
+    latestSentAt: datetime|null
+    outreachId: string|null
+    firstSendAvailable: boolean; PastProject가 있고 발송 이력이 없을 때 true. Outreach가 없으면 새 업무 가능, 미발송 Outreach가 있으면 이어서 준비.
+  Draft:
+    outreachId: string
+    revision: integer
+    topic: string
+    subject: string
+    body: string
+    templateId: string|null
+    templateVersion: integer|null
+    createdBy: enum(ai,admin_edit)
+    createdAt: datetime
+    generationResearchId: string|null
+    generationReviewDecisionId: string|null
+    contactPurposeSnapshot: string|null
+    historySourceIds: "{kind: past_project, id: string}[]|null; 신규 생성은 과거 프로젝트 이력만 사용"
+    recipientContactId: string|null
+    recipientEndpointId: string|null
+    recipientSnapshot: object|null
+    targetQuarterId: string|null
+    contextMatches: boolean; derived
+    contextMismatchReasons: enum(research_changed,review_changed,recipient_changed,quarter_changed,purpose_changed)[]; derived
+  OutreachDetail:
+    id: string
+    candidateId: string|null
+    companyId: string
+    contactPurpose: string|null
+    owner: MemberSummary
+    version: integer
+    currentTargetQuarter: TargetQuarter
+    recipient: Recipient|null
+    selectedChannel: enum(linkedin,email)|null
+    sendStatus: enum(before_send,sent)
+    currentRevision: integer|null
+    draft: Draft|null
+    latestSend: SentMessage|null
+    createdAt: datetime
+    updatedAt: datetime
+  SentMessage:
+    id: string
+    outreachId: string
+    draftRevision: integer|null
+    targetQuarterId: string
+    channel: enum(linkedin,email)
+    recipientContactId: string
+    recipientEndpointId: string
+    recipientNameSnapshot: string
+    addressSnapshot: string
+    subjectSnapshot: string
+    bodySnapshot: string
+    templateId: string|null
+    templateVersion: integer|null
+    status: enum(queued,sending,sent,failed,unknown); 신규 수동 완료 기록은 sent만 생성, 과거 조회는 저장값 보존
+    sentAt: datetime
+    createdAt: datetime
+    recordedById: string|null
+endpoints:
+  - id: review-queue-summary
+    change: added-proposal
+    method: GET
+    path: /review-queue/summary
+    response:
+      status: 200
+      body: "{data: ReviewQueueSummary}"
+    note: 팀장이 현재 적체량과 배정 가능 건수를 확인. 응답에는 intakePaused, intakeVersion, canManage, pipelineEnabled도 포함. 상태 수는 같은 시점의 스냅샷이며 확정 때 재검사.
+  - id: assignment-members
+    change: added
+    method: GET
+    path: /review-assignment-members
+    authorization: external_lead 또는 admin
+    response:
+      status: 200
+      body: "{data: [{id: string, name: string}]}"
+    note: 현재 활성 대외협력 팀원만 배정 대상 선택지로 반환.
+  - id: assignment-preview
+    change: added-proposal
+    method: POST
+    path: /review-assignment-batches/preview
+    authorization: external_lead 또는 admin
+    request:
+      required:
+        workStartsOn: date
+        workEndsOn: date
+        memberIds: unique-nonempty-array-of-active-external-members
+        perMemberCount: positive-integer
+    behavior: 시작일 <= 종료일 확인. ready/unreviewed/unassigned/Outreach 없음 후보를 createdAt ASC,id ASC로 골라 요청한 팀원 순서에 균등 배분. 총량 부족 시 422. 저장하지 않음.
+    response:
+      status: 200
+      body: "{data: AssignmentPreview}"
+  - id: assignment-confirm
+    change: added-proposal
+    method: POST
+    path: /review-assignment-batches
+    authorization: external_lead 또는 admin
+    request:
+      required:
+        workStartsOn: 미리보기의 날짜
+        workEndsOn: 미리보기의 날짜
+        memberIds: 미리보기의 팀원 ID 배열
+        perMemberCount: 미리보기의 팀원당 건수
+        items: 미리보기에서 받은 candidateId/memberId 대응
+    behavior: 요청한 팀원·후보 ID·담당자 대응의 균등성과 현재 배정 가능 상태를 재검증. 모두 유효하면 ReviewAssignmentBatch/Item과 Candidate.reviewOwnerId를 한 트랜잭션에 저장. 새로 유입된 후보는 자동 포함하지 않음. 처리 속도에 따른 보충 배정 없음. 후보가 선점되면 409 후 새 미리보기 요구.
+    response:
+      status: 201
+      body: "{data: ReviewAssignmentBatch}"
+    writes:
+      - ReviewAssignmentBatch
+      - ReviewAssignmentItem(candidateId UQ)
+      - Candidate(reviewOwnerId,revision)
+  - id: assignment-detail
+    change: added-proposal
+    method: GET
+    path: /review-assignment-batches/{batchId}
+    response:
+      status: 200
+      body: "{data: ReviewAssignmentBatch}"
+    note: 기간 만료만으로 미완료 후보를 거절·해제·재배정하지 않음.
+  - id: collection-intake-read
+    change: added-proposal
+    method: GET
+    path: /collection-intake
+    response:
+      status: 200
+      body: "{data: {paused: boolean, version: integer, changedAt: datetime, changedBy: MemberSummary|null}}"
+  - id: collection-intake-update
+    change: added-proposal
+    method: PATCH
+    path: /collection-intake
+    authorization: external_lead 또는 admin
+    request:
+      required:
+        expectedVersion: integer
+        paused: boolean
+    behavior: 전체 신규 수집 실행 시작만 일시정지/재개. 이미 시작한 수집·조사와 배정 회차는 중단하지 않음. 개별 CollectionSource.enabled는 변경하지 않음.
+    response:
+      status: 200
+      body: "{data: {paused: boolean, version: integer, changedAt: datetime, changedBy: MemberSummary}}"
+    writes:
+      - CollectionIntakeControl
+  - id: relationship-company-list
+    change: existing-company-list-filter-proposal
+    method: GET
+    path: /companies
+    query:
+      hasRelationshipHistory: optional-boolean; true면 PastProject 또는 SentMessage 보유 기업
+      q: optional-string
+      cursor: optional-opaque-cursor
+      limit: integer-1-to-100-default-30
+    response:
+      status: 200
+      body: "{data: CompanySummary[], page: {nextCursor, hasMore}}"
+    note: 기존 회사 목록을 확장. 과거 프로젝트만 있고 Candidate/Outreach가 없는 기업도 포함. 이미 발송한 기업은 이력 조회만 가능. 새 후보의 검토 큐와 구분.
+  - id: relationship-company-history
+    change: existing-history-aggregation
+    method: GET
+    path: /companies/{companyId}/history
+    response:
+      status: 200
+      body: "{data: {pastProjects: PastProject[], outreaches: OutreachHistory[], sentMessages: SentMessage[]}}"
+    note: 해당 기업의 한 Outreach 아래 모든 발송 이력을 반환. 과거 발송·프로젝트 기록을 새 fit 승인으로 변환하지 않음.
+  - id: candidate-list
+    change: added
+    method: GET
+    path: /review-candidates
+    query:
+      researchStatus: optional-ResearchStatus
+      reviewStatus: optional-ReviewStatus
+      ownerId: optional-string-or-me; 생략하면 전체, me면 인증된 사용자 소유 후보
+      q: optional-string
+      from: optional-utc-inclusive-collectedAt
+      to: optional-utc-exclusive-collectedAt
+      cursor: optional-opaque-filter-bound-cursor
+      limit: integer-1-to-100-default-30
+    sort: createdAt ASC, id ASC
+    response:
+      status: 200
+      body: "{data: CandidateSummary[], page: {nextCursor: string|null, hasMore: boolean}}"
+    uiDefault: ownerId=me; 담당자는 자신의 배정 건을 우선 보고, 다른 팀원 건은 필터를 바꿔 읽기 전용 조회
+    note: 오류 후보도 조회 가능. 분기·AI fit 필터 없음. 기존 /candidates 호환은 이관 중에만 운영.
+    reads:
+      - Candidate
+      - Company
+      - 최초 수집 출처
+      - 선택 관계자
+      - 최신 조사 오류
+      - Outreach.id
+  - id: candidate-detail
+    change: added
+    method: GET
+    path: /review-candidates/{candidateId}
+    response:
+      status: 200
+      body: "{data: CandidateDetail}"
+    reads:
+      - 후보 목록 데이터
+      - CompanyResearch
+      - ResearchClaim
+      - Evidence
+      - CandidateReviewDecision
+  - id: recipient-save
+    change: added
+    method: PUT
+    path: /review-candidates/{candidateId}/recipient
+    request:
+      required:
+        expectedRevision: integer
+        name: nonempty-string
+        channel: enum(linkedin,email)
+        address: valid-contact-address
+      optional:
+        title: string
+    preconditions: 조사 ready, 후보 담당자 수정 가능, 회사와 관계자 소속 일치. 판단 완료 건은 reopen 후 변경.
+    behavior:
+      - 서버가 candidate.companyId로 관계자 소속 지정. 같은 이름만으로 다른 관계자를 합치지 않음.
+      - 선택 관계자와 endpoint 저장, reviewStatus=reviewing, revision 증가를 원자 처리. owner가 없는 후보를 첫 입력으로 선점하지 않음.
+      - 기존 발송에 사용한 관계자/주소를 덮어쓰지 않음. 달라진 정보는 별도 레코드로 저장 또는 명확히 일치한 레코드 재사용.
+      - Candidate 변경을 기존 Outreach에 자동 덮어쓰지 않음. 재승인 후 메시지 수신자 반영 API 사용.
+    response:
+      status: 200
+      body: "{data: CandidateDetail}"
+    writes:
+      - Contact
+      - ContactEndpoint(recordedById,checkedAt)
+      - Candidate(selectedContactId,selectedEndpointId,reviewStatus,revision)
+  - id: review-write
+    replaces: human-fit-write
+    method: POST
+    path: /review-candidates/{candidateId}/decisions
+    request:
+      required:
+        expectedRevision: integer
+        action: ReviewAction
+      optional:
+        note: string
+    rules:
+      approve: ready + 유효 관계자 필수. fit=fit, contactResult=confirmed
+      reject_fit: ready, fit=unfit, contactResult=unchecked. 자동 연락 조사 없음.
+      reject_contact: ready, fit=fit, contactResult=not_found. 현재 선택 관계자는 비우고 과거 관계자·발송 기록은 보존.
+      reopen: 완료 판단 존재. 이전 이력 보존, action=reopen/fit=null/contactResult=unchecked, reviewing으로 전환. 이전 승인으로 메시지 생성 불가.
+      transition: approve/reject_*는 unreviewed/reviewing에서만 허용. 완료 판단 수정은 reopen 후 진행.
+    behavior: 배정 담당자의 판단 append·현재 상태·revision 원자 변경. 첫 입력 시 담당자 자동 배정 없음. 자동 연락 조사/Outreach 생성 없음.
+    response:
+      status: 201
+      body: "{data: {candidate: CandidateDetail, decision: ReviewDecision}}"
+    writes:
+      - CandidateReviewDecision
+      - Candidate(activeReviewDecisionId,reviewStatus,revision)
+  - id: research-retry
+    change: added
+    method: POST
+    path: /review-candidates/{candidateId}/research-retries
+    request:
+      required:
+        expectedRevision: integer
+    authorization: 아직 배정되지 않은 조사 오류 후보는 external_lead 또는 admin. 이미 배정된 후보라면 해당 담당자도 가능.
+    preconditions: researchStatus=error, retryable=true, 활성 조사 작업 없음
+    behavior: 실패 조사만 재시도. 사람 판단 및 이전 자료 보존. 기존 자동 contact 연구 요청 대체 아님.
+    response:
+      status: 202
+      body: "{data: {candidate: CandidateDetail, taskId}}"
+    writes:
+      - ResearchTask
+      - Candidate(researchStatus=queued,revision)
+  - id: outreach-create
+    change: new-path-and-preconditions
+    method: POST
+    path: /review-candidates/{candidateId}/outreaches
+    request:
+      required:
+        expectedRevision: integer
+        targetQuarterId: nonempty-string
+    preconditions: 사람 승인, 저장된 유효 관계자, 존재하는 분기, 인증 사용자가 후보 담당자
+    behavior: 후보 담당자·수신자·선택 분기로 생성. 메시지를 자동 생성하지 않음.
+    response:
+      status: 201
+      body: "{data: OutreachDetail}"
+    existingOutreach: 409 OUTREACH_EXISTS + details.outreachId. 기업당 Outreach 한 건이며 기존 기록을 덮어쓰지 않음.
+    writes:
+      - Outreach(candidateId,companyId,ownerId,currentTargetQuarterId,recipientContactId,recipientEndpointId,selectedChannel,sendStatus=before_send,version=1)
+  - id: historical-company-outreach-create
+    change: added
+    method: POST
+    path: /companies/{companyId}/outreaches
+    request:
+      required:
+        targetQuarterId: nonempty-string
+        contactPurpose: nonempty-string
+        recipient: RecipientInput
+    preconditions: 해당 회사에 실제 PastProject 존재, Outreach와 SentMessage 없음, 분기 존재, 담당자 권한. 새 Candidate/현재 조사/사람 승인 생성 불필요. 기존 미발송 Outreach는 상세 조회 후 이어서 준비. 이미 발송한 기업의 새 업무는 이번 범위에서 금지.
+    behavior: 사람이 확인한 수신자를 회사의 Contact/ContactEndpoint로 저장하거나 정확히 일치하는 기존 기록을 재사용하고, 현재 사용자 소유의 첫 연락 업무를 같은 트랜잭션에 생성. 메시지는 생성 버튼을 누를 때만 생성.
+    existingOutreach: 409 OUTREACH_EXISTS + details.outreachId. 미발송이면 기존 업무로 이동, 발송 완료면 이력 조회만 허용.
+    response:
+      status: 201
+      body: "{data: OutreachDetail}"
+    writes:
+      - Contact/ContactEndpoint(신규 수신자일 때)
+      - Outreach(candidateId=null,companyId,ownerId,currentTargetQuarterId,contactPurpose,recipientContactId,recipientEndpointId,selectedChannel,sendStatus=before_send,version=1)
+  - id: outreach-detail
+    change: schema-aligned
+    method: GET
+    path: /review-outreaches/{outreachId}
+    reads:
+      - Outreach
+      - Candidate 현재 승인
+      - 현재 초안
+      - 발송 기록
+    response:
+      status: 200
+      body: "{data: OutreachDetail}"
+  - id: outreach-recipient-sync
+    change: added-proposal
+    method: PATCH
+    path: /review-outreaches/{outreachId}/recipient
+    request:
+      required:
+        expectedVersion: positive-integer
+        expectedCandidateRevision: positive-integer
+    preconditions: 연결 후보가 approved이고 선택 관계자가 승인 당시와 일치. 담당자 권한. 발송 전 업무에만 적용.
+    behavior: 재승인한 후보의 관계자·채널을 Outreach에 반영. 임의 contactId 입력은 받지 않음. 기존 초안은 보존하고 문맥 불일치로 표시. 메시지 화면 진입 시 필요한 경우 호출하며 별도 승인 절차 아님.
+    writes:
+      - Outreach.recipientContactId/recipientEndpointId/selectedChannel/version
+    response:
+      status: 200
+      body: "{data: OutreachDetail}"
+  - id: quarter-change
+    change: added
+    method: PATCH
+    path: /review-outreaches/{outreachId}/target-quarter
+    request:
+      required:
+        expectedVersion: integer
+        targetQuarterId: nonempty-string
+    preconditions: sendStatus=before_send, SentMessage 없음.
+    behavior: 분기 변경 이력 저장, version 증가. 기존 초안의 분기 불일치 표시.
+    response:
+      status: 200
+      body: "{data: OutreachDetail}"
+    writes:
+      - Outreach.currentTargetQuarterId/version
+      - OutreachTargetQuarterChange
+  - id: draft-generate
+    change: human-review-preconditions-replaced
+    method: POST
+    path: /review-outreaches/{outreachId}/draft-generation
+    request:
+      required:
+        expectedVersion: positive-integer
+    preconditions: sendStatus=before_send, SentMessage 없음. 새 후보 업무는 현재 사람 승인 + 저장된 조사. 과거 프로젝트 기업 직접 업무는 실제 PastProject + 사람이 입력한 연락 목적. 공통으로 선택 수신자 + 분기. AI 평가 이력 불필요.
+    inputs:
+      - stored-claims
+      - evidence
+      - stored-past-projects-for-historical-company
+      - human-entered-contact-purpose-for-historical-company
+      - internal-collaboration-examples
+      - approved-template
+      - recipient
+      - target-quarter
+      - internal-leader
+    behavior: 버튼 요청 시 생성. 웹 검색/실제 발송 없음. 완료 시 입력 버전 재검증, 변경되었으면 STALE_GENERATION. 외부 생성 호출 중 DB 트랜잭션을 유지하지 않고, 저장 시 캡처한 입력 버전과 문맥을 재검증. 실패는 현재 초안 보존.
+    response:
+      status: 201
+      body: "{data: OutreachDetail}"
+    execution: 현재 route의 완료 후 201 응답 방식 유지 제안. 내부 Job 사용 가능하나 비동기 202/polling 전환은 이번 계약에 포함하지 않음.
+    writes:
+      - MessageDraftRevision(새 후보 조사·판단 또는 기존 기업 과거 이력·연락 목적 스냅샷, 공통 수신자·분기 근거 포함)
+      - Outreach.currentRevision/version
+  - id: draft-read
+    change: retained-with-generation-context
+    method: GET
+    path: /review-outreaches/{outreachId}/draft
+    response:
+      status: 200
+      body: "{data: Draft|null}"
+  - id: draft-save
+    change: retained-with-snapshot-preservation
+    method: PATCH
+    path: /review-outreaches/{outreachId}/draft
+    request:
+      required:
+        expectedVersion: integer
+        expectedRevision: integer
+        topic: nonempty-string
+        subject: nonempty-string
+        body: nonempty-string
+      optional:
+        contextResearchId: string; 문맥 불일치 수정 시 필수
+        contextReviewDecisionId: string; 문맥 불일치 수정 시 필수
+        contextTargetQuarterId: string; 문맥 불일치 수정 시 필수
+        contextRecipient: Recipient; 문맥 불일치 수정 시 필수
+    behavior: 새 revision 저장. 일반 수정은 기존 생성 근거 보존. 문맥 변경 후 수정은 클라이언트가 본 현재 문맥을 요청에 포함하고 서버가 재검증하여 연결. 내용만 저장했다고 바뀐 문맥을 무조건 최신으로 덮어쓰지 않음. 별도 승인 단계 없음.
+    writes:
+      - MessageDraftRevision(createdBy=admin_edit)
+      - Outreach.currentRevision/version
+    response:
+      status: 200
+      body: "{data: OutreachDetail}"
+  - id: send-record
+    change: added-proposal
+    method: POST
+    path: /review-outreaches/{outreachId}/send-records
+    request:
+      required:
+        expectedVersion: integer
+        draftRevision: integer
+      optional:
+        sentAt: utc-datetime; 생략 시 서버 현재 시각, 미래 시각 거절
+    preconditions: 재시도된 동일 요청은 인증·권한 확인 후 기존 결과 반환. 새 후보 업무는 현재 사람 승인, 과거 프로젝트 기업 직접 업무는 PastProject·사람 연락 목적. 공통으로 저장된 현재 초안, 수신자·분기 문맥 일치, 담당자 권한. 별도 초안 승인 불필요. 새 요청은 sendStatus=before_send, 기존 SentMessage 없음. 다른 두 번째 발송 요청은 409 STATE_CONFLICT.
+    behavior: 사람이 외부에서 전송한 사실을 기록. 서버 저장 값으로 스냅샷 및 recordedById 생성. 기존 SentMessage 없음 검사와 before_send→sent 조건부 갱신을 같은 트랜잭션에서 수행해 동시 두 번째 발송 기록을 차단. 실제 발송 없음.
+    response:
+      createdStatus: 201
+      replayStatus: 200
+      body: "{data: SentMessage}"
+    uniqueness: outreachId + draftRevision은 같은 요청 재시도 방지. 기업당 첫 발송 한 번은 조건부 상태 전이와 기존 SentMessage 검사로 강제. 운영 데이터 중 같은 outreach의 과거 발송 여러 건 여부를 감사하기 전에는 outreachId 단독 UQ를 추가하지 않음.
+    writes:
+      - SentMessage(서버 초안 스냅샷,recordedById,createdAt)
+      - Outreach.sendStatus=sent/version
+  - id: sent-read
+    change: retained
+    method: GET
+    path: /sends/{sendId}
+    response:
+      status: 200
+      body: "{data: SentMessage}"
+  - id: quarter-list
+    change: retained
+    method: GET
+    path: /target-quarters
+    query:
+      cursor: optional-string
+      limit: integer>=1, default20, max100으로 제한
+    response:
+      status: 200
+      body: "{data: TargetQuarter[], page: {nextCursor: string|null, hasMore: boolean}}"
+  - id: quarter-create
+    change: retained
+    method: POST
+    path: /target-quarters
+    request:
+      required:
+        year: integer-2000-to-2100
+        quarter: integer-enum(1,2,3,4)
+    duplicate: 409 ALREADY_EXISTS; error.details.fieldErrors.existingId에 기존 ID. adapter가 해당 분기를 재사용.
+    response:
+      status: 201
+      body: "{data: TargetQuarter}"
+deferredContracts:
+  - 수집 실행/원문 관리용 UI와 조회 API는 후속 범위. 내부 cron 계약은 위에 정의.
+  - 기존 클라이언트 호환 경로 제거 시점은 배포 시 결정. 신규 API 계약은 이 문서 기준.
+deployment:
+  currentState: 문서만 작성. schema/API/운영 데이터 변경 없음.
+  rollout: 확장/호환 migration -> 새 worker/API -> 과거 데이터·참조 이관 검증 -> 클라이언트 전환 -> 구필드/경로 제거 제안 적용
+  rollback: 신규 worker/쓰기 플래그 off. 새 데이터와 과거 이력 삭제 안 함.
+schemaReference: human-review-schema-comparison.md
+notation:
+  nullable: type|null은 값이 없을 수 있음
+  storage: storage는 실제 저장 위치, derived는 응답에서 계산하는 값. DTO 이름이 새 DB 컬럼을 뜻하지 않음
+  scope: 읽기용 YAML 계약. OpenAPI 문법 아님. 새 경로와 처리 규칙은 구현 제안.
+dtoStorage:
+  CandidateSummary.company: Company.summary는 최초 CollectedCompany.summary. 과거 연결 없음은 null; 생성 AI로 임의 보완하지 않음.
+  CandidateSummary.discovery: Candidate.originCollectedCompanyId → CollectedCompany.itemId → CollectionItem.sourceId → CollectionSource. collectedAt은 Candidate.createdAt으로 정의.
+  CandidateSummary.owner: Candidate.reviewOwnerId → Member
+  CandidateSummary.selectedRecipient: Candidate.selectedContactId/selectedEndpointId → Contact/ContactEndpoint
+  CandidateSummary.error: 현재 실패 ResearchTask.errorCode/errorMessage/errorRetryable. ready일 때 null.
+  CandidateDetail.research: Candidate.currentResearchId → CompanyResearch 및 ResearchClaim/Evidence
+  CandidateDetail.latestDecision: Candidate.activeReviewDecisionId → CandidateReviewDecision
+  OutreachDetail: Outreach 및 Member/TargetQuarter/Contact/ContactEndpoint join. Candidate와 별도 version.
+  OutreachDetail.contactPurpose: 기존 기업 직접 업무의 사람이 입력한 목적. 새 후보 업무는 null 가능.
+  OutreachDetail.draft: Outreach.currentRevision + MessageDraftRevision.outreachId/revision
+  OutreachDetail.latestSend: SentMessage의 sentAt DESC,createdAt DESC,id DESC 첫 행
+  Draft.contextMatches: 새 후보의 조사·사람 판단 또는 기존 기업의 연락 목적, 공통 수신자 스냅샷·분기를 현재 업무와 비교. 별도 DB 상태 컬럼 아님.
+  SentMessage.recordedById: 인증 사용자로 서버 지정. 요청으로 대리 입력 불가.
+internalJobs:
+  - id: collection-start
+    change: 기존 사용자 탐색 경로 제거 제안. SearchRun을 내부 cron 수집 실행으로 재정의.
+    internalJob: collect-source
+    input:
+      sourceId: string
+      scheduledFor: utc-datetime
+    behavior: 시작 전 CollectionIntakeControl.paused와 CollectionSource.enabled 확인. paused면 새 실행을 시작하지 않음. 원문 중복 방지 후 회사명/설명 적재. 신규 후보만 researchStatus=queued, reviewOwnerId=null. 분기/업무 담당자 불필요.
+    storage: SearchRun(sourceId,scheduledFor). targetQuarterId/assignedMemberId/createdById 없음. CollectionRun 추가하지 않음.
+    writes:
+      - SearchRun
+      - CollectionItem
+      - CollectedCompany
+      - CompanyNameKey
+      - Company
+      - Candidate
+    result: "{searchRunId, status}"
+    security: 공개 사용자 endpoint 아님. 내부 scheduler만 실행.
+  - id: research-dispatch
+    internalJob: research-queued-candidates
+    behavior: 별도 cron으로 조사. fit 평가 및 자동 연락 조사 미실행. 실패는 error로 보존.
+    reads:
+      - Candidate(researchStatus=queued)
+    writes:
+      - ResearchTask
+      - CompanyResearch
+      - ResearchClaim
+      - Evidence
+      - Candidate.currentResearchId/researchStatus/revision
+    result: 후보별 ready 또는 error. 사람 reviewStatus를 AI 결과로 변경하지 않음.
+removalProposals:
+  - method: POST
+    path: /drafts/{outreachId}/approval
+    reason: 별도 초안 승인 단계 없음
+  - method: POST
+    path: /search-runs
+    reason: 기존 분기·담당자 지정 수동 탐색은 최종 경로에서 제거 제안. 수집은 내부 cron.
