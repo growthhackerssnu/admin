@@ -18,21 +18,21 @@
 .uw-head-copy p { margin: 3px 0 0; color: var(--ds-gray-700); font-size: var(--ds-type-caption); line-height: 1.55; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uw-preview-tag { display: inline-block; margin-left: 9px; padding: 2px 6px; border-radius: 4px; background: var(--ds-gray-100); color: var(--ds-gray-700); font-size: var(--ds-type-caption); font-weight: 500; vertical-align: middle; }
 .uw-readonly { flex: 0 0 auto; font-size: var(--ds-type-caption); color: var(--ds-gray-700); background: var(--ds-gray-100); border-radius: 5px; padding: 5px 7px; }
-.uw-queue-tools { min-height: 66px; padding: var(--ds-space-2) calc(var(--layout-inset) + var(--layout-scrollbar-size, 0px)) var(--ds-space-2) var(--ds-space-2); border-bottom: 1px solid var(--ds-gray-200); }
+.uw-queue-tools { min-height: var(--layout-header-height); padding: var(--layout-list-inset) calc(var(--layout-inset) + var(--layout-scrollbar-size, 0px)) var(--layout-list-inset) var(--layout-list-inset); border-bottom: 1px solid var(--ds-gray-200); }
 .uw-queue-tools, .uw-details section { position: relative; border-bottom: 0; }
 .uw-queue-tools::after, .uw-details section::after { content: ""; position: absolute; right: var(--uw-pane-gutter); bottom: 0; left: var(--uw-pane-gutter); height: 1px; background: var(--ds-gray-200); pointer-events: none; }
-.uw-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 49px; }
-.uw-filter-leading { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.uw-filter-row { display: flex; align-items: center; justify-content: space-between; gap: var(--layout-control-gap); min-height: calc(var(--layout-header-height) - 2 * var(--layout-list-inset)); }
+.uw-filter-leading { display: flex; align-items: center; gap: var(--ds-space-1); flex: 0 0 auto; }
 .uw-filter-leading span { font-size: var(--ds-type-caption); color: var(--ds-gray-700); white-space: nowrap; }
 .uw-filter-leading .uw-search-toggle { width: 28px; height: 28px; flex: 0 0 28px; }
-.uw-filter-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; }
+.uw-filter-actions { display: flex; justify-content: flex-end; align-items: center; gap: var(--layout-control-gap); min-width: 0; }
 .uw-search { height: 32px; margin-top: 7px; background: #fff; }
 .uw-search input { height: 30px; font-size: var(--ds-type-caption); }
-.uw-items { min-height: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--ds-space-2); }
-.uw-item { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-bottom: 4px; padding: 12px; text-align: left; border: 1px solid transparent; border-radius: 8px; background: transparent; }
+.uw-items { min-height: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--layout-list-inset); }
+.uw-item { display: flex; flex-direction: column; gap: var(--layout-list-row-gap); width: 100%; margin-bottom: var(--layout-list-row-gap); padding: var(--layout-list-row-inset); text-align: left; border: 1px solid transparent; border-radius: var(--radius); background: transparent; }
 .uw-item:hover { background: var(--background); border-color: var(--ds-gray-200); }
 .uw-item[aria-current="true"] { background: var(--ds-surface-selected); border-color: var(--ds-surface-selected-border); box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-text-strong) 4%, transparent); }
-.uw-item-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; min-width: 0; }
+.uw-item-head { display: flex; justify-content: space-between; align-items: center; gap: var(--layout-label-gap); min-width: 0; }
 .uw-item-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ds-text-strong); font-size: var(--ds-type-body-2); font-weight: 600; }
 .uw-item-meta { display: flex; align-items: baseline; gap: var(--layout-control-gap); width: 100%; min-width: 0; }
 .uw-item-summary { display: block; flex: 1 1 auto; max-width: var(--layout-summary-max); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ds-type-caption); line-height: 1.5; color: var(--ds-gray-700); }
