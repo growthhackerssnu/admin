@@ -9,7 +9,7 @@
   box-shadow: none;
 }
 .ds-list-filter-trigger:hover,
-.ds-list-filter-trigger[data-state="open"] { background: var(--ds-gray-200); }
+.ds-list-filter-trigger[data-state="open"] { background: transparent; }
 .ds-list-filter-trigger:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--ds-gray-500); }
 .ds-list-filter-trigger > svg { width: 12px; height: 12px; transition: transform 150ms; }
 .ds-list-filter-trigger[data-state="open"] > svg { transform: rotate(180deg); }
@@ -21,7 +21,7 @@
   min-width: 0;
   padding: 4px;
   border: 0;
-  background: transparent;
+  background: var(--popover);
   color: var(--ds-brand-100);
   font-family: var(--ds-font-family);
   box-shadow: 0 4px 16px rgb(0 17 54 / 12%);

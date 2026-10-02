@@ -45,7 +45,7 @@ shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로�
 | 컴포넌트 | 적용 위치와 규칙 |
 |---|---|
 | Sidebar | 그핵드인(`/hr`)·NUT(`/nut`)·대협(`/dh`)을 오가는 앱 탐색. shadcn 기본 배치를 유지하며 `#E1E7F3` 배경, `#F8FAFE` 선택 메뉴, `#001136` 글씨·아이콘을 사용한다. 좁은 화면에서는 Sheet로 열린다. |
-| ListFilter + Dropdown Menu | 기업 목록의 담당·상태 선택 메뉴. 클릭 또는 Enter·Space·방향키로 열고, 선택·Escape·바깥 클릭으로 닫는다. hover로 열리지 않는다. 메뉴 너비는 버튼 너비와 같으며 배경은 투명하고 윤곽선 없이 얕은 그림자로 구분한다. 실제 화면과 미리보기는 `components/ui/list-filter.tsx`·`list-filter.css`를 함께 사용한다. 버튼은 최소 96px이고 가장 긴 옵션에 맞춰 너비를 유지한다. |
+| ListFilter + Dropdown Menu | 기업 목록의 담당·상태 선택 메뉴. 클릭 또는 Enter·Space·방향키로 열고, 선택·Escape·바깥 클릭으로 닫는다. hover로 열리지 않는다. 여는 버튼 배경은 기본·hover·열림 상태 모두 투명하다. 펼쳐지는 목록은 흰색 `--popover` 배경이며, 너비는 버튼과 같고 윤곽선 없이 얕은 그림자로 구분한다. 실제 화면과 미리보기는 `components/ui/list-filter.tsx`·`list-filter.css`를 함께 사용한다. 버튼은 최소 96px이고 가장 긴 옵션에 맞춰 너비를 유지한다. |
 | Input Group | 돋보기로 여는 기업명·설명 검색. |
 | Field | 관계자 입력, 판단 메모, 메시지 제목·본문, 목표 분기. 라벨을 입력과 연결한다. |
 | Empty | 관계자 정보가 없는 상태. 기본 아이콘·제목·행동 구성으로 보여주고, 추가를 누르면 Field 입력을 연다. |
