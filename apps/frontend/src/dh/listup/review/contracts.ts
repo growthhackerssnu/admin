@@ -35,6 +35,8 @@ export interface Decision {
 export interface Draft {
   revision: number;
   approvedRevision: number | null;
+  topic?: string;
+  contextMatches?: boolean;
   subject: string;
   body: string;
   quarter: string;
@@ -68,6 +70,8 @@ export interface Candidate {
   draft: Draft | null;
   sent: Sent[];
   version: number;
+  outreachId?: string | null;
+  outreachVersion?: number | null;
 }
 export interface CollectionRun {
   id: string;
@@ -85,6 +89,8 @@ export interface CollectionRun {
 }
 export interface ReviewData {
   schema: 1;
+  actor?: Actor;
+  canManageOps?: boolean;
   candidates: Candidate[];
   quarters: string[];
   runs: CollectionRun[];
@@ -108,6 +114,7 @@ export type CandidateCommand =
 export interface ReviewRepository {
   mode: "preview" | "live";
   load(): Promise<ReviewData>;
+  loadCandidate?(id: string): Promise<Candidate>;
   execute(
     id: string,
     expectedVersion: number,
@@ -166,6 +173,7 @@ export function draftCurrent(candidate: Candidate) {
   return (
     !!draft &&
     !!recipient &&
+    draft.contextMatches !== false &&
     draft.quarter === candidate.quarter &&
     draft.researchId === candidate.research?.id &&
     JSON.stringify(draft.recipient) === JSON.stringify(recipient)
@@ -174,7 +182,6 @@ export function draftCurrent(candidate: Candidate) {
 export function canCopy(candidate: Candidate) {
   return (
     candidate.reviewStatus === "approved" &&
-    draftCurrent(candidate) &&
-    candidate.draft?.approvedRevision === candidate.draft?.revision
+    draftCurrent(candidate)
   );
 }

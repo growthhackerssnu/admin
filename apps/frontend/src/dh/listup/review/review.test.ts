@@ -76,15 +76,15 @@ describe("human review workflow", () => {
     expect(canCopy(data.candidates[0])).toBe(false);
     expect(() => next(data, { type: "approveDraft" })).toThrow("다시 생성");
   });
-  it("requires confirmation after editing and blocks duplicate completion", () => {
-    let data = next(draft(), { type: "approveDraft" });
+  it("allows copying the saved edit and blocks a second first-send record", () => {
+    let data = draft();
     data = next(data, {
       type: "saveDraft",
       subject: "수정 제목",
       body: "수정 본문",
     });
-    expect(canCopy(data.candidates[0])).toBe(false);
-    data = next(next(data, { type: "approveDraft" }), { type: "send" });
+    expect(canCopy(data.candidates[0])).toBe(true);
+    data = next(data, { type: "send" });
     expect(() => next(data, { type: "send" })).toThrow("이미");
   });
   it("preserves sent snapshots when review and recipient change", () => {
@@ -107,12 +107,12 @@ describe("human review workflow", () => {
     data = next(data, { type: "selectContact", index: 0 });
     expect(data.candidates[0].recipient).toEqual(recipient);
   });
-  it("records the first editor on save without a separate start", () => {
+  it("keeps the assigned owner when review starts", () => {
     const initial = initialReviewData();
     const saved = next(initial, { type: "contact", recipient });
     expect(saved.candidates[0].owner).toEqual(currentActor);
     expect(saved.candidates[0].reviewStatus).toBe("reviewing");
-    expect(initial.candidates[0].owner).toBeFalsy();
+    expect(initial.candidates[0].owner).toEqual(currentActor);
     expect(() => applyCommand(saved, "morningloop", 1, { type: "contact", recipient })).toThrow("다른 변경");
     const rejected = next(initial, { type: "decide", status: "rejected_fit", note: "" });
     expect(rejected.candidates[0].owner).toEqual(currentActor);

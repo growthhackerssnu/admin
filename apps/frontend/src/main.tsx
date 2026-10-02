@@ -35,7 +35,7 @@ const Index = lazy(() =>
 
 // 화면별 코드는 처음 들어갈 때만 불러온다. 한 번 불러오면 이후 이동은 새로고침 없다.
 const DhReviewWorkspace = lazy(() =>
-  import("./dh/listup/review/ReviewWorkspace"),
+  import("./dh/listup/review/LiveReviewWorkspace"),
 );
 // hr 화면 전용 겉옷(테마·폰트). hr 라우트 전체를 이 레이아웃 라우트로 감싼다.
 const HrLayout = lazy(() => import("./hr/HrLayout"));

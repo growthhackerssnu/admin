@@ -135,6 +135,8 @@ export function initialReviewData(): ReviewData {
   };
   companies[3].researchStatus = "running";
   companies[3].research = null;
+  companies[0].owner = currentActor;
+  companies[1].owner = currentActor;
   companies[4].owner = { id: "preview-b", name: "샘플 팀원 B" };
   companies[4].reviewStatus = "reviewing";
   companies[5].owner = currentActor;
@@ -152,6 +154,7 @@ export function initialReviewData(): ReviewData {
   ];
   return {
     schema: 1,
+    actor: currentActor,
     candidates: companies,
     quarters: ["2026-Q4", "2027-Q1"],
     runs: [
