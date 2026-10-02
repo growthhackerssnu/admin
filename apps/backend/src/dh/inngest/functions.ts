@@ -25,6 +25,7 @@ import {
 } from "./searchRunOrchestrator";
 import { prisma } from "@/lib/prisma";
 import { collectStartupRecipe } from "./collectStartupRecipe";
+import { collectTips } from "./collectTips";
 
 // 01:00 UTC = 10:00 KST. Collection only stages names and descriptions;
 // factual research runs independently on its own schedule.
@@ -32,6 +33,13 @@ export const collectStartupRecipeDaily = inngest.createFunction(
   { id: "collect-startup-recipe-daily", retries: 2 },
   { cron: "0 1 * * *" },
   async ({ step }) => step.run("collect-startup-recipe", collectStartupRecipe),
+);
+
+// 01:30 UTC — StartupRecipe와 겹치지 않게 30분 띄운다.
+export const collectTipsDaily = inngest.createFunction(
+  { id: "collect-tips-daily", retries: 2 },
+  { cron: "30 1 * * *" },
+  async ({ step }) => step.run("collect-tips", collectTips),
 );
 
 export const processListupTask = inngest.createFunction(
@@ -153,6 +161,7 @@ export const queueHumanReviewResearch = inngest.createFunction(
 
 export const inngestFunctions = [
   collectStartupRecipeDaily,
+  collectTipsDaily,
   queueHumanReviewResearch,
   processListupTask,
   progressListupSearchRun,

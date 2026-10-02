@@ -160,6 +160,17 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | `company_persons`, `contact_channels`, `candidate_contacts` | 관계자·연락 창구·후보별 창구 평가 | 아니오 (연락처) |
 | `research_tasks` | 비동기 조사 작업. error는 재시도 필터를 위해 세 컬럼으로 펴뒀다 | 미정 |
 
+#### 수집(Collection) — human review 파이프라인
+
+| 테이블 | 내용 | 프론트 직접 조회 |
+|---|---|---|
+| `collection_sources` | 수집원 설정(종류·설정·파서 버전). `kind`는 `web_archive`\|`gmail`\|`public_api`. 인증 비밀은 넣지 않고 서버 환경에서 읽는다 | 미정 |
+| `collection_intake_controls` | 전체 수집 유입 on/off 스위치. `id="dh"` 한 행만 쓰며 개별 소스의 `enabled`와 별개다 | 아니오 |
+| `collection_items` | 웹 아카이브 글 하나(또는 페이지 하나) 단위. `source_id`+`external_key`가 재실행 방지 키다 | 아니오 |
+| `collected_companies` | 원문에서 뽑아낸 기업 1건과 한 줄 설명. 중복이어도 추출 사실은 남긴다 | 아니오 |
+| `company_name_keys` | 같은 소스에서 재등장한 이름을 이미 저장된 기업에 연결하는 키 | 아니오 |
+| `candidate_review_decisions` | 사람의 리뷰 판단 이력. 이전 결정을 덮어쓰지 않고 이어서 쌓는다 (append-only) | 미정 |
+
 **`companies`의 컬럼 소유권은 둘로 나뉜다.** 발견 쪽은 `name`, `legal_name`, `aliases`, `website_url`, `canonical_domain`, `created_at`, `updated_at`만 읽고 쓴다. 발송 쪽은 `product`, `domain`, `permanently_excluded*`, `is_prelaunch_only`, `version`을 쓴다. 서로 상대 영역을 건드리지 않는다. `product`·`domain`은 발견 단계에서 채울 수 없어 nullable이다.
 
 **evidence 참조는 FK가 아니라 `text[]`다.** `research_claims.evidence_ids`, `candidates.discovery_evidence_ids`, `intervention_assessments.*_evidence_ids`, `company_persons.employment_evidence_ids`, `contact_channels.evidence_ids`가 그렇다. 구조가 같은 join 테이블 다섯 개를 만들 값이 없고 읽기는 항상 id 목록으로 한 번에 가져오기 때문이며, `evidence`가 append-only라 끊긴 참조가 생기지 않는다. **참조 무결성은 DB가 아니라 앱이 보장한다.**
