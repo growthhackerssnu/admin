@@ -116,7 +116,7 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
               if (!window.confirm(`${preview.selectedCount}개 기업을 ${input.memberIds.length}명에게 고정 배정할까요?`)) return;
               void act(async () => {
                 confirmKey.current ??= crypto.randomUUID();
-                await repository.confirmAssignment(preview, confirmKey.current);
+                await repository.confirmAssignment(preview, input.memberIds, confirmKey.current);
                 confirmKey.current = null;
                 setPreview(null);
                 await reload();

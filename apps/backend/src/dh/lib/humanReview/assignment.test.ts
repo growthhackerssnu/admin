@@ -25,6 +25,7 @@ describe("fixed review assignment", () => {
     const preview = await assignmentPreview(tx, input);
 
     expect(preview.eligibleCount).toBe(8);
+    expect(preview.memberIds).toEqual(input.memberIds);
     expect(preview.selectedCount).toBe(6);
     expect(preview.items.map((item) => item.memberId)).toEqual([
       "member-a", "member-b", "member-c", "member-a", "member-b", "member-c",

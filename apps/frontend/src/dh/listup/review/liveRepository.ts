@@ -362,12 +362,12 @@ export class LiveReviewRepository implements ReviewRepository {
     return { ...response.data, memberIds: input.memberIds };
   }
 
-  async confirmAssignment(preview: AssignmentPreview, key: string) {
+  async confirmAssignment(preview: AssignmentPreview, memberIds: string[], key: string) {
     return (await this.api.request<unknown>(
       "/review-assignment-batches", "POST", {
         workStartsOn: preview.workStartsOn,
         workEndsOn: preview.workEndsOn,
-        memberIds: preview.memberIds,
+        memberIds,
         perMemberCount: preview.perMemberCount,
         items: preview.items.map(({ candidateId, memberId }) => ({ candidateId, memberId })),
       }, key,
