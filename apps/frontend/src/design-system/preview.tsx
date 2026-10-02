@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuList, NavigationMenuTrigger } from "@/components/ui/navigation-menu";
+import { ListFilter } from "@/components/ui/list-filter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -57,6 +57,7 @@ function Palette({ title, items }: { title: string; items: string[][] }) {
 }
 
 function App() {
+  const [ownerFilter, setOwnerFilter] = React.useState("mine");
   return <SidebarProvider className="ds-preview-layout">
     <Sidebar collapsible="icon" aria-label="워크스페이스 탐색">
       <SidebarHeader className="ds-preview-sidebar-header">
@@ -100,7 +101,7 @@ function App() {
       <div className="ds-component-grid">
         <div className="ds-demo"><h3 className="ds-subtitle-2">검색 · Input Group</h3><InputGroup><InputGroupAddon><Search size={16} /></InputGroupAddon><InputGroupInput aria-label="기업 검색 예시" placeholder="기업명 또는 설명 검색" /></InputGroup></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">입력 · Field</h3><Field><FieldLabel htmlFor="ds-recipient" required>관계자 이름</FieldLabel><Input id="ds-recipient" aria-required="true" placeholder="이름" /></Field></div>
-        <div className="ds-demo"><h3 className="ds-subtitle-2">목록 필터 · Navigation Menu</h3><NavigationMenu viewport={false}><NavigationMenuList><NavigationMenuItem><NavigationMenuTrigger>내 담당</NavigationMenuTrigger><NavigationMenuContent className="min-w-32 rounded-md border bg-popover p-2 shadow"><button className="block w-full rounded px-2 py-1 text-left hover:bg-muted">내 담당</button><button className="block w-full rounded px-2 py-1 text-left hover:bg-muted">전체 담당</button></NavigationMenuContent></NavigationMenuItem></NavigationMenuList></NavigationMenu></div>
+        <div className="ds-demo"><h3 className="ds-subtitle-2">목록 필터 · Dropdown Menu</h3><ListFilter label="담당 필터 예시" value={ownerFilter} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={setOwnerFilter} /></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">작업 상태</h3><div className="ds-inline"><Button disabled><Spinner /> 저장 중</Button><Skeleton className="h-9 w-32" /></div></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">창 제어 · Button</h3><div className="ds-inline"><WorkspaceIconButton icon="menu" label="메뉴 열기" /><WorkspaceIconButton icon="leftClose" label="목록 닫기" /><WorkspaceIconButton icon="rightOpen" label="기업 정보 열기" /><WorkspaceIconButton icon="close" label="닫기" /></div></div>
       </div>
