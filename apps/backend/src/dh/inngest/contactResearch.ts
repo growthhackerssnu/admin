@@ -504,9 +504,9 @@ async function fetchOfficialPage(
 
 async function claimContactResearchTask(taskId: string, runId: string) {
   const task = await prisma.researchTask.findUnique({ where: { id: taskId } });
-  if (!task || task.type !== "contact_research") return null;
+  if (!task || task.type !== "contact_research" || task.pipeline !== "legacy") return null;
   const claim = await prisma.researchTask.updateMany({
-    where: { id: taskId, status: "queued" },
+    where: { id: taskId, pipeline: "legacy", status: "queued" },
     data: {
       status: "running",
       jobId: runId,
@@ -751,7 +751,7 @@ export async function executeContactResearchTask(
         candidate: { include: { company: true } },
       },
     });
-    if (!task.candidate)
+    if (!task.candidate || !task.searchRun || !task.searchRunId)
       throw new Error("Contact research task has no candidate.");
     if (
       task.searchRun.status === "cancelled" ||
@@ -1000,6 +1000,8 @@ export async function executeContactResearchTask(
       });
       if (
         !running.candidate ||
+        !running.searchRun ||
+        !running.searchRunId ||
         running.status !== "running" ||
         running.jobId !== runId
       )

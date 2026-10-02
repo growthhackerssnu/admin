@@ -19,6 +19,46 @@ export async function withIdempotency<T>(
   payload: unknown,
   handler: (tx: Prisma.TransactionClient) => Promise<{ status: number; body: T }>,
 ): Promise<{ status: number; body: T }> {
+  const replay = await readIdempotentResult<T>(req, member, route, payload);
+  if (replay) return replay;
+  const key = req.headers.get("idempotency-key")!;
+  const requestHash = hashPayload(payload);
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const result = await handler(tx);
+      await tx.dhIdempotencyKey.create({
+        data: {
+          key,
+          actorMemberId: member.id,
+          route,
+          requestHash,
+          responseStatus: result.status,
+          responseBody: result.body as Prisma.InputJsonValue,
+        },
+      });
+      return result;
+    });
+  } catch (error) {
+    // Two identical requests can both pass the first lookup. If the other
+    // transaction committed, return its recorded response instead of a 500.
+    const replay = await readIdempotentResult<T>(req, member, route, payload);
+    if (replay) return replay;
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const delayedReplay = await readIdempotentResult<T>(req, member, route, payload);
+      if (delayedReplay) return delayedReplay;
+    }
+    throw error;
+  }
+}
+
+export async function readIdempotentResult<T>(
+  req: NextRequest,
+  member: Member,
+  route: string,
+  payload: unknown,
+): Promise<{ status: number; body: T } | null> {
   const key = req.headers.get("idempotency-key");
   if (!key) {
     throw new ApiError("VALIDATION_ERROR", "Idempotency-Key 헤더가 필요합니다.", {
@@ -31,7 +71,7 @@ export async function withIdempotency<T>(
   if (existing) {
     // 키는 전역 유일하므로 경로가 다르면 다른 행동이다. 경로를 비교하지 않으면
     // 한 경로에서 쓴 키를 다른 경로에 보냈을 때 엉뚱한 응답이 재생된다.
-    if (existing.route !== route || existing.requestHash !== requestHash) {
+    if (existing.actorMemberId !== member.id || existing.route !== route || existing.requestHash !== requestHash) {
       throw new ApiError(
         "IDEMPOTENCY_CONFLICT",
         "같은 키로 다른 요청을 보냈습니다. 새 행동은 새 키를 사용하세요.",
@@ -39,19 +79,5 @@ export async function withIdempotency<T>(
     }
     return { status: existing.responseStatus, body: existing.responseBody as T };
   }
-
-  return prisma.$transaction(async (tx) => {
-    const result = await handler(tx);
-    await tx.dhIdempotencyKey.create({
-      data: {
-        key,
-        actorMemberId: member.id,
-        route,
-        requestHash,
-        responseStatus: result.status,
-        responseBody: result.body as Prisma.InputJsonValue,
-      },
-    });
-    return result;
-  });
+  return null;
 }

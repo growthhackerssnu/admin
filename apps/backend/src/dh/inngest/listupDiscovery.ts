@@ -593,6 +593,8 @@ async function persistFindings(
       where: { id: taskId },
       include: { searchRun: true },
     });
+    if (!task.searchRun || !task.searchRunId)
+      throw new Error("Discovery task has no legacy search run.");
     if (task.status !== "running" || task.searchRun.status === "cancelled") {
       if (task.status === "running") {
         await tx.researchTask.update({
@@ -731,9 +733,9 @@ async function persistFindings(
 
 async function claimDiscoveryTask(taskId: string, runId: string) {
   const task = await prisma.researchTask.findUnique({ where: { id: taskId } });
-  if (!task || task.type !== "company_discovery") return null;
+  if (!task || task.type !== "company_discovery" || task.pipeline !== "legacy") return null;
   const claim = await prisma.researchTask.updateMany({
-    where: { id: taskId, status: "queued" },
+    where: { id: taskId, pipeline: "legacy", status: "queued" },
     data: {
       status: "running",
       jobId: runId,
@@ -764,6 +766,8 @@ export async function executeDiscoveryTask(
       where: { id: taskId },
       include: { searchRun: true },
     });
+    if (!task.searchRun || !task.searchRunId)
+      throw new Error("Discovery task has no legacy search run.");
     const snapshot = task.searchRun
       .conditionsSnapshot as unknown as ConditionsSnapshot;
     const affinity = snapshot.discoveryAffinity ?? getDiscoveryAffinitySnapshot();

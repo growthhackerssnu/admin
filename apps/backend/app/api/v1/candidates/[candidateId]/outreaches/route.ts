@@ -38,6 +38,12 @@ export const POST = withApiHandler<{ candidateId: string }>(
           candidate?.revision,
           parsed.data.expectedRevision,
         );
+        if (
+          !candidate.originSearchRunId ||
+          !candidate.originSearchRun?.assignedMemberId ||
+          !candidate.originSearchRun.targetQuarterId
+        )
+          throw new ApiError("NOT_FOUND", "기존 탐색 후보를 찾을 수 없습니다.");
         assertCanModify(member, candidate.originSearchRun.assignedMemberId);
 
         if (

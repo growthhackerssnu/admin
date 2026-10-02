@@ -52,10 +52,11 @@ export async function advanceSearchRun(searchRunId: string) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${searchRunId}))`;
     const run = await tx.searchRun.findUnique({
       where: { id: searchRunId },
-      select: { id: true, status: true, conditionsSnapshot: true },
+      select: { id: true, status: true, conditionsSnapshot: true, sourceId: true },
     });
     if (
       !run ||
+      run.sourceId !== null ||
       run.status === "cancelled" ||
       run.status === "failed" ||
       run.status === "completed" ||
@@ -199,7 +200,7 @@ export async function advanceSearchRun(searchRunId: string) {
 
 export async function progressableSearchRunIds(limit = 50) {
   const runs = await prisma.searchRun.findMany({
-    where: { status: { in: ["queued", "running"] } },
+    where: { sourceId: null, status: { in: ["queued", "running"] } },
     select: { id: true },
     orderBy: { createdAt: "asc" },
     take: limit,

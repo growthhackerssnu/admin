@@ -96,6 +96,7 @@ export const POST = withApiHandler<{ id: string }>(
         });
         if (
           !candidate ||
+          !candidate.originSearchRun ||
           candidate.effectiveFit !== "fit" ||
           !candidate.currentResearch ||
           !candidate.latestSystemAssessment

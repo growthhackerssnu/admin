@@ -91,6 +91,8 @@ export const POST = withListupApiHandler<{ candidateId: string }>(
           candidate?.revision,
           input.expectedRevision,
         );
+        if (!candidate.originSearchRunId || !candidate.originSearchRun?.assignedMemberId)
+          throw new ApiError("NOT_FOUND", "기존 탐색 후보를 찾을 수 없습니다.");
         // 조사 단계의 담당자는 원발견 배치의 담당자다(v0.4 §6.1).
         assertCanModify(member, candidate.originSearchRun.assignedMemberId);
 

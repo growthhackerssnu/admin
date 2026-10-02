@@ -24,6 +24,15 @@ import {
   progressableSearchRunIds,
 } from "./searchRunOrchestrator";
 import { prisma } from "@/lib/prisma";
+import { collectStartupRecipe } from "./collectStartupRecipe";
+
+// 01:00 UTC = 10:00 KST. Collection only stages names and descriptions;
+// factual research runs independently on its own schedule.
+export const collectStartupRecipeDaily = inngest.createFunction(
+  { id: "collect-startup-recipe-daily", retries: 2 },
+  { cron: "0 1 * * *" },
+  async ({ step }) => step.run("collect-startup-recipe", collectStartupRecipe),
+);
 
 export const processListupTask = inngest.createFunction(
   {
@@ -34,15 +43,19 @@ export const processListupTask = inngest.createFunction(
       if (taskId) {
         const task = await prisma.researchTask.findUnique({
           where: { id: taskId },
-          select: { searchRunId: true },
+          select: { searchRunId: true, pipeline: true },
         });
-        await Promise.all([
-          markDiscoveryFailed(taskId, error.message),
-          markCompanyResearchFailed(taskId, error.message),
-          markFitAssessmentFailed(taskId, error.message),
-          markContactResearchFailed(taskId, error.message),
-        ]);
-        if (task) await notifySearchRun(task.searchRunId);
+        if (task?.pipeline === "legacy") {
+          await Promise.all([
+            markDiscoveryFailed(taskId, error.message),
+            markCompanyResearchFailed(taskId, error.message),
+            markFitAssessmentFailed(taskId, error.message),
+            markContactResearchFailed(taskId, error.message),
+          ]);
+          if (task.searchRunId) await notifySearchRun(task.searchRunId);
+        } else if (task?.pipeline === "human_review") {
+          await markCompanyResearchFailed(taskId, error.message);
+        }
       }
     },
   },
@@ -56,10 +69,14 @@ export const processListupTask = inngest.createFunction(
     return step.run("process-task", async () => {
       const task = await prisma.researchTask.findUnique({
         where: { id: taskId },
-        select: { type: true, searchRunId: true },
+        select: { type: true, searchRunId: true, pipeline: true },
       });
       const result =
-        task?.type === "company_discovery"
+        task?.pipeline === "human_review" && task.type === "company_research"
+          ? await executeCompanyResearchTask(taskId, eventId)
+          : task?.pipeline !== "legacy"
+            ? { ignored: true }
+            : task.type === "company_discovery"
           ? await executeDiscoveryTask(taskId, eventId)
           : task?.type === "company_research"
             ? await executeCompanyResearchTask(taskId, eventId)
@@ -68,7 +85,8 @@ export const processListupTask = inngest.createFunction(
               : task?.type === "contact_research"
                 ? await executeContactResearchTask(taskId, eventId)
                 : { ignored: true };
-      if (task) await notifySearchRun(task.searchRunId);
+      if (task?.pipeline === "legacy" && task.searchRunId)
+        await notifySearchRun(task.searchRunId);
       return result;
     });
   },
@@ -118,7 +136,24 @@ export const reconcileQueuedListupTasks = inngest.createFunction(
   },
 );
 
+export const queueHumanReviewResearch = inngest.createFunction(
+  { id: "queue-human-review-research", retries: 2 },
+  { cron: "0 2 * * *" },
+  async ({ step }) => {
+    if (process.env.HUMAN_REVIEW_PIPELINE_ENABLED !== "true") return { disabled: true };
+    const taskIds = await step.run("find-human-review-research", () =>
+      queuedCompanyResearchTaskIds(200, "human_review"),
+    );
+    await step.run("notify-human-review-research", () =>
+      Promise.all(taskIds.map(notifyWorker)),
+    );
+    return { taskCount: taskIds.length };
+  },
+);
+
 export const inngestFunctions = [
+  collectStartupRecipeDaily,
+  queueHumanReviewResearch,
   processListupTask,
   progressListupSearchRun,
   reconcileQueuedListupTasks,

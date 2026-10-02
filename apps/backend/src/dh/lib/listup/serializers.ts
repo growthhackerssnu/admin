@@ -15,6 +15,7 @@ import type {
 } from "@/generated/prisma";
 import type { ResultRef } from "./types";
 import type { ConditionsSnapshot } from "@/dh/config/listupExecution";
+import { ApiError } from "@/dh/lib/errors";
 
 // 응답 키는 camelCase이고 Prisma 필드명과 같다(v0.3 §7.1). 그래도 직렬화를 거치는
 // 이유는 Date → ISO 문자열 변환, 노출 필드 제한, effectiveFit의 null → "not_assessed"
@@ -28,11 +29,13 @@ function actor(member: MemberRef) {
 
 export function serializeSearchRun(
   run: SearchRun & {
-    createdBy: MemberRef;
-    assignedMember: MemberRef;
-    targetQuarter: { id: string; year: number; quarter: number };
+    createdBy: MemberRef | null;
+    assignedMember: MemberRef | null;
+    targetQuarter: { id: string; year: number; quarter: number } | null;
   },
 ) {
+  if (run.sourceId || !run.createdBy || !run.assignedMember || !run.targetQuarter)
+    throw new ApiError("NOT_FOUND", "기존 탐색 실행을 찾을 수 없습니다.");
   // 읽기 모델은 스냅샷에서 sources·filters를 펼쳐 제공한다(v0.4 §6.4).
   const snapshot = run.conditionsSnapshot as unknown as ConditionsSnapshot;
   return {

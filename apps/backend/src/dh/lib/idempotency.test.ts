@@ -36,7 +36,8 @@ async function codeOf(run: Promise<unknown>): Promise<string> {
   return "NO_ERROR";
 }
 
-const storedRow = (overrides: Partial<{ route: string; requestHash: string }> = {}) => ({
+const storedRow = (overrides: Partial<{ actorMemberId: string; route: string; requestHash: string }> = {}) => ({
+  actorMemberId: member.id,
   route: ROUTE,
   requestHash: hashOf(PAYLOAD),
   responseStatus: 201,
@@ -70,6 +71,17 @@ describe("withIdempotency", () => {
 
   it("같은 키가 다른 경로로 오면 IDEMPOTENCY_CONFLICT", async () => {
     findUnique.mockResolvedValue(storedRow({ route: "POST /search-runs" }) as never);
+
+    const code = await codeOf(
+      withIdempotency(requestWithKey("k1"), member, ROUTE, PAYLOAD, async () => {
+        throw new Error("호출되면 안 된다");
+      }),
+    );
+    expect(code).toBe("IDEMPOTENCY_CONFLICT");
+  });
+
+  it("다른 사용자가 같은 키를 보내면 이전 응답을 재생하지 않는다", async () => {
+    findUnique.mockResolvedValue(storedRow({ actorMemberId: "other-member" }) as never);
 
     const code = await codeOf(
       withIdempotency(requestWithKey("k1"), member, ROUTE, PAYLOAD, async () => {

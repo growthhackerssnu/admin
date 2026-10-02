@@ -19,6 +19,8 @@ export const POST = withListupApiHandler<{ taskId: string }>(
         include: { searchRun: true, candidate: true },
       });
       if (!task) throw new ApiError("NOT_FOUND", "작업을 찾을 수 없습니다.");
+      if (task.pipeline !== "legacy" || !task.searchRun?.assignedMemberId)
+        throw new ApiError("NOT_FOUND", "기존 탐색 작업을 찾을 수 없습니다.");
       assertCanModify(member, task.searchRun.assignedMemberId);
 
       if (task.status !== "failed" || task.errorRetryable !== true) {

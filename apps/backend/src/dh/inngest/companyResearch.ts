@@ -237,7 +237,15 @@ async function claimCompanyResearchTask(taskId: string, runId: string) {
       errorRetryable: null,
     },
   });
-  if (claim.count) return true;
+  if (claim.count) {
+    if (task.pipeline === "human_review" && task.candidateId) {
+      await prisma.candidate.update({
+        where: { id: task.candidateId },
+        data: { researchStatus: "running" },
+      });
+    }
+    return true;
+  }
   if (task.status !== "running" || task.jobId !== runId) return false;
   await prisma.researchTask.update({
     where: { id: taskId },
@@ -256,10 +264,18 @@ export async function executeCompanyResearchTask(
   try {
     const task = await prisma.researchTask.findUniqueOrThrow({
       where: { id: taskId },
-      include: { candidate: { include: { company: true } } },
+      include: {
+        candidate: {
+          include: {
+            company: true,
+            originCollectedCompany: { include: { item: true } },
+          },
+        },
+      },
     });
-    if (!task.candidate)
+    if (!task.searchRunId || !task.candidate)
       throw new Error("Company research task has no candidate.");
+    const legacySearchRunId = task.searchRunId;
 
     const company = task.candidate.company;
     const searches = buildResearchSearches(company, task.requestedInformation);
@@ -294,10 +310,21 @@ export async function executeCompanyResearchTask(
           ] as Prisma.InputJsonValue,
         },
       });
-      throw new Error("All Gemini Google Search calls failed.");
+      const quotaExceeded = searchOutputs.some((output) =>
+        output.status === "rejected" &&
+        /RESOURCE_EXHAUSTED|\b429\b/.test(String(output.reason)),
+      );
+      throw new Error(quotaExceeded
+        ? "Gemini 조사 사용량 한도에 도달했습니다. 한도 복구 후 다시 조사해주세요."
+        : "모든 Gemini 웹 검색 요청이 실패했습니다. 다시 조사해주세요.");
     }
 
-    const urls = selectResearchUrls(company.websiteUrl, successfulSearches);
+    const urls = [
+      ...selectResearchUrls(company.websiteUrl, successfulSearches),
+      ...(task.pipeline === "human_review" && task.candidate.originCollectedCompany?.item.url
+        ? [task.candidate.originCollectedCompany.item.url]
+        : []),
+    ].filter((url, index, all) => all.indexOf(url) === index).slice(0, 7);
     const fetched = await reporter.measure("fetch_cited_pages", () =>
       Promise.allSettled(
         urls.map((url) => fetchPage(url, companyNames(company))),
@@ -406,6 +433,9 @@ export async function executeCompanyResearchTask(
     if (!claims.length && task.requestedInformation.length) {
       missingInformation.push(...task.requestedInformation);
     }
+    if (task.pipeline === "human_review" && !claims.length) {
+      throw new Error("No source-backed company claims were extracted.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const running = await tx.researchTask.findUniqueOrThrow({
@@ -485,7 +515,10 @@ export async function executeCompanyResearchTask(
 
       await tx.candidate.update({
         where: { id: running.candidate.id },
-        data: { currentResearchId: research.id },
+        data: {
+          currentResearchId: research.id,
+          ...(task.pipeline === "human_review" ? { researchStatus: "ready" as const } : {}),
+        },
       });
 
       const officialPage = eligiblePages.find((page) => isHomepage(page.url));
@@ -499,14 +532,16 @@ export async function executeCompanyResearchTask(
         }
       }
 
-      const fitTask = await enqueueResearchTask(tx, {
-        searchRunId: task.searchRunId,
-        candidateId: running.candidate.id,
-        parentTaskId: task.id,
-        type: "fit_assessment",
-        trigger: task.trigger === "userRequest" ? "userRequest" : "searchRun",
-        followupPolicy: "automatic",
-      });
+      const fitTask = task.pipeline === "legacy"
+        ? await enqueueResearchTask(tx, {
+            searchRunId: legacySearchRunId,
+            candidateId: running.candidate.id,
+            parentTaskId: task.id,
+            type: "fit_assessment",
+            trigger: task.trigger === "userRequest" ? "userRequest" : "searchRun",
+            followupPolicy: "automatic",
+          })
+        : null;
 
       const allRefs: ResultRef[] = [
         ...savedRefs(running.resultRefs),
@@ -530,7 +565,7 @@ export async function executeCompanyResearchTask(
       return {
         researchId: research.id,
         claimCount: claims.length,
-        fitTaskId: fitTask.reused ? null : fitTask.task.id,
+        fitTaskId: fitTask && !fitTask.reused ? fitTask.task.id : null,
       };
     });
 
@@ -557,21 +592,34 @@ export async function markCompanyResearchFailed(
   taskId: string,
   message: string,
 ) {
-  await prisma.researchTask.updateMany({
+  const task = await prisma.researchTask.findUnique({
+    where: { id: taskId },
+    select: { candidateId: true, pipeline: true },
+  });
+  const updated = await prisma.researchTask.updateMany({
     where: { id: taskId, type: "company_research", status: "running" },
     data: {
       status: "failed",
-      errorCode: "SERVICE_UNAVAILABLE",
+      errorCode: /Gemini 조사 사용량 한도/.test(message) ? "AI_QUOTA_EXHAUSTED" : "SERVICE_UNAVAILABLE",
       errorMessage: message,
-      errorRetryable: false,
+      errorRetryable: task?.pipeline === "human_review",
       finishedAt: new Date(),
     },
   });
+  if (updated.count && task?.pipeline === "human_review" && task.candidateId) {
+    await prisma.candidate.update({
+      where: { id: task.candidateId },
+      data: { researchStatus: "error" },
+    });
+  }
 }
 
-export async function queuedCompanyResearchTaskIds(limit = 50) {
+export async function queuedCompanyResearchTaskIds(
+  limit = 50,
+  pipeline: "legacy" | "human_review" = "legacy",
+) {
   const tasks = await prisma.researchTask.findMany({
-    where: { type: "company_research", status: "queued" },
+    where: { type: "company_research", pipeline, status: "queued" },
     select: { id: true },
     orderBy: { createdAt: "asc" },
     take: limit,
