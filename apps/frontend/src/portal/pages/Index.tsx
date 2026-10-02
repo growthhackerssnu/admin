@@ -39,7 +39,7 @@ const TILE: Record<
     tone: "dark",
   },
   hr: {
-    en: "GH-IN",
+    en: "GHedIn",
     desc: "알럼나이 디렉토리·프로필",
     bg: "#3e5c9c",
     tone: "dark",
