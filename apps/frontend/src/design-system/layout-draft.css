@@ -1,13 +1,4 @@
-/* Draft values are scoped to this preview until the layout is selected. */
-.ds-layout-draft {
-  --layout-label-gap: 8px;
-  --layout-control-gap: 12px;
-  --layout-field-gap: 16px;
-  --layout-inset: 20px;
-  --layout-group-gap: 24px;
-  --layout-section-gap: 32px;
-  --layout-header-height: 66px;
-}
+/* Preview uses the same layout tokens as the application. */
 .ds-layout-subhead { margin: var(--layout-section-gap) 0 var(--layout-field-gap); }
 .ds-layout-spacing-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) minmax(160px, 1fr); gap: var(--layout-control-gap); padding: var(--layout-control-gap) 0; border-bottom: 1px solid var(--border); font-size: var(--ds-type-body-2); }
 .ds-layout-spacing-row code { color: var(--muted-foreground); font-size: var(--ds-type-caption); overflow-wrap: anywhere; }

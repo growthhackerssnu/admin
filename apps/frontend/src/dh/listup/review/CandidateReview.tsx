@@ -1,3 +1,11 @@
+import { WorkspaceStatus } from "@/components/ui/workspace-status";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import "@/design-system/globals.css";
+import "@/design-system/workspace.css";
 import { useEffect, useRef, useState } from "react";
 import {
   reviewLabels,
@@ -23,7 +31,7 @@ export function SourceLink({
 }) {
   return safeUrl(url) ? (
     <a href={safeUrl(url)} target="_blank" rel="noopener noreferrer">
-      {children} ↗
+      {children}
     </a>
   ) : (
     <span>{children}</span>
@@ -84,11 +92,11 @@ export function RecipientEditor({
           <div>
             <strong>{candidate.recipient.name}</strong>
             <p>{candidate.recipient.title || "직함 미입력"}</p>
-            <span className="rv-badge">
+            <WorkspaceStatus tone="neutral">
               {candidate.recipient.channel === "linkedin"
                 ? "LinkedIn"
                 : "이메일"}
-            </span>
+            </WorkspaceStatus>
             {candidate.recipient.channel === "linkedin" ? (
               <SourceLink url={candidate.recipient.address}>
                 프로필 열기
@@ -97,73 +105,34 @@ export function RecipientEditor({
               <span>{candidate.recipient.address}</span>
             )}
           </div>
-          <button disabled={locked} onClick={() => setEditing(true)}>
+          <Button variant="outline" disabled={locked} onClick={() => setEditing(true)}>
             수정
-          </button>
+          </Button>
         </div>
       ) : (
         <>
           <div className="rv-search-link">
-            <input
+            <Input
               aria-label="LinkedIn 검색어"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            <Button asChild variant={emphasize && !candidate.recipient && !dirty && !locked ? "default" : "outline"}>
             <a
-              className={`rv-button ${emphasize && !candidate.recipient && !dirty && !locked ? "rv-primary" : ""}`}
               href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(query)}`}
               target="_blank"
               rel="noopener noreferrer"
             >
-              LinkedIn 검색 ↗
+              LinkedIn 검색
             </a>
+            </Button>
           </div>
           <fieldset disabled={locked} className="rv-fields">
-            <label>
-              이름
-              <input
-                value={value.name}
-                placeholder="관계자 이름"
-                onChange={(e) => update({ name: e.target.value })}
-              />
-            </label>
-            <label>
-              직함
-              <input
-                value={value.title}
-                placeholder="예: 사업개발 매니저"
-                onChange={(e) => update({ title: e.target.value })}
-              />
-            </label>
-            <label>
-              연락 채널
-              <select
-                value={value.channel}
-                onChange={(e) =>
-                  update({
-                    channel: e.target.value as Recipient["channel"],
-                    address: "",
-                  })
-                }
-              >
-                <option value="linkedin">LinkedIn</option>
-                <option value="email">이메일</option>
-              </select>
-            </label>
-            <label>
-              {value.channel === "linkedin" ? "LinkedIn 프로필" : "이메일 주소"}
-              <input
-                type={value.channel === "email" ? "email" : "url"}
-                value={value.address}
-                placeholder={
-                  value.channel === "linkedin"
-                    ? "https://www.linkedin.com/in/…"
-                    : "name@company.com"
-                }
-                onChange={(e) => update({ address: e.target.value })}
-              />
-            </label>
-            <button
+            <Field><FieldLabel htmlFor={`contact-name-${candidate.id}`} required>이름</FieldLabel><Input id={`contact-name-${candidate.id}`} aria-required="true" value={value.name} placeholder="관계자 이름" onChange={e=>update({name:e.target.value})} /></Field>
+            <Field><FieldLabel htmlFor={`contact-title-${candidate.id}`}>직함</FieldLabel><Input id={`contact-title-${candidate.id}`} value={value.title} placeholder="예: 사업개발 매니저" onChange={e=>update({title:e.target.value})} /></Field>
+            <Field><FieldLabel htmlFor={`contact-channel-${candidate.id}`}>연락 채널</FieldLabel><Select value={value.channel} disabled={locked} onValueChange={channel=>update({channel:channel as Recipient["channel"],address:""})}><SelectTrigger id={`contact-channel-${candidate.id}`}><SelectValue /></SelectTrigger><SelectContent position="popper" className="dw-select-content"><SelectItem value="linkedin">LinkedIn</SelectItem><SelectItem value="email">이메일</SelectItem></SelectContent></Select></Field>
+            <Field><FieldLabel htmlFor={`contact-address-${candidate.id}`} required>{value.channel === "linkedin" ? "LinkedIn 프로필" : "이메일 주소"}</FieldLabel><Input id={`contact-address-${candidate.id}`} aria-required="true" type={value.channel === "email" ? "email" : "url"} value={value.address} placeholder={value.channel === "linkedin" ? "https://www.linkedin.com/in/…" : "name@company.com"} onChange={e=>update({address:e.target.value})} /></Field>
+            <Button variant={emphasize && dirty && !locked ? "default" : "outline"}
               type="button"
               className={emphasize && dirty && !locked ? "rv-primary" : ""}
               disabled={!validRecipient(value) || !dirty}
@@ -183,7 +152,7 @@ export function RecipientEditor({
               }}
             >
               관계자 저장
-            </button>
+            </Button>
             {dirty && !validRecipient(value) && (
               <p className="rv-help">
                 이름과 유효한{" "}
@@ -306,24 +275,24 @@ export function CandidateReview({
           </p>
         </div>
         <div className="rv-drawer-controls">
-          <button disabled={pending} onClick={() => leave(next)}>
+          <Button variant="outline" disabled={pending} onClick={() => leave(next)}>
             다음 기업 →
-          </button>
-          <button
+          </Button>
+          <Button variant="outline"
             className="rv-icon"
             aria-label={inline ? "기업 목록으로" : "검토 패널 닫기"}
             disabled={pending}
             onClick={() => leave(close)}
           >
             {inline ? "←" : "×"}
-          </button>
+          </Button>
         </div>
       </header>
       <div className="rv-drawer-scroll">
         <div className="rv-meta">
-          <span className={`rv-badge ${candidate.reviewStatus}`}>
+          <WorkspaceStatus tone={candidate.reviewStatus === "approved" ? "success" : candidate.reviewStatus === "rejected_fit" ? "danger" : candidate.reviewStatus === "rejected_contact" ? "warning" : candidate.reviewStatus === "reviewing" ? "info" : "neutral"}>
             {reviewLabels[candidate.reviewStatus]}
-          </span>
+          </WorkspaceStatus>
           <span>{candidate.owner?.name ?? "담당자 미배정"}</span>
           <SourceLink url={candidate.website}>홈페이지</SourceLink>
           <SourceLink url={candidate.sourceUrl}>발견 원문</SourceLink>
@@ -425,13 +394,13 @@ export function CandidateReview({
                 "조사가 완료되면 이곳에 판단 자료가 표시됩니다."}
             </p>
             {candidate.error?.retryable && (
-              <button
+              <Button variant="default"
                 className="rv-primary"
                 disabled={pending}
                 onClick={() => void change(candidate, { type: "retry" })}
               >
                 조사 재시도
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -458,16 +427,16 @@ export function CandidateReview({
           </div>
         )}
         {!decided && candidate.research && (
-          <label className="rv-note">
-            판단 메모 <small>선택</small>
-            <textarea
+          <Field className="rv-note">
+            <FieldLabel htmlFor={`review-note-${candidate.id}`}>판단 메모 <small>선택</small></FieldLabel>
+            <Textarea id={`review-note-${candidate.id}`}
               value={note}
               disabled={locked}
               rows={2}
               placeholder="다음에 검토할 때 참고할 내용을 남겨주세요."
               onChange={(e) => setNote(e.target.value)}
             />
-          </label>
+          </Field>
         )}
       </div>
       <footer className="rv-drawer-footer">
@@ -479,20 +448,20 @@ export function CandidateReview({
         {decided ? (
           <>
             <div className="rv-footer-actions">
-              <button
+              <Button variant="outline"
                 disabled={locked || contactDirty}
                 onClick={() => void change(candidate, { type: "reopen" })}
               >
                 판단 변경
-              </button>
+              </Button>
               {candidate.reviewStatus === "approved" && (
-                <button
+                <Button variant={!contactDirty ? "default" : "outline"}
                   className={!contactDirty ? "rv-primary" : ""}
                   disabled={pending || contactDirty}
                   onClick={() => leave(message)}
                 >
                   메시지 작성 →
-                </button>
+                </Button>
               )}
             </div>
           </>
@@ -512,24 +481,24 @@ export function CandidateReview({
                         : "확인한 자료와 연락 경로를 바탕으로 결정해주세요."}
             </p>
             {!locked && (!candidate.recipient || contactDirty) && (
-              <button className="rv-text-button" onClick={goToRecipient}>
+              <Button variant="outline" className="rv-text-button" onClick={goToRecipient}>
                 관계자 {contactDirty ? "입력으로" : "검색·입력으로"} 이동 ↑
-              </button>
+              </Button>
             )}
             <div className="rv-footer-actions">
-              <button
+              <Button variant="destructive"
                 disabled={locked || contactDirty}
                 onClick={() => void decide("rejected_fit")}
               >
                 fit 부적합
-              </button>
-              <button
+              </Button>
+              <Button variant="outline"
                 disabled={locked || contactDirty}
                 onClick={() => void decide("rejected_contact")}
               >
                 연락처 없음
-              </button>
-              <button
+              </Button>
+              <Button variant={candidate.recipient && !contactDirty && !locked ? "default" : "outline"}
                 className={
                   candidate.recipient && !contactDirty && !locked
                     ? "rv-primary"
@@ -539,7 +508,7 @@ export function CandidateReview({
                 onClick={() => void decide("approved")}
               >
                 {pending ? "저장 중…" : "승인"}
-              </button>
+              </Button>
             </div>
           </>
         )}

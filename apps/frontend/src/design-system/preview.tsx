@@ -14,16 +14,12 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
-import {
-  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
-  SidebarGroupLabel, SidebarInset, SidebarMenu, SidebarMenuButton,
-  SidebarMenuItem, SidebarProvider, SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { Handshake, Search, UsersRound, Wallet } from "lucide-react";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { WorkspaceSidebar } from "@/components/ui/workspace-sidebar";
+import { Search } from "lucide-react";
 import "./globals.css";
 import "./preview.css";
 import { LayoutDraft } from "./layout-draft";
-import { SidebarBrand } from "@/components/ui/sidebar-brand";
 import { BrandPreview } from "./brand-preview";
 import { PaletteDraft } from "./palette-draft";
 
@@ -50,19 +46,9 @@ function Palette({ title, items }: { title: string; items: string[][] }) {
 function App() {
   const [ownerFilter, setOwnerFilter] = React.useState("mine");
   return <SidebarProvider className="ds-preview-layout">
-    <Sidebar collapsible="icon" expandOnHover aria-label="워크스페이스 탐색">
-      <SidebarBrand />
-      <SidebarContent>
-        <SidebarGroup><SidebarGroupLabel>워크스페이스</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
-          <SidebarMenuItem><SidebarMenuButton asChild tooltip="그핵드인"><a href="/hr"><UsersRound /><span>그핵드인</span></a></SidebarMenuButton></SidebarMenuItem>
-          <SidebarMenuItem><SidebarMenuButton asChild tooltip="NUT"><a href="/nut"><Wallet /><span>NUT</span></a></SidebarMenuButton></SidebarMenuItem>
-          <SidebarMenuItem><SidebarMenuButton asChild isActive tooltip="대협"><a href="/dh"><Handshake /><span>대협</span></a></SidebarMenuButton></SidebarMenuItem>
-        </SidebarMenu></SidebarGroupContent></SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter className="ds-preview-sidebar-footer"><span>Sidebar · shadcn/ui</span></SidebarFooter>
-    </Sidebar>
+    <WorkspaceSidebar />
     <SidebarInset className="ds-preview-inset">
-      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 초안</a><a href="#palette-draft">색상 초안</a></nav></div>
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 규칙</a><a href="#palette-draft">색상 초안</a></nav></div>
       <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>

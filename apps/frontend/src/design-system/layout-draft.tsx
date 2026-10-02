@@ -37,7 +37,7 @@ export function LayoutDraft() {
   return <section id="layout-draft" className="ds-layout-draft">
     <p className="ds-overline">05 / Layout · Draft</p>
     <h2 className="ds-headline-5">여백과 너비 변화</h2>
-    <p className="ds-body-2 ds-muted">검토용 제안값입니다. 현재 업무 화면에 적용하기 전에 이 예시로 정렬과 너비 변화를 확인합니다.</p>
+    <p className="ds-body-2 ds-muted">실제 업무 화면과 같은 레이아웃 토큰을 사용하는 예시입니다. 정렬과 너비 변화를 확인합니다.</p>
     <h3 className="ds-subtitle-1 ds-layout-subhead">01. 역할별 여백</h3>
     <div className="ds-layout-spacing">{spacing.map(([value, role, token]) => <div key={token} className="ds-layout-spacing-row">
       <strong>{value}</strong><span>{role}</span><code>{token}</code>
@@ -81,6 +81,6 @@ export function LayoutDraft() {
       <tr><th>목록 설명 · 필터</th><td>설명 최대 240px · 담당자와 같은 줄</td><td>설명 말줄임 · 목록 320px 이하에서 필터 다음 줄</td></tr>
       <tr><th>전체 화면</th><td>목록 · 작업 · 기업 정보 3칸</td><td>화면 900px 이하에서 한 칸씩 표시</td></tr>
     </tbody></table></div>
-    <p className="ds-layout-note">620 / 320 / 900px과 설명 최대 240px은 기존 구현 기준을 가져온 초안입니다. 66px 헤더는 세 칸의 공통 높이로 유지합니다. 본문은 스크롤하고 하단 행동은 고정된 별도 영역에 둡니다. 업무 화면 적용 후 패널 최소 너비와 전환점을 검수해 확정합니다.</p>
+    <p className="ds-layout-note">입력 620 / 필터 320 / 단일 화면 900px 전환과 설명 최대 240px을 업무 화면에 적용했습니다. 66px 헤더는 세 칸의 공통 높이로 유지합니다. 본문은 스크롤하고 하단 행동은 고정된 별도 영역에 둡니다. 너비가 바뀌어도 좌우 20px 정렬선을 유지합니다. 수치는 자체 제품 규칙입니다.</p>
   </section>;
 }

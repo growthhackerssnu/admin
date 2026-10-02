@@ -1,3 +1,6 @@
+import { Field, FieldLabel } from "@/components/ui/field";
+import { WorkspaceStatus } from "@/components/ui/workspace-status";
+import "@/design-system/workspace.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,7 +60,7 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
   const requestedCount = input.memberIds.length * input.perMemberCount;
   const insufficientQueue = Boolean(summary && requestedCount > summary.assignable);
 
-  return <main className="uw-ops">
+  return <main className="ds-workspace uw-ops">
     <header className="uw-ops-head">
       <a href="/dh"><ArrowLeft size={16} /> 기업 검토</a>
       <Button variant="ghost" size="sm" disabled={busy} onClick={() => void act(reload)}><RefreshCw size={15} /> 새로고침</Button>
@@ -66,7 +69,7 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
       <div className="uw-ops-intro"><p>대외협력 운영</p><h1>검토 큐와 배정</h1><span>조사가 끝난 기업 중 현재 배정 가능한 건을 확인하고, 이번 작업량을 확정합니다.</span></div>
       {error && <p className="uw-ops-error" role="alert">{error}</p>}
       {notice && <p className="uw-ops-notice" role="status">{notice}</p>}
-      {!summary ? <p role="status">운영 현황을 불러오는 중…</p> : !summary.canManage ?
+      {!summary ? <p className="uw-ops-loading" role="status"><Spinner /> 운영 현황을 불러오는 중…</p> : !summary.canManage ?
         <p role="alert">팀장 또는 관리자만 배정과 수집 상태를 변경할 수 있습니다.</p> : <>
         <section className="uw-ops-section" aria-labelledby="uw-ops-queue-title">
           <div className="uw-ops-section-head"><div><h2 id="uw-ops-queue-title">현재 검토 큐</h2><p>배정 가능한 기업만 회차에 포함됩니다.</p></div></div>
@@ -88,14 +91,14 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
               setNotice(summary.intakePaused ? "새 기업 유입을 재개했습니다." : "새 기업 유입을 일시정지했습니다.");
             })}>{summary.intakePaused ? "유입 재개" : "유입 일시정지"}</Button>
           </div>
-          <p className="uw-ops-inline-status">{summary.intakePaused ? "일시정지됨" : summary.pipelineEnabled ? "자동 수집 운영 중" : "자동 수집 대기 · 서버 일정이 활성화되면 시작"}</p>
+          <div className="uw-ops-inline-status"><WorkspaceStatus tone={summary.intakePaused ? "warning" : summary.pipelineEnabled ? "info" : "neutral"}>{summary.intakePaused ? "일시정지됨" : summary.pipelineEnabled ? "자동 수집 운영 중" : "자동 수집 대기 · 서버 일정이 활성화되면 시작"}</WorkspaceStatus></div>
         </section>
         <section className="uw-ops-section" aria-labelledby="uw-ops-batch-title">
           <div className="uw-ops-section-head"><div><h2 id="uw-ops-batch-title">새 배정 회차</h2><p>현재 큐에서 지정한 수만 고정합니다. 이후 들어오는 기업은 이 회차에 더하지 않습니다.</p></div></div>
           <div className="uw-ops-fields">
-            <label>작업 시작일<Input type="date" value={input.workStartsOn} disabled={busy} onChange={(event) => changeInput({ ...input, workStartsOn: event.target.value })} /></label>
-            <label>작업 종료일<Input type="date" value={input.workEndsOn} disabled={busy} onChange={(event) => changeInput({ ...input, workEndsOn: event.target.value })} /></label>
-            <label>팀원당 기업 수<Input type="number" min={1} max={100} value={input.perMemberCount} disabled={busy} onChange={(event) => changeInput({ ...input, perMemberCount: Number(event.target.value) })} /></label>
+            <Field><FieldLabel htmlFor="ops-start" required>작업 시작일</FieldLabel><Input id="ops-start" aria-required="true" type="date" value={input.workStartsOn} disabled={busy} onChange={(event) => changeInput({ ...input, workStartsOn: event.target.value })} /></Field>
+            <Field><FieldLabel htmlFor="ops-end" required>작업 종료일</FieldLabel><Input id="ops-end" aria-required="true" type="date" value={input.workEndsOn} disabled={busy} onChange={(event) => changeInput({ ...input, workEndsOn: event.target.value })} /></Field>
+            <Field><FieldLabel htmlFor="ops-count" required>팀원당 기업 수</FieldLabel><Input id="ops-count" aria-required="true" type="number" min={1} max={100} value={input.perMemberCount} disabled={busy} onChange={(event) => changeInput({ ...input, perMemberCount: Number(event.target.value) })} /></Field>
           </div>
           <fieldset className="uw-ops-members"><legend>배정할 팀원</legend>
             {members.length ? members.map((member) => <label key={member.id}><input type="checkbox" checked={input.memberIds.includes(member.id)} disabled={busy}
@@ -103,7 +106,7 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
                 ? [...input.memberIds, member.id] : input.memberIds.filter((id) => id !== member.id) })} />{member.name}</label>) : <p>배정 가능한 대외협력 팀원이 없습니다.</p>}
           </fieldset>
           <div className="uw-ops-actions"><span>{insufficientQueue ? `배정 가능 ${summary?.assignable}건 · 요청 ${requestedCount}건` : `총 ${requestedCount}건 배정`}</span>
-            <Button disabled={busy || !input.memberIds.length || !input.workStartsOn || !input.workEndsOn || input.perMemberCount < 1 || insufficientQueue}
+            <Button variant={preview ? "outline" : "default"} disabled={busy || !input.memberIds.length || !input.workStartsOn || !input.workEndsOn || input.perMemberCount < 1 || insufficientQueue}
               onClick={() => void act(async () => { const result = await repository.previewAssignment(input); setPreview(result); confirmKey.current = crypto.randomUUID(); })}>
               {busy && <Spinner />} 배정 미리보기
             </Button></div>

@@ -1,3 +1,9 @@
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import { WorkspaceStatus } from "@/components/ui/workspace-status";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import "@/design-system/globals.css";
+import "@/design-system/workspace.css";
 import { useEffect, useState } from "react";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -72,7 +78,7 @@ export function MessagePage({
   };
   return (
     <main className="rv-message">
-      <button
+      <Button variant="outline"
         className="rv-back"
         disabled={pending}
         onClick={() => {
@@ -84,14 +90,14 @@ export function MessagePage({
         }}
       >
         ← 메시지 목록
-      </button>
+      </Button>
       <div className="rv-title">
         <div>
           <span className="rv-eyebrow">메시지 준비</span>
           <h1>{candidate.name}</h1>
           <p>저장된 조사 자료로 제안하고, 사람이 직접 전송합니다.</p>
         </div>
-        <span className={`rv-badge ${sent ? "approved" : "reviewing"}`}>
+        <WorkspaceStatus tone={sent ? "success" : "info"}>
           {sent
             ? "발송 완료"
             : candidate.draft && current
@@ -99,7 +105,7 @@ export function MessagePage({
               : candidate.draft
                 ? "초안 작성 중"
                 : "미생성"}
-        </span>
+        </WorkspaceStatus>
       </div>
       {error && (
         <p role="alert" className="rv-error">
@@ -129,16 +135,16 @@ export function MessagePage({
           {editing ? (
             <div className="rv-editor">
               <Field>
-                <FieldLabel htmlFor="rv-message-subject">제목</FieldLabel>
-                <Input id="rv-message-subject"
+                <FieldLabel htmlFor="rv-message-subject" required>제목</FieldLabel>
+                <Input id="rv-message-subject" aria-required="true"
                   disabled={pending}
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                 />
               </Field>
               <Field>
-                <FieldLabel htmlFor="rv-message-body">본문</FieldLabel>
-                <Textarea id="rv-message-body"
+                <FieldLabel htmlFor="rv-message-body" required>본문</FieldLabel>
+                <Textarea id="rv-message-body" aria-required="true"
                   disabled={pending}
                   rows={28}
                   value={body}
@@ -152,19 +158,19 @@ export function MessagePage({
               <div className="rv-message-body">{candidate.draft.body}</div>
             </>
           ) : (
-            <div className="rv-empty">
-              <span className="rv-empty-symbol">Aa</span>
-              <h2>
+            <Empty className="rv-empty"><EmptyHeader>
+
+              <EmptyTitle>
                 {candidate.quarter
                   ? "메시지를 생성해주세요"
                   : "목표 분기를 선택해주세요"}
-              </h2>
-              <p>
+              </EmptyTitle>
+              <EmptyDescription>
                 {candidate.quarter
                   ? "저장된 조사 자료로 제안 메시지를 만듭니다."
                   : "제안할 프로젝트의 진행 분기를 선택한 뒤 생성할 수 있습니다."}
-              </p>
-            </div>
+              </EmptyDescription>
+            </EmptyHeader></Empty>
           )}
           {candidate.sent.length > 0 && (
             <details className="rv-send-history">
@@ -192,37 +198,16 @@ export function MessagePage({
           <section className="rv-card">
             <h2>메시지 준비</h2>
             <Field>
-              <FieldLabel htmlFor="rv-message-quarter">목표 분기</FieldLabel>
-              <select
-                id="rv-message-quarter"
-                className="rv-native-select"
-                aria-label="메시지 목표 분기"
-                disabled={locked || editing}
-                value={candidate.quarter ?? ""}
-                onChange={(e) =>
-                  void change(candidate, {
-                    type: "quarter",
-                    quarter: e.target.value,
-                  })
-                }
-              >
-                <option value="" disabled>
-                  분기 선택
-                </option>
-                {quarters.map((q) => (
-                  <option key={q} value={q}>
-                    {q.replace("-Q", "년 ")}분기
-                  </option>
-                ))}
-              </select>
+              <FieldLabel htmlFor="rv-message-quarter" required>목표 분기</FieldLabel>
+              <Select disabled={locked || editing} value={candidate.quarter ?? ""} onValueChange={quarter => void change(candidate,{type:"quarter",quarter})}><SelectTrigger id="rv-message-quarter" aria-label="메시지 목표 분기" aria-required="true"><SelectValue placeholder="분기 선택" /></SelectTrigger><SelectContent className="dw-select-content" position="popper">{quarters.map(q => <SelectItem key={q} value={q}>{q.replace("-Q","년 ")}분기</SelectItem>)}</SelectContent></Select>
             </Field>
-            <button
+            <Button variant="outline"
               className="rv-text-button"
               disabled={locked || editing}
               onClick={() => setAddingQuarter(!addingQuarter)}
             >
               ＋ 분기 추가
-            </button>
+            </Button>
             {addingQuarter && (
               <div className="rv-quarter-fields">
                 <Field>
@@ -238,21 +223,9 @@ export function MessagePage({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="rv-quarter-part">분기</FieldLabel>
-                  <select
-                    id="rv-quarter-part"
-                    className="rv-native-select"
-                    disabled={pending}
-                    value={part}
-                    onChange={(e) => setPart(Number(e.target.value))}
-                  >
-                    {[1, 2, 3, 4].map((q) => (
-                      <option key={q} value={q}>
-                        {q}분기
-                      </option>
-                    ))}
-                  </select>
+                  <Select disabled={pending} value={String(part)} onValueChange={value=>setPart(Number(value))}><SelectTrigger id="rv-quarter-part"><SelectValue /></SelectTrigger><SelectContent className="dw-select-content" position="popper">{[1,2,3,4].map(q=><SelectItem key={q} value={String(q)}>{q}분기</SelectItem>)}</SelectContent></Select>
                 </Field>
-                <button
+                <Button variant="outline"
                   disabled={
                     locked ||
                     !Number.isInteger(year) ||
@@ -273,7 +246,7 @@ export function MessagePage({
                   }}
                 >
                   추가하고 선택
-                </button>
+                </Button>
               </div>
             )}
             {candidate.quarter && (
@@ -288,7 +261,7 @@ export function MessagePage({
               </p>
             )}
             <div className="rv-action-stack">
-              <button
+              <Button variant={!candidate.draft || !current ? "default" : "ghost"}
                 className={
                   !candidate.draft || !current ? "rv-primary" : "rv-text-button"
                 }
@@ -312,11 +285,11 @@ export function MessagePage({
                 }}
               >
                 {pending && <Spinner />} {candidate.draft ? "다시 생성" : "메시지 생성"}
-              </button>
+              </Button>
               {candidate.draft &&
                 (editing ? (
                   <>
-                    <button
+                    <Button variant="default"
                       disabled={
                         locked || !draftDirty || !subject.trim() || !body.trim()
                       }
@@ -334,8 +307,8 @@ export function MessagePage({
                       }}
                     >
                       수정 저장
-                    </button>
-                    <button
+                    </Button>
+                    <Button variant="outline"
                       disabled={pending}
                       onClick={() => {
                         if (
@@ -346,15 +319,15 @@ export function MessagePage({
                       }}
                     >
                       수정 취소
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button
+                  <Button variant="outline"
                     disabled={locked || !approved || !candidate.draft}
                     onClick={() => setEditing(true)}
                   >
                     내용 수정
-                  </button>
+                  </Button>
                 ))}
             </div>
             <p className="rv-help">
@@ -367,11 +340,11 @@ export function MessagePage({
               <>
                 <strong>{candidate.recipient.name}</strong>
                 <p>{candidate.recipient.title || "직함 미입력"}</p>
-                <span className="rv-badge">
+                <WorkspaceStatus tone="neutral">
                   {candidate.recipient.channel === "linkedin"
                     ? "LinkedIn"
                     : "이메일"}
-                </span>
+                </WorkspaceStatus>
                 <p>
                   {candidate.recipient.channel === "linkedin" ? (
                     <SourceLink url={candidate.recipient.address}>
@@ -387,20 +360,21 @@ export function MessagePage({
             )}
             {!sent && <p className="rv-help">수신자를 바꾸려면 기업 검토에서 판단 변경을 진행해주세요.</p>}
             <div className="rv-copy">
-              <button
+              <Button variant="outline"
                 disabled={locked || !copied}
                 onClick={() => void copy(candidate.draft!.subject)}
               >
                 제목 복사
-              </button>
-              <button
+              </Button>
+              <Button variant="outline"
                 disabled={locked || !copied}
                 onClick={() => void copy(candidate.draft!.body)}
               >
                 본문 복사
-              </button>
+              </Button>
             </div>
-            <button
+            <Button
+              variant={!editing && copied && !sent ? "default" : "outline"}
               className="rv-full"
               disabled={locked || !copied || sent}
               onClick={() => {
@@ -413,7 +387,7 @@ export function MessagePage({
               }}
             >
               {sent ? "발송 완료로 기록됨" : "발송 완료 표시"}
-            </button>
+            </Button>
             {candidate.draft && !copied && (
               <p className="rv-help">
                 {dirty

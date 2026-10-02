@@ -64,6 +64,23 @@
   --ds-type-overline: 10px;
   --ds-type-caption: 12px;
 
+  /* Shared workspace layout, promoted from the inspected layout example. */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --layout-label-gap: var(--ds-space-2);
+  --layout-control-gap: var(--ds-space-3);
+  --layout-field-gap: var(--ds-space-4);
+  --layout-inset: var(--ds-space-5);
+  --layout-group-gap: var(--ds-space-6);
+  --layout-section-gap: var(--ds-space-8);
+  --layout-header-height: 66px;
+  --layout-summary-max: 240px;
+
   /* shadcn/ui semantic contract */
   --background: #ffffff;
   --foreground: var(--ds-gray-900);
