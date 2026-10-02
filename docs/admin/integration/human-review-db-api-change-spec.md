@@ -1,6 +1,6 @@
 # 기업 수집·사람 판단 전환 — DB/API 변경 명세
 
-작성: 2026-10-01, 검증 현황 갱신: 2026-10-02. **구현 계약 초안**. `packages/db/schema.prisma`와 `apps/backend`의 API를 기준으로 작성했습니다. 기존 DB를 확인하고 신규 확장 마이그레이션 두 건을 적용했으며, 수집·조회 일부를 실데이터로 확인했습니다. Gemini 조사 성공 이후의 전체 흐름은 아직 검증되지 않았습니다. 현재 브랜치의 구현·검증 순서는 [작업 목록](human-review-implementation-checklist.md)을 따릅니다.
+작성: 2026-10-01, 검증 현황 갱신: 2026-10-02. **구현 계약 초안**. `packages/db/schema.prisma`와 `apps/backend`의 API를 기준으로 작성했습니다. 기존 DB를 확인하고 신규 확장 마이그레이션 두 건을 적용했으며, 수집·조회와 Gemini 기업 조사 한 건의 근거 저장을 실데이터로 확인했습니다. 사람 배정·검토·초안·발송 기록까지 이어지는 전체 흐름은 아직 검증되지 않았습니다. 현재 브랜치의 구현·검증 순서는 [작업 목록](human-review-implementation-checklist.md)을 따릅니다.
 
 [테이블별 AS-IS / TO-BE](human-review-schema-comparison.md) · [API AS-IS](human-review-api-as-is.yaml) · [API TO-BE](human-review-api-to-be.yaml)
 
@@ -146,7 +146,7 @@ Rollback은 새 cron/쓰기를 중지하고 보존한 데이터로 복구하는 
 - 별도 초안 승인 API 없이 수정→복사→외부 전송→완료 기록 가능.
 - 같은 완료 요청 중복 방지, 이후 분기/관계자 변경에도 과거 전송 스냅샷 불변.
 
-이번 검수는 문서의 흐름·필드 책임과 YAML 구문 확인입니다. 실제 migration·API 기능·실데이터 검증은 아직 하지 않았습니다.
+문서의 흐름·필드 책임과 YAML 구문을 검토했습니다. DB 마이그레이션 상태와 일부 API·수집·Gemini 조사 저장은 실데이터로 확인했으며, 사람 배정부터 첫 발송 기록까지는 추가 검증이 필요합니다.
 
 ## 7. API 구체화 시 추가한 구현 제안
 
