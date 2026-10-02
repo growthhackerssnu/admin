@@ -1,6 +1,8 @@
 .ds-preview-layout { font-family: var(--ds-font-family); font-size: var(--ds-type-body-2); font-synthesis: none; }
 .ds-preview-inset { min-width: 0; }
 .ds-preview-toolbar { position: sticky; top: 0; z-index: 9; display: flex; align-items: center; gap: 12px; height: 66px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--background); color: var(--ds-brand-100); }
+.ds-preview-layout-link { margin-left: auto; font-size: var(--ds-type-caption); color: var(--ds-brand-100); }
+.ds-layout-draft { scroll-margin-top: 86px; }
 .ds-preview-sidebar-header { display: flex; justify-content: center; height: 66px; border-bottom: 1px solid var(--sidebar-border); }
 .ds-preview-brand { display: flex; align-items: center; gap: 10px; padding: 0 4px; overflow: hidden; white-space: nowrap; }
 .ds-preview-mark { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 6px; background: var(--sidebar-foreground); color: var(--sidebar); font-size: var(--ds-type-caption); font-weight: 700; }

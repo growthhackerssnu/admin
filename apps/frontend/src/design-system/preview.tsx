@@ -22,6 +22,7 @@ import {
 import { Handshake, Search, UsersRound, Wallet } from "lucide-react";
 import "./globals.css";
 import "./preview.css";
+import { LayoutDraft } from "./layout-draft";
 
 const brand = [
   ["0", "#000205"], ["100", "#001136"], ["200", "#00226B"],
@@ -73,7 +74,7 @@ function App() {
       <SidebarFooter className="ds-preview-sidebar-footer"><span>Sidebar · shadcn/ui</span></SidebarFooter>
     </Sidebar>
     <SidebarInset className="ds-preview-inset">
-      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span></div>
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><a href="#layout-draft" className="ds-preview-layout-link">레이아웃 초안</a></div>
       <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>
@@ -107,6 +108,8 @@ function App() {
       </div>
       <div className="ds-demo ds-resizable-demo"><h3 className="ds-subtitle-2">세 칸 크기 조절 · Resizable</h3><ResizablePanelGroup orientation="horizontal" className="h-28 rounded-md border"><ResizablePanel defaultSize="24%" minSize="17%" className="ds-panel-list grid place-items-center">목록</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="52%" minSize="34%" className="grid place-items-center">현재 작업</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="24%" minSize="18%" className="grid place-items-center">기업 정보</ResizablePanel></ResizablePanelGroup></div>
     </section>
+    <Separator />
+    <LayoutDraft />
       </div>
     </SidebarInset>
   </SidebarProvider>;
