@@ -152,10 +152,10 @@ function ContactWork({ candidate, actor, pending, change, onDirty }: { candidate
               {canAct && !decided && <EmptyContent><Button variant="outline" onClick={() => { setContact(blankContact); setMode("add"); }}><Plus size={14} />관계자 추가</Button></EmptyContent>}
             </Empty>}
             {editing && <FieldGroup className="uw-field-group">
-              <div className="uw-field-row"><Field><FieldLabel htmlFor="uw-contact-name">이름</FieldLabel><Input id="uw-contact-name" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} /></Field>
+              <div className="uw-field-row"><Field><FieldLabel htmlFor="uw-contact-name" required>이름</FieldLabel><Input id="uw-contact-name" aria-required="true" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} /></Field>
                 <Field><FieldLabel htmlFor="uw-contact-title">직함</FieldLabel><Input id="uw-contact-title" value={contact.title} onChange={(e) => setContact({ ...contact, title: e.target.value })} /></Field></div>
               <div className="uw-field-row"><Field><FieldLabel htmlFor="uw-contact-channel">채널</FieldLabel><select id="uw-contact-channel" value={contact.channel} onChange={(e) => setContact({ ...contact, channel: e.target.value as Recipient["channel"], address: "" })}><option value="linkedin">LinkedIn</option><option value="email">이메일</option></select></Field>
-                <Field><FieldLabel htmlFor="uw-contact-address">{contact.channel === "linkedin" ? "프로필 링크" : "이메일 주소"}</FieldLabel><Input id="uw-contact-address" type={contact.channel === "email" ? "email" : "url"} value={contact.address} onChange={(e) => setContact({ ...contact, address: e.target.value })} /></Field></div>
+                <Field><FieldLabel htmlFor="uw-contact-address" required>{contact.channel === "linkedin" ? "프로필 링크" : "이메일 주소"}</FieldLabel><Input id="uw-contact-address" aria-required="true" type={contact.channel === "email" ? "email" : "url"} value={contact.address} onChange={(e) => setContact({ ...contact, address: e.target.value })} /></Field></div>
               {error && <FieldError>{error}</FieldError>}
               <div className="uw-form-actions"><Button variant="ghost" onClick={() => setMode(null)}>취소</Button>
                 <Button onClick={() => void save()} disabled={pending}>{pending && <Spinner />}관계자 저장</Button></div>
