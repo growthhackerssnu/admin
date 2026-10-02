@@ -16,13 +16,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
-  SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton,
+  SidebarGroupLabel, SidebarInset, SidebarMenu, SidebarMenuButton,
   SidebarMenuItem, SidebarProvider, SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Handshake, Search, UsersRound, Wallet } from "lucide-react";
 import "./globals.css";
 import "./preview.css";
 import { LayoutDraft } from "./layout-draft";
+import { SidebarBrand } from "@/components/ui/sidebar-brand";
+import { BrandPreview } from "./brand-preview";
 
 const brand = [
   ["0", "#000205"], ["100", "#001136"], ["200", "#00226B"],
@@ -61,9 +63,7 @@ function App() {
   const [ownerFilter, setOwnerFilter] = React.useState("mine");
   return <SidebarProvider className="ds-preview-layout">
     <Sidebar collapsible="icon" aria-label="워크스페이스 탐색">
-      <SidebarHeader className="ds-preview-sidebar-header">
-        <div className="ds-preview-brand"><span className="ds-preview-mark">GH</span><span className="ds-preview-brand-name">Growth Hackers</span></div>
-      </SidebarHeader>
+      <SidebarBrand />
       <SidebarContent>
         <SidebarGroup><SidebarGroupLabel>워크스페이스</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
           <SidebarMenuItem><SidebarMenuButton asChild tooltip="그핵드인"><a href="/hr"><UsersRound /><span>그핵드인</span></a></SidebarMenuButton></SidebarMenuItem>
@@ -74,12 +74,14 @@ function App() {
       <SidebarFooter className="ds-preview-sidebar-footer"><span>Sidebar · shadcn/ui</span></SidebarFooter>
     </Sidebar>
     <SidebarInset className="ds-preview-inset">
-      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><a href="#layout-draft" className="ds-preview-layout-link">레이아웃 초안</a></div>
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 초안</a></nav></div>
       <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>
       <Badge variant="outline">Foundation · v0</Badge>
     </header>
+    <Separator />
+    <BrandPreview />
     <Separator />
     <section><p className="ds-overline">01 / Color</p><h2 className="ds-headline-5">색상</h2><p className="ds-body-2 ds-muted">현재 검토 화면에 적용된 브랜드·중립·표면·상태 색상입니다.</p>
       <Palette title="Brand / Action" items={brand} /><Palette title="Neutral" items={neutrals} /><Palette title="Workspace surfaces" items={surfaces} /><Palette title="Semantic" items={semantic} />

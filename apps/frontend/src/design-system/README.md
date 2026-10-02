@@ -19,6 +19,25 @@
 - Semantic 원색: success `#7EFF38`, danger `#FF3838`, warning `#F8FF38`, info `#3877FF`. 상태 의미는 화면 문맥에 따라 적용한다. 원색 위에 문자를 올릴 때는 어두운 글씨를 사용한다.
 - `--background`, `--foreground`, `--primary` 등 shadcn/ui 토큰은 위 색상에 연결했다. Primary action에는 브랜드 컬러를 쓴다.
 
+## 브랜드 로고
+
+`/design-system.html#brand-assets`에서 4종을 배경별로 확인하고 원본 PNG를 받을 수 있다. 원본은 `design-system/assets/brand`에 보존하며 임포트 경로를 `components/ui/brand-logo.tsx`의 `brandLogos`에서 관리한다. Vite가 앱 배포 경로에 맞는 자산 URL을 만든다.
+
+| 원본 | 컴포넌트 variant | 사용 위치 |
+|---|---|---|
+| `GH_INLINE_BLACK.png` | `inline-black` | 밝은 배경의 펼친 사이드바, 로그인 헤더, 문서 상단 |
+| `GH_INLINE_WHITE.png` | `inline-white` | 브랜드색·어두운 배경의 넓은 헤더, 표지 |
+| `GH_OnlyLogo_SGNT_BLUE.png` | `signature-blue` | 밝은 배경의 축소 사이드바, 정사각형 브랜드 영역 |
+| `GH_OnlyLogo_SGNT_WHITE.png` | `signature-white` | 어두운 배경의 작은 브랜드 영역, 표지 |
+
+`<BrandLogo variant="inline-black" width={160} />`의 너비는 실제 그림 영역 기준이다. 원본 비율을 유지하며 흰색 가로형의 투명 여백만 CSS 표시 영역에서 제외한다. 이 파일의 원본 853×306px 안에서 실제 그림은 `(78,60)–(783,221)`에 있어 다른 가로형과 동일한 표시 너비를 사용할 수 있다. 파일 자체를 잘라내거나 변경하지 않는다. 단독 로고의 대체 텍스트는 `Growth Hackers`이며 같은 이름이 주변에 이미 있을 때만 `decorative`로 숨긴다.
+
+가로형 기본 너비 160px, 두 줄형 기본 너비 64px이며 일반 두 줄형은 48px 이상을 권장한다. 주변 여유 공간은 표시 높이의 ¼ 이상을 시작값으로 둔다. 크기와 여유 공간은 자체 제안값이며 기존 공식 브랜드 가이드에서 가져온 수치가 아니다. 로고의 파랑 `#01397C`는 UI 브랜드 `#001136`과 별도로 유지한다. 원본을 늘리거나 재색칠하지 않고 의미에 맞는 밝은·어두운 버전을 선택한다. 로고를 상태 배지·행동 버튼·로딩 아이콘으로 쓰지 않는다. Favicon처럼 아주 작은 표시는 별도 자산이 필요하다.
+
+`SidebarBrand`는 공통 66px 헤더와 로고의 상태별 크기·배치까지 관리한다. 펼침·모바일 Sheet에는 검정 가로형 160px과 좌우 16px 여백, 축소에는 파랑 두 줄형 32px과 양축 중앙 정렬을 사용한다. 32px은 축소 사이드바의 공간 제약에 따른 예외다. 축소 시 기존 안쪽 여백을 중첩하지 않는다. 디자인 시스템 미리보기와 실제 `UnifiedReviewPanel`은 같은 컴포넌트를 사용한다.
+
+검수: 원본·복사본 4종의 SHA256 일치, 타입 검사와 배포 빌드 통과. 1280×900px에서 미리보기와 업무 화면의 축소 로고 가로 중심 오차 0px, 세로 중심 오차 약 0.33px(브라우저 소수 픽셀 반올림)을 확인했다. 390×844px 모바일 Sheet에서는 가로형 160px 유지와 이미지 로딩을 확인했다. 네 가지 원본이 각 배경에서 보이는지도 시각 검수했다. 이번 변경은 개선 브랜치에 있으며 운영 배포는 별도다.
+
 ## 레이아웃 초안 (미확정)
 
 `/design-system.html#layout-draft`에서 역할별 간격, 내용 정렬선, 패널 너비 조절 예시와 너비별 동작 표를 검토한다. `layout-draft.tsx`와 `layout-draft.css`에만 적용했으며 업무 화면에는 아직 적용하지 않는다. 모든 수치는 제품에 대한 자체 제안값이며 shadcn 공식 수치가 아니다.
@@ -58,6 +77,8 @@ MDC에서 전달받은 크기는 `--ds-type-*` 토큰과 `.ds-*` 클래스로 �
 | `design-system/globals.css` | 색상·폰트·글자 크기·모서리의 기준 토큰. |
 | `components/ui/button.tsx` | Button의 variant, 크기, 여백, 아이콘 배치, hover·focus·disabled·invalid 스타일. 기본 Button은 `--primary` 배경과 `--primary-foreground` 글씨를 사용한다. |
 | `components/ui/button.css` | 기존 전역 form reset이 단색 버튼의 글자색을 덮지 않도록 default·destructive·secondary 글자색을 보장한다. 색상 값은 토큰을 참조한다. |
+| `components/ui/brand-logo.tsx`·`brand-logo.css` | 원본 4종 선택, 실제 그림 영역의 비율·표시 너비, 투명 여백 보정, 대체 텍스트. |
+| `components/ui/sidebar-brand.tsx`·`sidebar-brand.css` | Sidebar 상태별 로고 선택과 크기, 헤더 높이와 중앙 정렬. |
 | 화면 컴포넌트·화면 CSS | 버튼의 위치, 표시 여부, 라벨, 동작, 비활성 조건과 승인 버튼 같은 명시적인 화면 예외. |
 
 shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로부터 자동 격리되지 않는다. `className`이나 화면 CSS도 공용 스타일을 덮을 수 있다. 같은 종류의 버튼에 공통으로 필요한 수정은 `components/ui`에 적용하고, 화면 예외는 디자인 토큰을 참조하는 화면 범위의 규칙으로 기록한다. 데이터 저장·승인 같은 업무 동작은 Button에 저장되지 않으며 부모 화면의 이벤트 처리로 전달된다.
