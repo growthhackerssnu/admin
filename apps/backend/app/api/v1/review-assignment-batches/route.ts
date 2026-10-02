@@ -46,17 +46,24 @@ export const POST = withListupApiHandler(async (req, { member }) => {
         createdById: member.id,
       },
     });
-    for (const item of input.items) {
+    for (const memberId of input.memberIds) {
+      const assignedCandidateIds = input.items
+        .filter((item) => item.memberId === memberId)
+        .map((item) => item.candidateId);
       const changed = await tx.candidate.updateMany({
-        where: { AND: [assignableCandidateWhere, { id: item.candidateId }] },
-        data: { reviewOwnerId: item.memberId, revision: { increment: 1 } },
+        where: { AND: [assignableCandidateWhere, { id: { in: assignedCandidateIds } }] },
+        data: { reviewOwnerId: memberId, revision: { increment: 1 } },
       });
-      if (!changed.count)
+      if (changed.count !== assignedCandidateIds.length)
         throw new ApiError("ASSIGNMENT_CONFLICT", "다른 배정이 먼저 확정됐습니다. 다시 미리보세요.");
-      await tx.reviewAssignmentItem.create({
-        data: { batchId: batch.id, candidateId: item.candidateId, memberId: item.memberId },
-      });
     }
+    await tx.reviewAssignmentItem.createMany({
+      data: input.items.map((item) => ({
+        batchId: batch.id,
+        candidateId: item.candidateId,
+        memberId: item.memberId,
+      })),
+    });
     const saved = await tx.reviewAssignmentBatch.findUniqueOrThrow({
       where: { id: batch.id },
       include: {

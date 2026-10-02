@@ -67,6 +67,7 @@ export async function assignmentPreview(
   return {
     workStartsOn: input.workStartsOn,
     workEndsOn: input.workEndsOn,
+    memberIds: input.memberIds,
     eligibleCount,
     perMemberCount: input.perMemberCount,
     selectedCount,
