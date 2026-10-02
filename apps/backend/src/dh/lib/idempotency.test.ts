@@ -101,4 +101,18 @@ describe("withIdempotency", () => {
     );
     expect(code).toBe("IDEMPOTENCY_CONFLICT");
   });
+
+  it("긴 작업에 지정한 트랜잭션 제한 시간을 Prisma에 전달한다", async () => {
+    findUnique.mockResolvedValue(null);
+    const result = { status: 201, body: { data: { id: "d1" } } };
+    vi.mocked(prisma.$transaction).mockResolvedValue(result as never);
+    const options = { maxWait: 10_000, timeout: 15_000 };
+
+    await expect(withIdempotency(
+      requestWithKey("k1"), member, ROUTE, PAYLOAD,
+      async () => result,
+      options,
+    )).resolves.toEqual(result);
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), options);
+  });
 });

@@ -84,5 +84,5 @@ export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { 
         },
       },
     };
-  });
+  }, { maxWait: 10_000, timeout: 15_000 });
 });
