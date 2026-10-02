@@ -1,4 +1,11 @@
-.ds-preview { max-width: 1200px; margin: 0 auto; padding: 56px 40px 100px; }
+.ds-preview-layout { font-family: var(--ds-font-family); font-size: var(--ds-type-body-2); font-synthesis: none; }
+.ds-preview-inset { min-width: 0; }
+.ds-preview-toolbar { position: sticky; top: 0; z-index: 9; display: flex; align-items: center; gap: 12px; height: 66px; padding: 0 20px; border-bottom: 1px solid var(--border); background: var(--background); color: var(--ds-text-strong); }
+.ds-preview-section-links { display: flex; gap: 16px; margin-left: auto; font-size: var(--ds-type-caption); color: var(--ds-text-strong); }
+.ds-layout-draft { scroll-margin-top: 86px; }
+.ds-preview-layout [data-collapsible="icon"] .ds-preview-sidebar-footer { display: none; }
+.ds-preview-sidebar-footer { padding: 16px; font-size: var(--ds-type-caption); color: var(--sidebar-foreground); }
+.ds-preview { width: 100%; min-width: 0; max-width: 1200px; margin: 0 auto; padding: 56px 40px 100px; }
 .ds-preview-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 32px; }
 .ds-preview-header h1 { margin: 8px 0 16px; }
 .ds-preview section { padding: 44px 0; }

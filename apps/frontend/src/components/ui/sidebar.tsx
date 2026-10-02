@@ -34,6 +34,7 @@ type SidebarContextProps = {
   state: "expanded" | "collapsed"
   open: boolean
   setOpen: (open: boolean) => void
+  setHoverOpen: (open: boolean) => void
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
@@ -66,6 +67,7 @@ function SidebarProvider({
 }) {
   const isMobile = useIsMobile()
   const [openMobile, setOpenMobile] = React.useState(false)
+  const [hoverOpen, setHoverOpen] = React.useState(false)
 
   // This is the internal state of the sidebar.
   // We use openProp and setOpenProp for control from outside the component.
@@ -74,6 +76,7 @@ function SidebarProvider({
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value
+      setHoverOpen(false)
       if (setOpenProp) {
         setOpenProp(openState)
       } else {
@@ -109,19 +112,25 @@ function SidebarProvider({
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
-  const state = open ? "expanded" : "collapsed"
+  // Hover is transient; explicit toggles keep controlling the persisted state.
+  const visibleOpen = open || (!isMobile && hoverOpen)
+  const state = visibleOpen ? "expanded" : "collapsed"
+  React.useEffect(() => {
+    if (isMobile) setHoverOpen(false)
+  }, [isMobile])
 
   const contextValue = React.useMemo<SidebarContextProps>(
     () => ({
       state,
-      open,
+      open: visibleOpen,
       setOpen,
+      setHoverOpen,
       isMobile,
       openMobile,
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, visibleOpen, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
   )
 
   return (
@@ -153,15 +162,19 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  expandOnHover = false,
   className,
   children,
+  onPointerEnter,
+  onPointerLeave,
   ...props
 }: React.ComponentProps<"div"> & {
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  expandOnHover?: boolean
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, openMobile, setOpenMobile, setHoverOpen } = useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -171,6 +184,8 @@ function Sidebar({
           "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
           className
         )}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
         {...props}
       >
         {children}
@@ -189,9 +204,12 @@ function Sidebar({
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              borderWidth: 0,
             } as React.CSSProperties
           }
           side={side}
+          onPointerEnter={onPointerEnter}
+          onPointerLeave={onPointerLeave}
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
@@ -234,9 +252,17 @@ function Sidebar({
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
           className
         )}
+        onPointerEnter={(event) => {
+          onPointerEnter?.(event)
+          if (expandOnHover && collapsible === "icon" && event.pointerType === "mouse") setHoverOpen(true)
+        }}
+        onPointerLeave={(event) => {
+          onPointerLeave?.(event)
+          if (expandOnHover) setHoverOpen(false)
+        }}
         {...props}
       >
         <div

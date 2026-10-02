@@ -4,6 +4,10 @@
   color: var(--primary-foreground);
 }
 
+.ds-button[data-variant="default"]:hover {
+  background: var(--ds-action-primary-hover, var(--primary));
+}
+
 .ds-button[data-variant="destructive"] {
   color: var(--destructive-foreground);
 }

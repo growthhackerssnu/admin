@@ -1,3 +1,10 @@
+import { WorkspaceStatus } from "@/components/ui/workspace-status";
+import { BrandLogo } from "@/components/ui/brand-logo";
+import { ListFilter } from "@/components/ui/list-filter";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import "@/design-system/globals.css";
+import "@/design-system/workspace.css";
 import {
   useCallback,
   useEffect,
@@ -251,7 +258,7 @@ export default function ReviewWorkspace({
     navigate({ message: id, candidate: null, view: "messages" });
   if (tab === "review" && !message) {
     if (loading) return <UnifiedReviewLoading />;
-    if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><button onClick={() => void load()}>다시 불러오기</button></main>;
+    if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><Button variant="outline" onClick={() => void load()}>다시 불러오기</Button></main>;
     return <UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true}
       owner={params.get("owner") === "all" ? "all" : "mine"}
       onOwnerChange={(owner) => navigate({ owner, candidate: null })}
@@ -261,14 +268,9 @@ export default function ReviewWorkspace({
       onMessage={openMessage} />;
   }
   return (
-    <div className="rv-app">
+    <div className="ds-workspace rv-app">
       <header className="rv-header">
-        <div className="rv-brand">
-          <span>GH</span>
-          <div>
-            Growth Hackers<small>대외협력 워크스페이스</small>
-          </div>
-        </div>
+        <div className="rv-brand"><BrandLogo variant="inline-blue" width={160} /></div>
         <div className="rv-account">
           <span className="rv-avatar">A</span>
           {actor.name}
@@ -283,30 +285,30 @@ export default function ReviewWorkspace({
       )}
       {!message && (
         <nav className="rv-nav" aria-label="대협 업무">
-          <button
+          <Button variant="outline"
             className={tab === "review" ? "active" : ""}
             onClick={() =>
               navigate({ view: "review", candidate: null, page: null })
             }
           >
             기업 검토 <b>{ready}</b>
-          </button>
-          <button
+          </Button>
+          <Button variant="outline"
             className={tab === "messages" ? "active" : ""}
             onClick={() =>
               navigate({ view: "messages", candidate: null, page: null })
             }
           >
             메시지 <b>{approved}</b>
-          </button>
-          <button
+          </Button>
+          <Button variant="outline"
             className={tab === "collection" ? "active" : ""}
             onClick={() =>
               navigate({ view: "collection", candidate: null, page: null })
             }
           >
             수집·조사 현황
-          </button>
+          </Button>
         </nav>
       )}
       {loading ? (
@@ -316,7 +318,7 @@ export default function ReviewWorkspace({
       ) : !data ? (
         <main className="rv-content">
           <p role="alert">{error}</p>
-          <button onClick={() => void load()}>다시 불러오기</button>
+          <Button variant="outline" onClick={() => void load()}>다시 불러오기</Button>
         </main>
       ) : message ? (
         <MessagePage
@@ -342,9 +344,9 @@ export default function ReviewWorkspace({
                     : "기업 검토"}
               </h1>
             </div>
-            <button disabled={pending} onClick={() => void load()}>
+            <Button variant="outline" disabled={pending} onClick={() => void load()}>
               ↻ 새로고침
-            </button>
+            </Button>
           </div>
           {error && !selected && !(tab === "review" && focused) && (
             <p role="alert" className="rv-error">
@@ -353,15 +355,15 @@ export default function ReviewWorkspace({
           )}
           <div className="rv-health">
             <span className="rv-health-label">수집 상태</span>
-            <button onClick={() => navigate({ view: "collection" })}>
+            <Button variant="outline" onClick={() => navigate({ view: "collection" })}>
               조사 대기·진행 <b>{inResearch}</b>
-            </button>
-            <button
+            </Button>
+            <Button variant="outline"
               className={errors ? "has-error" : ""}
               onClick={() => navigate({ view: "collection" })}
             >
               조사 오류 <b>{errors}</b>
-            </button>
+            </Button>
             <span className="rv-health-source">웹 아카이브에서 자동 수집</span>
           </div>
           {tab === "collection" ? (
@@ -382,9 +384,9 @@ export default function ReviewWorkspace({
                         {run.items.reduce((n, i) => n + i.names.length, 0)}개 ·
                         중복 {run.items.reduce((n, i) => n + i.duplicates, 0)}개
                       </span>
-                      <span className="rv-badge approved">
+                      <WorkspaceStatus tone={run.status === "completed" ? "success" : "warning"}>
                         {run.status === "completed" ? "완료" : "일부 오류"}
-                      </span>
+                      </WorkspaceStatus>
                     </summary>
                     {run.items.map((item) => (
                       <article key={item.id}>
@@ -419,9 +421,9 @@ export default function ReviewWorkspace({
                             <strong>{c.name}</strong>
                           </td>
                           <td>
-                            <span className={`rv-badge ${c.researchStatus}`}>
+                            <WorkspaceStatus tone={c.researchStatus === "error" ? "danger" : c.researchStatus === "ready" ? "success" : "info"}>
                               {researchLabels[c.researchStatus]}
-                            </span>
+                            </WorkspaceStatus>
                           </td>
                           <td>
                             {c.error?.message ??
@@ -431,20 +433,20 @@ export default function ReviewWorkspace({
                           </td>
                           <td>
                             {c.error?.retryable ? (
-                              <button
+                              <Button variant="outline"
                                 disabled={pending}
                                 onClick={() =>
                                   void change(c, { type: "retry" })
                                 }
                               >
                                 재시도
-                              </button>
+                              </Button>
                             ) : (
-                              <button
+                              <Button variant="outline"
                                 onClick={() => navigate({ candidate: c.id })}
                               >
                                 자료 보기
-                              </button>
+                              </Button>
                             )}
                           </td>
                         </tr>
@@ -465,7 +467,7 @@ export default function ReviewWorkspace({
                     ["rejected", "거절"],
                     ["all", "전체"],
                   ].map(([value, label]) => (
-                    <button
+                    <Button variant="outline"
                       key={value}
                       aria-pressed={filter === value}
                       onClick={() => navigate({ filter: value, page: null })}
@@ -488,7 +490,7 @@ export default function ReviewWorkspace({
                                   ).length
                                 : candidates.length}
                       </span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -499,28 +501,18 @@ export default function ReviewWorkspace({
                     navigate({ q: query || null, page: null });
                   }}
                 >
-                  <input
+                  <Input
                     aria-label="기업 검색"
                     placeholder="기업명 또는 설명 검색"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
-                  <button>검색</button>
+                  <Button variant="outline">검색</Button>
                 </form>
-                <select
-                  aria-label="담당자 필터"
-                  value={params.get("owner") ?? ""}
-                  onChange={(e) =>
-                    navigate({ owner: e.target.value || null, page: null })
-                  }
-                >
-                  <option value="">모든 담당자</option>
-                  <option value="mine">내 기업</option>
-                  <option value="unassigned">미배정</option>
-                </select>
+                <ListFilter label="담당자 필터" value={params.get("owner") ?? "all"} options={[{value:"all",label:"모든 담당자"},{value:"mine",label:"내 기업"},{value:"unassigned",label:"미배정"}]} onChange={value => navigate({owner:value === "all" ? null : value,page:null})} />
                 <label>
                   수집일
-                  <input
+                  <Input
                     aria-label="수집 시작일"
                     type="date"
                     value={params.get("from") ?? ""}
@@ -531,7 +523,7 @@ export default function ReviewWorkspace({
                 </label>
                 <label>
                   ~
-                  <input
+                  <Input
                     aria-label="수집 종료일"
                     type="date"
                     value={params.get("to") ?? ""}
@@ -559,16 +551,16 @@ export default function ReviewWorkspace({
                       기업 <span>{filtered.length}</span>
                     </div>
                     {rows.map((c) => (
-                      <button
+                      <Button variant="outline"
                         key={c.id}
                         aria-pressed={focused?.id === c.id}
                         onClick={() => navigate({ candidate: c.id })}
                       >
                         <span className="rv-queue-name">
                           {c.name}
-                          <span className={`rv-badge ${c.reviewStatus}`}>
+                          <WorkspaceStatus tone={c.reviewStatus === "approved" ? "success" : c.reviewStatus === "rejected_fit" ? "danger" : c.reviewStatus === "rejected_contact" ? "warning" : c.reviewStatus === "reviewing" ? "info" : "neutral"}>
                             {reviewLabels[c.reviewStatus]}
-                          </span>
+                          </WorkspaceStatus>
                         </span>
                         <span className="rv-queue-description">
                           {c.summary}
@@ -577,7 +569,7 @@ export default function ReviewWorkspace({
                           {c.owner?.name ?? "미배정"} ·{" "}
                           {researchLabels[c.researchStatus]}
                         </small>
-                      </button>
+                      </Button>
                     ))}
                     {!rows.length && (
                       <p className="rv-help">이 조건의 기업이 없습니다.</p>
@@ -641,12 +633,12 @@ export default function ReviewWorkspace({
                             }
                           >
                             <td>
-                              <button
+                              <Button variant="outline"
                                 className="rv-company-name"
                                 onClick={() => navigate({ candidate: c.id })}
                               >
                                 {c.name}
-                              </button>
+                              </Button>
                               <p>{c.summary}</p>
                               <small>
                                 {new Date(c.discoveredAt).toLocaleDateString(
@@ -659,11 +651,9 @@ export default function ReviewWorkspace({
                               {tab === "messages" ? (
                                 (c.quarter ?? "미선택")
                               ) : (
-                                <span
-                                  className={`rv-badge ${c.researchStatus}`}
-                                >
+                                <WorkspaceStatus tone={c.researchStatus === "error" ? "danger" : c.researchStatus === "ready" ? "success" : "info"}>
                                   {researchLabels[c.researchStatus]}
-                                </span>
+                                </WorkspaceStatus>
                               )}
                             </td>
                             <td>
@@ -676,9 +666,9 @@ export default function ReviewWorkspace({
                                   "미생성"
                                 )
                               ) : (
-                                <span className={`rv-badge ${c.reviewStatus}`}>
+                                <WorkspaceStatus tone={c.reviewStatus === "approved" ? "success" : c.reviewStatus === "rejected_fit" ? "danger" : c.reviewStatus === "rejected_contact" ? "warning" : c.reviewStatus === "reviewing" ? "info" : "neutral"}>
                                   {reviewLabels[c.reviewStatus]}
-                                </span>
+                                </WorkspaceStatus>
                               )}
                             </td>
                             <td>
@@ -687,7 +677,7 @@ export default function ReviewWorkspace({
                               )}
                             </td>
                             <td>
-                              <button
+                              <Button variant="outline"
                                 onClick={() =>
                                   tab === "messages"
                                     ? openMessage(c.id)
@@ -697,7 +687,7 @@ export default function ReviewWorkspace({
                                 {tab === "messages"
                                   ? "메시지 열기 →"
                                   : "검토 열기 →"}
-                              </button>
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -720,18 +710,18 @@ export default function ReviewWorkspace({
                 <span>
                   {currentPage} / {maxPage} 페이지
                 </span>
-                <button
+                <Button variant="outline"
                   disabled={currentPage <= 1}
                   onClick={() => navigate({ page: String(currentPage - 1) })}
                 >
                   이전
-                </button>
-                <button
+                </Button>
+                <Button variant="outline"
                   disabled={currentPage >= maxPage}
                   onClick={() => navigate({ page: String(currentPage + 1) })}
                 >
                   다음
-                </button>
+                </Button>
               </div>
             </section>
           )}

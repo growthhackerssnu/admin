@@ -9,34 +9,24 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { NavigationMenu, NavigationMenuContent, NavigationMenuItem, NavigationMenuList, NavigationMenuTrigger } from "@/components/ui/navigation-menu";
+import { ListFilter } from "@/components/ui/list-filter";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { WorkspaceSidebar } from "@/components/ui/workspace-sidebar";
 import { Search } from "lucide-react";
 import "./globals.css";
 import "./preview.css";
+import { LayoutDraft } from "./layout-draft";
+import { BrandPreview } from "./brand-preview";
+import { PaletteDraft } from "./palette-draft";
 
-const brand = [
-  ["0", "#000205"], ["100", "#001136"], ["200", "#00226B"],
-  ["300", "#00329E"], ["400", "#0042D1"], ["500", "#0554FF"],
-  ["600", "#3877FF"], ["700", "#6B9AFF"], ["800", "#9EBDFF"],
-  ["900", "#D1E0FF"],
-];
-const neutrals = [
-  ["100", "#F4F6FB"], ["200", "#E1E7F3"], ["300", "#D0D9EC"],
-  ["400", "#B8C6DE"], ["500", "#9FB2DC"], ["600", "#5F7193"],
-  ["700", "#526380"], ["800", "#32415E"], ["900", "#172641"],
-];
-const surfaces = [
-  ["목록 바탕", "#F8FAFE"], ["작업·정보", "#FFFFFF"],
-  ["선택 행", "#EEF3FF"], ["선택 선", "#C5D4F1"],
-];
-const semantic = [
-  ["Success · 진행/성공", "#7EFF38"], ["Danger · 오류/정지", "#FF3838"],
-  ["Warning · 주의/알림", "#F8FF38"], ["Info · 정보/진행 중", "#3877FF"],
-];
+const brand = ["0", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-brand-${step}`]);
+const neutrals = ["100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-gray-${step}`]);
+const surfaces = [["목록 바탕", "--ds-surface-canvas"], ["작업·정보", "--ds-surface-details"], ["선택 행", "--ds-surface-selected"], ["선택 선", "--ds-surface-selected-border"]];
+const semantic = [["Success · 진행/성공", "--ds-success"], ["Danger · 오류/정지", "--ds-danger"], ["Warning · 주의/알림", "--ds-warning"], ["Info · 정보/진행 중", "--ds-info"]];
 const type = [
   ["headline 1", "96px", "ds-headline-1"], ["headline 2", "60px", "ds-headline-2"],
   ["headline 3", "48px", "ds-headline-3"], ["headline 4", "34px", "ds-headline-4"],
@@ -48,18 +38,27 @@ const type = [
 ];
 
 function Palette({ title, items }: { title: string; items: string[][] }) {
-  return <div className="ds-palette"><h3 className="ds-subtitle-1">{title}</h3><div className="ds-swatches">{items.map(([name, color]) => <div className="ds-swatch" key={name}><div className="ds-swatch-color" style={{ background: color }} /><div className="ds-caption">{name}</div><code>{color}</code></div>)}</div></div>;
+  const [colors, setColors] = React.useState<Record<string, string>>({});
+  React.useEffect(() => { const styles = getComputedStyle(document.documentElement); setColors(Object.fromEntries(items.map(([, token]) => [token, styles.getPropertyValue(token).trim().toUpperCase()]))); }, [items]);
+  return <div className="ds-palette"><h3 className="ds-subtitle-1">{title}</h3><div className="ds-swatches">{items.map(([name, color]) => <div className="ds-swatch" key={name}><div className="ds-swatch-color" style={{ background: `var(${color})` }} /><div className="ds-caption">{name}</div><code>{colors[color]}</code></div>)}</div></div>;
 }
 
 function App() {
-  return <main className="ds-preview">
+  const [ownerFilter, setOwnerFilter] = React.useState("mine");
+  return <SidebarProvider className="ds-preview-layout">
+    <WorkspaceSidebar />
+    <SidebarInset className="ds-preview-inset">
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 규칙</a><a href="#palette-draft">색상 초안</a></nav></div>
+      <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>
       <Badge variant="outline">Foundation · v0</Badge>
     </header>
     <Separator />
+    <BrandPreview />
+    <Separator />
     <section><p className="ds-overline">01 / Color</p><h2 className="ds-headline-5">색상</h2><p className="ds-body-2 ds-muted">현재 검토 화면에 적용된 브랜드·중립·표면·상태 색상입니다.</p>
-      <Palette title="Brand / Action" items={brand} /><Palette title="Neutral" items={neutrals} /><Palette title="Workspace surfaces" items={surfaces} /><Palette title="Semantic" items={semantic} />
+      <Palette title="Brand / Action · #01397C 기준" items={brand} /><Palette title="Neutral" items={neutrals} /><Palette title="Workspace surfaces" items={surfaces} /><Palette title="Semantic" items={semantic} />
     </section>
     <Separator />
     <section><p className="ds-overline">02 / Typography</p><h2 className="ds-headline-5">글씨 위계</h2><p className="ds-body-2 ds-muted">영문 Open Sans · 한글 Noto Sans KR. 아래 크기는 요청한 MDC 기준과 동일합니다.</p>
@@ -78,14 +77,20 @@ function App() {
     <section><p className="ds-overline">04 / Workspace</p><h2 className="ds-headline-5">연락 업무 구성 요소</h2>
       <div className="ds-component-grid">
         <div className="ds-demo"><h3 className="ds-subtitle-2">검색 · Input Group</h3><InputGroup><InputGroupAddon><Search size={16} /></InputGroupAddon><InputGroupInput aria-label="기업 검색 예시" placeholder="기업명 또는 설명 검색" /></InputGroup></div>
-        <div className="ds-demo"><h3 className="ds-subtitle-2">입력 · Field</h3><Field><FieldLabel htmlFor="ds-recipient">관계자 이름</FieldLabel><Input id="ds-recipient" placeholder="이름" /></Field></div>
-        <div className="ds-demo"><h3 className="ds-subtitle-2">목록 필터 · Navigation Menu</h3><NavigationMenu viewport={false}><NavigationMenuList><NavigationMenuItem><NavigationMenuTrigger>내 담당</NavigationMenuTrigger><NavigationMenuContent className="min-w-32 rounded-md border bg-popover p-2 shadow"><button className="block w-full rounded px-2 py-1 text-left hover:bg-muted">내 담당</button><button className="block w-full rounded px-2 py-1 text-left hover:bg-muted">전체 담당</button></NavigationMenuContent></NavigationMenuItem></NavigationMenuList></NavigationMenu></div>
+        <div className="ds-demo"><h3 className="ds-subtitle-2">입력 · Field</h3><Field><FieldLabel htmlFor="ds-recipient" required>관계자 이름</FieldLabel><Input id="ds-recipient" aria-required="true" placeholder="이름" /></Field></div>
+        <div className="ds-demo"><h3 className="ds-subtitle-2">목록 필터 · Dropdown Menu</h3><ListFilter label="담당 필터 예시" value={ownerFilter} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={setOwnerFilter} /></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">작업 상태</h3><div className="ds-inline"><Button disabled><Spinner /> 저장 중</Button><Skeleton className="h-9 w-32" /></div></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">창 제어 · Button</h3><div className="ds-inline"><WorkspaceIconButton icon="menu" label="메뉴 열기" /><WorkspaceIconButton icon="leftClose" label="목록 닫기" /><WorkspaceIconButton icon="rightOpen" label="기업 정보 열기" /><WorkspaceIconButton icon="close" label="닫기" /></div></div>
       </div>
       <div className="ds-demo ds-resizable-demo"><h3 className="ds-subtitle-2">세 칸 크기 조절 · Resizable</h3><ResizablePanelGroup orientation="horizontal" className="h-28 rounded-md border"><ResizablePanel defaultSize="24%" minSize="17%" className="ds-panel-list grid place-items-center">목록</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="52%" minSize="34%" className="grid place-items-center">현재 작업</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="24%" minSize="18%" className="grid place-items-center">기업 정보</ResizablePanel></ResizablePanelGroup></div>
     </section>
-  </main>;
+    <Separator />
+    <LayoutDraft />
+    <Separator />
+    <PaletteDraft />
+      </div>
+    </SidebarInset>
+  </SidebarProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
