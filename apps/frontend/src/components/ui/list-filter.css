@@ -4,7 +4,7 @@
   padding: 0 8px;
   gap: 6px;
   font: 500 var(--ds-type-caption)/1.5 var(--ds-font-family);
-  color: var(--ds-brand-100);
+  color: var(--ds-text-strong);
   background: transparent;
   box-shadow: none;
 }
@@ -22,9 +22,9 @@
   padding: 4px;
   border: 0;
   background: var(--popover);
-  color: var(--ds-brand-100);
+  color: var(--ds-text-strong);
   font-family: var(--ds-font-family);
-  box-shadow: 0 4px 16px rgb(0 17 54 / 12%);
+  box-shadow: 0 4px 16px var(--ds-shadow);
 }
 .ds-list-filter-option {
   min-height: 30px;
@@ -34,4 +34,4 @@
   cursor: pointer;
 }
 .ds-list-filter-option > span { left: 4px; }
-.ds-list-filter-option[data-highlighted] { background: var(--ds-gray-100); color: var(--ds-brand-100); }
+.ds-list-filter-option[data-highlighted] { background: var(--ds-gray-100); color: var(--ds-text-strong); }

@@ -25,26 +25,12 @@ import "./preview.css";
 import { LayoutDraft } from "./layout-draft";
 import { SidebarBrand } from "@/components/ui/sidebar-brand";
 import { BrandPreview } from "./brand-preview";
+import { PaletteDraft } from "./palette-draft";
 
-const brand = [
-  ["0", "#000205"], ["100", "#001136"], ["200", "#00226B"],
-  ["300", "#00329E"], ["400", "#0042D1"], ["500", "#0554FF"],
-  ["600", "#3877FF"], ["700", "#6B9AFF"], ["800", "#9EBDFF"],
-  ["900", "#D1E0FF"],
-];
-const neutrals = [
-  ["100", "#F4F6FB"], ["200", "#E1E7F3"], ["300", "#D0D9EC"],
-  ["400", "#B8C6DE"], ["500", "#9FB2DC"], ["600", "#5F7193"],
-  ["700", "#526380"], ["800", "#32415E"], ["900", "#172641"],
-];
-const surfaces = [
-  ["목록 바탕", "#F8FAFE"], ["작업·정보", "#FFFFFF"],
-  ["선택 행", "#EEF3FF"], ["선택 선", "#C5D4F1"],
-];
-const semantic = [
-  ["Success · 진행/성공", "#7EFF38"], ["Danger · 오류/정지", "#FF3838"],
-  ["Warning · 주의/알림", "#F8FF38"], ["Info · 정보/진행 중", "#3877FF"],
-];
+const brand = ["0", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-brand-${step}`]);
+const neutrals = ["100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-gray-${step}`]);
+const surfaces = [["목록 바탕", "--ds-surface-canvas"], ["작업·정보", "--ds-surface-details"], ["선택 행", "--ds-surface-selected"], ["선택 선", "--ds-surface-selected-border"]];
+const semantic = [["Success · 진행/성공", "--ds-success"], ["Danger · 오류/정지", "--ds-danger"], ["Warning · 주의/알림", "--ds-warning"], ["Info · 정보/진행 중", "--ds-info"]];
 const type = [
   ["headline 1", "96px", "ds-headline-1"], ["headline 2", "60px", "ds-headline-2"],
   ["headline 3", "48px", "ds-headline-3"], ["headline 4", "34px", "ds-headline-4"],
@@ -56,7 +42,9 @@ const type = [
 ];
 
 function Palette({ title, items }: { title: string; items: string[][] }) {
-  return <div className="ds-palette"><h3 className="ds-subtitle-1">{title}</h3><div className="ds-swatches">{items.map(([name, color]) => <div className="ds-swatch" key={name}><div className="ds-swatch-color" style={{ background: color }} /><div className="ds-caption">{name}</div><code>{color}</code></div>)}</div></div>;
+  const [colors, setColors] = React.useState<Record<string, string>>({});
+  React.useEffect(() => { const styles = getComputedStyle(document.documentElement); setColors(Object.fromEntries(items.map(([, token]) => [token, styles.getPropertyValue(token).trim().toUpperCase()]))); }, [items]);
+  return <div className="ds-palette"><h3 className="ds-subtitle-1">{title}</h3><div className="ds-swatches">{items.map(([name, color]) => <div className="ds-swatch" key={name}><div className="ds-swatch-color" style={{ background: `var(${color})` }} /><div className="ds-caption">{name}</div><code>{colors[color]}</code></div>)}</div></div>;
 }
 
 function App() {
@@ -74,7 +62,7 @@ function App() {
       <SidebarFooter className="ds-preview-sidebar-footer"><span>Sidebar · shadcn/ui</span></SidebarFooter>
     </Sidebar>
     <SidebarInset className="ds-preview-inset">
-      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 초안</a></nav></div>
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 초안</a><a href="#palette-draft">색상 초안</a></nav></div>
       <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>
@@ -84,7 +72,7 @@ function App() {
     <BrandPreview />
     <Separator />
     <section><p className="ds-overline">01 / Color</p><h2 className="ds-headline-5">색상</h2><p className="ds-body-2 ds-muted">현재 검토 화면에 적용된 브랜드·중립·표면·상태 색상입니다.</p>
-      <Palette title="Brand / Action" items={brand} /><Palette title="Neutral" items={neutrals} /><Palette title="Workspace surfaces" items={surfaces} /><Palette title="Semantic" items={semantic} />
+      <Palette title="Brand / Action · #01397C 기준" items={brand} /><Palette title="Neutral" items={neutrals} /><Palette title="Workspace surfaces" items={surfaces} /><Palette title="Semantic" items={semantic} />
     </section>
     <Separator />
     <section><p className="ds-overline">02 / Typography</p><h2 className="ds-headline-5">글씨 위계</h2><p className="ds-body-2 ds-muted">영문 Open Sans · 한글 Noto Sans KR. 아래 크기는 요청한 MDC 기준과 동일합니다.</p>
@@ -112,6 +100,8 @@ function App() {
     </section>
     <Separator />
     <LayoutDraft />
+    <Separator />
+    <PaletteDraft />
       </div>
     </SidebarInset>
   </SidebarProvider>;

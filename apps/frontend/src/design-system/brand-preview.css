@@ -2,7 +2,7 @@
 .ds-brand-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
 .ds-brand-example { min-width: 0; }
 .ds-brand-surface { display: flex; align-items: center; justify-content: center; height: 160px; padding: 24px; background: var(--ds-surface-canvas); border-radius: var(--radius); }
-.ds-brand-surface-dark { background: var(--ds-brand-100); }
+.ds-brand-surface-dark { background: var(--ds-brand-base); }
 .ds-brand-example h3 { margin: 16px 0 8px; }
 .ds-brand-example p { font-size: var(--ds-type-body-2); line-height: 1.6; }
 .ds-brand-example code, .ds-brand-example a { display: inline-block; margin: 8px 12px 0 0; font-size: var(--ds-type-caption); color: var(--ds-gray-700); }

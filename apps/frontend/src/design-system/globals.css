@@ -8,18 +8,26 @@
 /* This stylesheet is opt-in. Import it only from screens using the new system. */
 :root {
   --ds-brand-0: #000205;
-  --ds-brand-100: #001136;
-  --ds-brand-200: #00226b;
-  --ds-brand-300: #00329e;
-  --ds-brand-400: #0042d1;
-  --ds-brand-500: #0554ff;
-  --ds-brand-600: #3877ff;
-  --ds-brand-700: #6b9aff;
-  --ds-brand-800: #9ebdff;
-  --ds-brand-900: #d1e0ff;
-  --ds-action-approval: #0042d1;
+  --ds-brand-100: #00152e;
+  --ds-brand-200: #012957;
+  --ds-brand-300: #01397c;
+  --ds-brand-400: #0155b8;
+  --ds-brand-500: #1671d9;
+  --ds-brand-600: #498fe0;
+  --ds-brand-700: #7dafe8;
+  --ds-brand-800: #b1cff1;
+  --ds-brand-900: #e5eff9;
+  /* Use role tokens in components; the numbered scale is palette data. */
+  --ds-brand-base: var(--ds-brand-300);
+  --ds-text-strong: var(--ds-brand-100);
+  --ds-action-primary: var(--ds-brand-base);
+  --ds-action-primary-hover: var(--ds-brand-200);
+  --ds-link: var(--ds-brand-400);
+  --ds-focus: var(--ds-link);
+  --ds-shadow: color-mix(in srgb, var(--ds-text-strong) 12%, transparent);
+  --ds-action-approval: var(--ds-action-primary);
   --ds-action-reject: #c52a2a;
-  --ds-logo-blue: #01397c;
+  --ds-logo-blue: var(--ds-brand-base);
 
   --ds-gray-100: #f4f6fb;
   --ds-gray-200: #e1e7f3;
@@ -63,28 +71,28 @@
   --card-foreground: var(--ds-gray-900);
   --popover: #ffffff;
   --popover-foreground: var(--ds-gray-900);
-  --primary: var(--ds-brand-100);
+  --primary: var(--ds-action-primary);
   --primary-foreground: #ffffff;
   --secondary: var(--ds-gray-100);
   --secondary-foreground: var(--ds-gray-900);
   --muted: var(--ds-gray-100);
   --muted-foreground: var(--ds-gray-700);
   --accent: var(--ds-surface-selected);
-  --accent-foreground: var(--ds-brand-100);
+  --accent-foreground: var(--ds-text-strong);
   --destructive: var(--ds-action-reject);
   --destructive-foreground: #ffffff;
   --border: var(--ds-gray-200);
   --input: var(--ds-gray-300);
-  --ring: var(--ds-brand-100);
+  --ring: var(--ds-focus);
   --radius: 0.5rem;
   --sidebar: var(--ds-gray-200);
-  --sidebar-foreground: var(--ds-brand-100);
-  --sidebar-primary: var(--ds-brand-400);
+  --sidebar-foreground: var(--ds-text-strong);
+  --sidebar-primary: var(--ds-action-primary);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--ds-surface-canvas);
-  --sidebar-accent-foreground: var(--ds-brand-100);
+  --sidebar-accent-foreground: var(--ds-text-strong);
   --sidebar-border: var(--ds-gray-300);
-  --sidebar-ring: var(--ds-brand-400);
+  --sidebar-ring: var(--ds-focus);
 }
 
 @theme inline {

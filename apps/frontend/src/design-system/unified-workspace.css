@@ -3,10 +3,10 @@
   --workspace-ink: var(--ds-gray-900);
   --workspace-sub: var(--ds-gray-700);
   --workspace-line: var(--ds-gray-200);
-  --workspace-brand: var(--ds-brand-100);
+  --workspace-brand: var(--ds-brand-base);
   --workspace-brand-soft: var(--ds-brand-900);
   --workspace-action: var(--ds-action-approval);
-  --workspace-action-hover: var(--ds-brand-300);
+  --workspace-action-hover: var(--ds-action-primary-hover);
   --workspace-danger: var(--ds-danger);
 }
 
