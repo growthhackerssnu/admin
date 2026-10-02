@@ -76,14 +76,14 @@
   --input: var(--ds-gray-300);
   --ring: var(--ds-brand-100);
   --radius: 0.5rem;
-  --sidebar: var(--ds-brand-100);
-  --sidebar-foreground: #ffffff;
+  --sidebar: var(--ds-gray-200);
+  --sidebar-foreground: var(--ds-brand-100);
   --sidebar-primary: var(--ds-brand-400);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--ds-brand-200);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: var(--ds-brand-200);
-  --sidebar-ring: var(--ds-brand-700);
+  --sidebar-accent: var(--ds-surface-canvas);
+  --sidebar-accent-foreground: var(--ds-brand-100);
+  --sidebar-border: var(--ds-gray-300);
+  --sidebar-ring: var(--ds-brand-400);
 }
 
 @theme inline {

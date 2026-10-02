@@ -14,7 +14,12 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
-import { Search } from "lucide-react";
+import {
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton,
+  SidebarMenuItem, SidebarProvider, SidebarTrigger,
+} from "@/components/ui/sidebar";
+import { Handshake, Search, UsersRound, Wallet } from "lucide-react";
 import "./globals.css";
 import "./preview.css";
 
@@ -52,7 +57,23 @@ function Palette({ title, items }: { title: string; items: string[][] }) {
 }
 
 function App() {
-  return <main className="ds-preview">
+  return <SidebarProvider className="ds-preview-layout">
+    <Sidebar collapsible="icon" aria-label="워크스페이스 탐색">
+      <SidebarHeader className="ds-preview-sidebar-header">
+        <div className="ds-preview-brand"><span className="ds-preview-mark">GH</span><span className="ds-preview-brand-name">Growth Hackers</span></div>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup><SidebarGroupLabel>워크스페이스</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
+          <SidebarMenuItem><SidebarMenuButton asChild tooltip="그핵드인"><a href="/hr"><UsersRound /><span>그핵드인</span></a></SidebarMenuButton></SidebarMenuItem>
+          <SidebarMenuItem><SidebarMenuButton asChild tooltip="NUT"><a href="/nut"><Wallet /><span>NUT</span></a></SidebarMenuButton></SidebarMenuItem>
+          <SidebarMenuItem><SidebarMenuButton asChild isActive tooltip="대협"><a href="/dh"><Handshake /><span>대협</span></a></SidebarMenuButton></SidebarMenuItem>
+        </SidebarMenu></SidebarGroupContent></SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter className="ds-preview-sidebar-footer"><span>Sidebar · shadcn/ui</span></SidebarFooter>
+    </Sidebar>
+    <SidebarInset className="ds-preview-inset">
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span></div>
+      <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>
       <Badge variant="outline">Foundation · v0</Badge>
@@ -78,14 +99,16 @@ function App() {
     <section><p className="ds-overline">04 / Workspace</p><h2 className="ds-headline-5">연락 업무 구성 요소</h2>
       <div className="ds-component-grid">
         <div className="ds-demo"><h3 className="ds-subtitle-2">검색 · Input Group</h3><InputGroup><InputGroupAddon><Search size={16} /></InputGroupAddon><InputGroupInput aria-label="기업 검색 예시" placeholder="기업명 또는 설명 검색" /></InputGroup></div>
-        <div className="ds-demo"><h3 className="ds-subtitle-2">입력 · Field</h3><Field><FieldLabel htmlFor="ds-recipient">관계자 이름</FieldLabel><Input id="ds-recipient" placeholder="이름" /></Field></div>
+        <div className="ds-demo"><h3 className="ds-subtitle-2">입력 · Field</h3><Field><FieldLabel htmlFor="ds-recipient" required>관계자 이름</FieldLabel><Input id="ds-recipient" aria-required="true" placeholder="이름" /></Field></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">목록 필터 · Navigation Menu</h3><NavigationMenu viewport={false}><NavigationMenuList><NavigationMenuItem><NavigationMenuTrigger>내 담당</NavigationMenuTrigger><NavigationMenuContent className="min-w-32 rounded-md border bg-popover p-2 shadow"><button className="block w-full rounded px-2 py-1 text-left hover:bg-muted">내 담당</button><button className="block w-full rounded px-2 py-1 text-left hover:bg-muted">전체 담당</button></NavigationMenuContent></NavigationMenuItem></NavigationMenuList></NavigationMenu></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">작업 상태</h3><div className="ds-inline"><Button disabled><Spinner /> 저장 중</Button><Skeleton className="h-9 w-32" /></div></div>
         <div className="ds-demo"><h3 className="ds-subtitle-2">창 제어 · Button</h3><div className="ds-inline"><WorkspaceIconButton icon="menu" label="메뉴 열기" /><WorkspaceIconButton icon="leftClose" label="목록 닫기" /><WorkspaceIconButton icon="rightOpen" label="기업 정보 열기" /><WorkspaceIconButton icon="close" label="닫기" /></div></div>
       </div>
       <div className="ds-demo ds-resizable-demo"><h3 className="ds-subtitle-2">세 칸 크기 조절 · Resizable</h3><ResizablePanelGroup orientation="horizontal" className="h-28 rounded-md border"><ResizablePanel defaultSize="24%" minSize="17%" className="ds-panel-list grid place-items-center">목록</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="52%" minSize="34%" className="grid place-items-center">현재 작업</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="24%" minSize="18%" className="grid place-items-center">기업 정보</ResizablePanel></ResizablePanelGroup></div>
     </section>
-  </main>;
+      </div>
+    </SidebarInset>
+  </SidebarProvider>;
 }
 
 createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);

@@ -6,6 +6,8 @@
 
 개발 서버에서 `/design-system.html`을 열면 색상, 글씨 위계, 설치한 컴포넌트를 확인할 수 있다. 이 페이지는 작업용 미리보기이며 기본 앱 경로에 연결하지 않았다.
 
+미리보기 왼쪽에는 설치된 shadcn Sidebar를 표시한다. `SidebarProvider`·`SidebarHeader`·`SidebarContent`·`SidebarMenu`·`SidebarInset`·`SidebarTrigger`를 조합하며 그핵드인·NUT·대협 링크와 대협 선택 상태를 보여준다. 상단 토글로 아이콘 접힘을 확인하고 좁은 화면에서는 Sheet로 연다. 메뉴 간격과 선택·hover 처리는 shadcn 기본 규칙과 sidebar 색상 토큰을 사용한다.
+
 ## 색상
 
 - Brand/Action 기준: `#001136` (`--ds-brand-100`, shadcn `--primary`). 이미지의 브랜드 스케일은 `--ds-brand-0`부터 `--ds-brand-900`까지 기록했다. 숫자가 커질수록 밝아진다.
@@ -13,6 +15,7 @@
 - `fit 부적합`처럼 명시적인 거절 행동은 `--ds-action-reject: #C52A2A`와 흰 글씨를 사용한다. 오류 표시용 원색 `--ds-danger`와 구분한다.
 - Neutral: 푸른 회색 계열이다. Gray 100 `#F4F6FB`는 중립적인 강조 배경, Gray 200 `#E1E7F3`은 구분선, Gray 300은 입력 선, Gray 700–900은 보조·본문 글씨에 사용한다. 기본 작업 표면은 흰색이다.
 - 검토 화면 표면: 목록 `--ds-surface-canvas: #F8FAFE`, 가운데 작업 영역과 기업 정보는 흰색, 선택 행 `--ds-surface-selected: #EEF3FF`를 사용한다. 선택 행 경계선은 `#C5D4F1`이다. 표면 색은 정보 영역을 구분하는 데 사용하고, 승인 행동은 `#0042D1`을 유지한다.
+- 사이드바: 배경은 `--sidebar: #E1E7F3`, 선택·hover 메뉴 배경은 `--sidebar-accent: #F8FAFE`, 글씨·아이콘은 `#001136`이다. 선택은 shadcn 기본 굵기로 함께 구분한다. 작업 공간과 맞닿는 세로 경계선은 두지 않으며, 데스크톱과 모바일 Sidebar 모두 공통 컴포넌트에서 제거한다.
 - Semantic 원색: success `#7EFF38`, danger `#FF3838`, warning `#F8FF38`, info `#3877FF`. 상태 의미는 화면 문맥에 따라 적용한다. 원색 위에 문자를 올릴 때는 어두운 글씨를 사용한다.
 - `--background`, `--foreground`, `--primary` 등 shadcn/ui 토큰은 위 색상에 연결했다. Primary action에는 브랜드 컬러를 쓴다.
 
@@ -41,7 +44,7 @@ shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로�
 
 | 컴포넌트 | 적용 위치와 규칙 |
 |---|---|
-| Sidebar | 그핵드인(`/hr`)·NUT(`/nut`)·대협(`/dh`)을 오가는 앱 탐색. shadcn 기본 배치를 유지하고 `#001136` 배경을 적용한다. 좁은 화면에서는 Sheet로 열린다. |
+| Sidebar | 그핵드인(`/hr`)·NUT(`/nut`)·대협(`/dh`)을 오가는 앱 탐색. shadcn 기본 배치를 유지하며 `#E1E7F3` 배경, `#F8FAFE` 선택 메뉴, `#001136` 글씨·아이콘을 사용한다. 좁은 화면에서는 Sheet로 열린다. |
 | Navigation Menu | 기업 목록의 담당·상태 선택 메뉴. 값 선택 후 닫히도록 제어한다. |
 | Input Group | 돋보기로 여는 기업명·설명 검색. |
 | Field | 관계자 입력, 판단 메모, 메시지 제목·본문, 목표 분기. 라벨을 입력과 연결한다. |
