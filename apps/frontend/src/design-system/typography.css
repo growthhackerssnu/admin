@@ -1,0 +1,31 @@
+/* Sizes are fixed by the supplied MDC scale. Line heights and weights are initial UI defaults. */
+.ds-headline-1,
+.ds-headline-2,
+.ds-headline-3,
+.ds-headline-4,
+.ds-headline-5,
+.ds-headline-6,
+.ds-body-1,
+.ds-body-2,
+.ds-subtitle-1,
+.ds-subtitle-2,
+.ds-button-text,
+.ds-overline,
+.ds-caption {
+  font-family: var(--ds-font-family);
+  margin: 0;
+}
+
+.ds-headline-1 { font-size: var(--ds-type-headline-1); line-height: 1.08; font-weight: 400; }
+.ds-headline-2 { font-size: var(--ds-type-headline-2); line-height: 1.12; font-weight: 400; }
+.ds-headline-3 { font-size: var(--ds-type-headline-3); line-height: 1.16; font-weight: 400; }
+.ds-headline-4 { font-size: var(--ds-type-headline-4); line-height: 1.2; font-weight: 400; }
+.ds-headline-5 { font-size: var(--ds-type-headline-5); line-height: 1.25; font-weight: 500; }
+.ds-headline-6 { font-size: var(--ds-type-headline-6); line-height: 1.3; font-weight: 500; }
+.ds-body-1 { font-size: var(--ds-type-body-1); line-height: 1.5; font-weight: 400; }
+.ds-body-2 { font-size: var(--ds-type-body-2); line-height: 1.5; font-weight: 400; }
+.ds-subtitle-1 { font-size: var(--ds-type-subtitle-1); line-height: 1.4; font-weight: 500; }
+.ds-subtitle-2 { font-size: var(--ds-type-subtitle-2); line-height: 1.4; font-weight: 500; }
+.ds-button-text { font-size: var(--ds-type-button); line-height: 1.25; font-weight: 600; }
+.ds-overline { font-size: var(--ds-type-overline); line-height: 1.4; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.ds-caption { font-size: var(--ds-type-caption); line-height: 1.4; font-weight: 400; }
