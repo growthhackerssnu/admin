@@ -5,8 +5,8 @@
 .uw-shell :is(h1, h2, h3, strong, [data-slot="field-label"]) { color: var(--ds-brand-100); }
 .uw-rail [data-slot="sidebar-header"] { min-height: 66px; justify-content: center; padding: 8px; border-bottom: 1px solid var(--sidebar-border); }
 .uw-brand { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 4px; }
-.uw-mark { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 6px; background: #fff; color: var(--ds-brand-100); font-weight: 700; font-size: 12px; }
-.uw-brand-name { overflow: hidden; color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; }
+.uw-mark { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 6px; background: var(--sidebar-foreground); color: var(--sidebar); font-weight: 700; font-size: 12px; }
+.uw-brand-name { overflow: hidden; color: var(--sidebar-foreground); font-size: 14px; font-weight: 600; white-space: nowrap; }
 .uw-rail [data-collapsible="icon"] .uw-brand-name { display: none; }
 .uw-rail [data-slot="sidebar-menu-button"] { color: var(--sidebar-foreground); }
 .uw-rail [data-slot="sidebar-menu-button"]:is(:hover, :focus-visible, [data-active="true"]) { color: var(--sidebar-accent-foreground); }
