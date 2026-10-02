@@ -18,6 +18,7 @@ export async function withIdempotency<T>(
   route: string,
   payload: unknown,
   handler: (tx: Prisma.TransactionClient) => Promise<{ status: number; body: T }>,
+  transactionOptions?: { maxWait?: number; timeout?: number },
 ): Promise<{ status: number; body: T }> {
   const replay = await readIdempotentResult<T>(req, member, route, payload);
   if (replay) return replay;
@@ -38,7 +39,7 @@ export async function withIdempotency<T>(
         },
       });
       return result;
-    });
+    }, transactionOptions);
   } catch (error) {
     // Two identical requests can both pass the first lookup. If the other
     // transaction committed, return its recorded response instead of a 500.
