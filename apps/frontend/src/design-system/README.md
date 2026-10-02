@@ -145,6 +145,17 @@ shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로�
 
 구현은 `src/dh/listup/review/UnifiedReviewPanel.tsx`와 `unified-review.css`에 있다. `/dh`는 인증된 앱의 React 검토 화면이며 기본 경로는 `LiveReviewWorkspace`를 통해 실데이터 repository를 사용하며, `reviewPreview=1`은 샘플 자료만 사용한다. 기존 `/dh/listup` 주소는 `/dh`로 이동한다. `/review-workspace-dev.html?view=review`는 로그인 없이 같은 React 코드를 검사하는 로컬 개발 진입점이다. 정적 HTML 시안은 별도로 남아 있다. 이번 변경은 기존 repository 호출과 업무 명령을 유지한다.
 
-이 단계에서는 기존 화면의 정보 구조나 업무 정책을 변경하지 않는다. 간격, 버튼 크기, 세부 컴포넌트 스타일은 실제 검토 화면을 적용하면서 고정한다.
+### 운영 React 적용과 검수
+
+검토·기존 기업 상세·메시지·배정 화면이 공통 색상, 폰트, Button, Field, Select, 상태 Badge와 레이아웃 토큰을 사용한다. 기존 화면 구조, 라우팅, repository 호출과 업무 명령은 유지한다. `workspace.css`는 공통 shell의 전역 main·form 규칙과 충돌하는 부분을 화면 범위에서 정리한다. 개발 진입점도 운영의 Ant reset과 ui-shell CSS를 불러와 같은 조건으로 검사한다.
+
+| 검사 | 결과와 근거 |
+|---|---|
+| 기능 검사 | TypeScript 검사, 기존 검토 업무 테스트 11개, 운영 Vite 빌드 통과. |
+| 색상·폰트 | 1280×900에서 지정한 Open Sans/Noto Sans KR, 브랜드 승인 버튼과 흰 글씨, 사이드바 선택 배경 확인. |
+| 정렬·반응형 | 66px 공통 헤더, 390×844 입력 한 열 배치와 가변 너비 확인. 모바일 목록·기업 정보 전환 시 미저장 판단 메모 보존 확인. |
+| 실데이터 쓰기 | 이번 디자인 검수에서는 실행하지 않음. 기존 저장·승인 명령을 변경하지 않음. |
+
+각 화면의 배치 CSS는 정보 순서와 위치를 관리하고, 공통 컴포넌트의 variant와 토큰은 모양을 관리한다. 검수용 자료는 기존 preview repository이며 새 시안이나 업무 정책을 추가하지 않는다.
 
 `public/human-review-unified-workspace.html`은 이 토큰과 `unified-workspace.css`를 불러오는 정적 시안이다. 뉴트럴 표면을 중심으로 브랜드 컬러를 탐색·선택 상태에 쓰고, 승인 행동에 `--ds-action-approval`을 쓴다. 해당 HTML은 Vite 개발 서버에서 확인한다.

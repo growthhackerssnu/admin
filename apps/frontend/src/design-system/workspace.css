@@ -1,5 +1,5 @@
 /* Shared workspace rules. Page CSS owns arrangement, not a second token set. */
-.ds-workspace { --sidebar-width-icon: 3.25rem; color: var(--foreground); background: var(--ds-surface-canvas); font: var(--ds-type-body-2)/1.5 var(--ds-font-family); font-synthesis: none; }
+.ds-workspace { --sidebar-width-icon: 3.25rem; --radius: 0.5rem; color: var(--foreground); background: var(--ds-surface-canvas); font: var(--ds-type-body-2)/1.5 var(--ds-font-family); font-synthesis: none; }
 .ds-workspace :where(main) { width: 100%; max-width: none; margin: 0; padding: 0; }
 .ds-workspace * { box-sizing: border-box; }
 .ds-workspace :is(h1,h2,h3,h4,strong,[data-slot="field-label"]) { color: var(--ds-text-strong); }
