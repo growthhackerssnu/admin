@@ -293,7 +293,11 @@ export class LiveHistoryRepository implements HistoryRepository {
 
   async load(query: HistoryQuery = this.query): Promise<HistoryData> {
     const sequence = ++this.readSequence;
-    await this.bootstrap();
+    // The list doesn't need members/quarters to be requested, only to be shown, so don't make
+    // the first load wait for them. Only the quarter filter needs them up front.
+    const ready = this.bootstrap();
+    ready.catch(() => undefined);
+    if (query.filters.quarter !== "all") await ready;
     if (sequence === this.readSequence) this.query = query;
     const f = query.filters;
     const params = new URLSearchParams({ limit: "15" });
@@ -330,6 +334,7 @@ export class LiveHistoryRepository implements HistoryRepository {
       this.api.request<(ContactRow | CollaborationRow)[]>(
         `/${query.kind}?${params}`,
       ),
+      ready,
     ]);
     const companies = rows.data.map((row) => {
       const c = emptyCompany(row.company);
@@ -409,7 +414,7 @@ export class LiveHistoryRepository implements HistoryRepository {
     return request;
   }
   /** Warm the cache for rows the user is likely to open. A newer call replaces the older queue; errors are left to the click. */
-  async prefetchCompanies(companyIds: string[], maxAge: number, concurrency = 2) {
+  async prefetchCompanies(companyIds: string[], maxAge: number, concurrency = 4) {
     const run = ++this.prefetchRun;
     const queue = [...companyIds];
     await Promise.all(

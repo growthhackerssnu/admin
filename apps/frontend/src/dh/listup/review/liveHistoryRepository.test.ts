@@ -596,6 +596,20 @@ describe("company detail loading", () => {
     expect(r.getCompany(company.id)?.research).toBe("새 조사");
   });
 
+  it("requests the list without waiting for members and quarters", async () => {
+    const base = request.getMockImplementation()!;
+    let release!: () => void;
+    const open = new Promise<void>((resolve) => (release = resolve));
+    request.mockImplementation(async (path: string, ...rest: unknown[]) => {
+      if (new URL(path, "https://x.test").pathname === "/members") await open;
+      return (base as (...args: unknown[]) => unknown)(path, ...rest);
+    });
+    const loading = repo().load(query());
+    await vi.waitFor(() => expect(paths()).toContain("/contact-history"));
+    release();
+    expect((await loading).companies).toHaveLength(1);
+  });
+
   it("prefetches each company once, and a newer prefetch drops the old queue", async () => {
     const r = repo();
     await r.load(query());
