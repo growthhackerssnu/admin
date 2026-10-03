@@ -4,11 +4,12 @@ import { requireReviewOwner } from "@/dh/lib/humanReview/access";
 import { getHumanOutreachDetail } from "@/dh/lib/humanReview/outreach";
 import { withIdempotency } from "@/dh/lib/idempotency";
 import { ApiError } from "@/dh/lib/errors";
+import { requireExpectedRound } from "@/dh/lib/rounds";
 import { prisma } from "@/lib/prisma";
 
 const createInput = z.object({
   expectedRevision: z.number().int().positive(),
-  targetQuarterId: z.string().min(1),
+  expectedRoundId: z.string().min(1),
 }).strict();
 
 export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { member, params }) => {
@@ -36,11 +37,11 @@ export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { 
       candidate.selectedEndpoint.companyId !== candidate.companyId ||
       candidate.selectedEndpoint.contactId !== candidate.selectedContact.id
     ) throw new ApiError("STATE_CONFLICT", "사람 승인과 유효 관계자가 필요합니다.");
-    const [quarter, existing] = await Promise.all([
-      tx.targetQuarter.findUnique({ where: { id: input.targetQuarterId } }),
-      tx.outreach.findUnique({ where: { companyId: candidate.companyId }, select: { id: true } }),
-    ]);
-    if (!quarter) throw new ApiError("VALIDATION_ERROR", "목표 분기를 찾지 못했습니다.");
+    const round = await requireExpectedRound(tx, input.expectedRoundId);
+    const existing = await tx.outreach.findFirst({
+      where: { companyId: candidate.companyId, acquisitionRoundId: round.id },
+      select: { id: true },
+    });
     if (existing) throw new ApiError("OUTREACH_EXISTS", "이 기업의 메시지 업무가 이미 있습니다.", {
       details: { outreachId: existing.id },
     });
@@ -49,7 +50,8 @@ export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { 
         companyId: candidate.companyId,
         candidateId: candidate.id,
         ownerId: member.id,
-        currentTargetQuarterId: quarter.id,
+        acquisitionRoundId: round.id,
+        currentTargetQuarterId: round.targetQuarterId,
         recipientContactId: candidate.selectedContact.id,
         recipientEndpointId: candidate.selectedEndpoint.id,
         selectedChannel: candidate.selectedEndpoint.channel,
@@ -60,6 +62,6 @@ export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { 
         sendStatus: "before_send",
       },
     });
-    return { status: 201, body: { data: await getHumanOutreachDetail(tx, outreach.id) } };
+    return { status: 201, body: { data: await getHumanOutreachDetail(tx, outreach.id, member) } };
   });
 });

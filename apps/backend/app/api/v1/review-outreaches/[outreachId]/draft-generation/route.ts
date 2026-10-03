@@ -3,6 +3,8 @@ import { withListupApiHandler } from "@/dh/lib/listup/apiHandler";
 import { requireReviewOwner } from "@/dh/lib/humanReview/access";
 import { getHumanOutreachDetail } from "@/dh/lib/humanReview/outreach";
 import { readIdempotentResult, withIdempotency } from "@/dh/lib/idempotency";
+import { generateRecontactDraft } from "@/dh/lib/humanReview/recontactGeneration";
+import { assertRoundOpen } from "@/dh/lib/rounds";
 import { ApiError } from "@/dh/lib/errors";
 import {
   collaborationExamples,
@@ -48,6 +50,7 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
     include: {
       company: { select: { id: true, name: true, product: true, domain: true, version: true } },
       currentTargetQuarter: { select: { id: true, year: true, quarter: true } },
+      acquisitionRound: { select: { endedAt: true } },
       recipientContact: { select: { id: true, name: true, title: true } },
       recipientEndpoint: { select: { id: true, channel: true, ownerType: true, address: true } },
       candidate: {
@@ -67,6 +70,11 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
     throw new ApiError("VERSION_CONFLICT", "메시지 업무가 변경됐습니다. 다시 조회하세요.");
   if (outreach.sendStatus !== "before_send" || outreach.sentMessages.length)
     throw new ApiError("STATE_CONFLICT", "이미 발송된 기업의 초안은 다시 만들 수 없습니다.");
+  assertRoundOpen(outreach);
+  if (!outreach.candidateId)
+    return generateRecontactDraft({
+      req, member, route, outreachId: outreach.id, expectedVersion: input.expectedVersion,
+    });
   const candidate = outreach.candidate;
   if (
     !candidate || candidate.reviewStatus !== "approved" ||
@@ -160,6 +168,7 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
     if (
       current.version !== input.expectedVersion || current.sendStatus !== "before_send" ||
       current.sentMessages.length || current.companyId !== outreach.companyId ||
+      current.acquisitionRoundId !== outreach.acquisitionRoundId ||
       current.candidate?.currentResearchId !== researchId ||
       current.candidate?.activeReviewDecisionId !== reviewDecisionId ||
       current.candidate?.reviewStatus !== "approved" ||
@@ -196,6 +205,6 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
         contactPurposeSnapshot: current.contactPurpose,
       },
     });
-    return { status: 201, body: { data: await getHumanOutreachDetail(tx, current.id) } };
+    return { status: 201, body: { data: await getHumanOutreachDetail(tx, current.id, member) } };
   });
 });

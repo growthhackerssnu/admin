@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import type { ApiError } from "./errors";
 import {
   DEFAULT_LIMIT,
   MAX_LIMIT,
   buildPage,
   decodeCursor,
+  decodeSortCursor,
   encodeCursor,
+  encodeSortCursor,
   parseCursor,
   parseLimit,
 } from "./pagination";
@@ -59,5 +62,19 @@ describe("buildPage", () => {
   it("딱 맞거나 모자라면 커서가 null이다 — 다음 페이지 없음을 뜻한다", () => {
     expect(buildPage(rows(3), 3).nextCursor).toBeNull();
     expect(buildPage(rows(0), 3).nextCursor).toBeNull();
+  });
+});
+
+describe("정렬 커서", () => {
+  const schema = z.object({ k: z.string(), id: z.string() });
+
+  it("정렬값과 id를 담아 그대로 되돌린다", () => {
+    const cursor = encodeSortCursor({ k: "2026-10-03T00:00:00.000Z", id: "c1" });
+    expect(decodeSortCursor(cursor, schema)).toEqual({ k: "2026-10-03T00:00:00.000Z", id: "c1" });
+  });
+
+  it("서버가 발급하지 않은 값은 422로 거절한다", () => {
+    expect(codeOf(() => decodeSortCursor("!!not-base64!!", schema))).toBe("VALIDATION_ERROR");
+    expect(codeOf(() => decodeSortCursor(encodeSortCursor({ k: 1 }), schema))).toBe("VALIDATION_ERROR");
   });
 });

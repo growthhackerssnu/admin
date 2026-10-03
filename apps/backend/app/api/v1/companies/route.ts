@@ -34,7 +34,7 @@ export const GET = withApiHandler(async (req) => {
   };
 
   const where: Prisma.OutreachWhereInput = {
-    ...(quarterId ? { quarterId } : {}),
+    ...(quarterId ? { currentTargetQuarterId: quarterId } : {}),
     ...(route ? { route } : {}),
     ...(stage ? { workStage: stage } : laneStages[lane] ? { workStage: { in: laneStages[lane] } } : {}),
     ...(ownerId ? { ownerId } : {}),

@@ -4,6 +4,7 @@ import { requireReviewOwner } from "@/dh/lib/humanReview/access";
 import { getReviewCandidateDetail } from "@/dh/lib/humanReview/detail";
 import { withIdempotency } from "@/dh/lib/idempotency";
 import { ApiError } from "@/dh/lib/errors";
+import { upsertRecipient, validAddress } from "@/dh/lib/humanReview/recipientUpsert";
 import { prisma } from "@/lib/prisma";
 
 const recipientInput = z.object({
@@ -14,18 +15,6 @@ const recipientInput = z.object({
   channel: z.enum(["linkedin", "email"]),
   address: z.string().trim().min(1).max(1000),
 }).strict();
-
-function validAddress(channel: "linkedin" | "email", address: string) {
-  if (channel === "email") return z.string().email().safeParse(address).success;
-  try {
-    const url = new URL(address);
-    return url.protocol === "https:" &&
-      (url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com")) &&
-      /^\/in\/[^/]+/.test(url.pathname);
-  } catch {
-    return false;
-  }
-}
 
 export const PUT = withListupApiHandler<{ candidateId: string }>(async (req, { member, params }) => {
   const parsed = recipientInput.safeParse(await req.json());
@@ -59,59 +48,10 @@ export const PUT = withListupApiHandler<{ candidateId: string }>(async (req, { m
     if (!changed.count)
       throw new ApiError("REVISION_CONFLICT", "후보 상태가 바뀌었습니다. 새로고침 후 다시 입력하세요.");
 
-    const address = input.channel === "email" ? input.address.toLowerCase() : input.address;
-    let endpoint = await tx.contactEndpoint.findUnique({
-      where: { companyId_channel_address: { companyId: candidate.companyId, channel: input.channel, address } },
-      include: { contact: true },
-    });
-    let contactId: string;
-    if (input.contactId) {
-      if (endpoint?.contactId && endpoint.contactId !== input.contactId)
-        throw new ApiError("STATE_CONFLICT", "같은 연락 주소가 다른 관계자에게 연결되어 있습니다.");
-      const changedContact = await tx.contact.updateMany({
-        where: { id: input.contactId, companyId: candidate.companyId },
-        data: { name: input.name, title: input.title ?? null },
-      });
-      if (!changedContact.count)
-        throw new ApiError("STATE_CONFLICT", "수정할 관계자를 찾지 못했습니다. 다시 불러온 뒤 수정하세요.");
-      contactId = input.contactId;
-    } else if (endpoint?.contact) {
-      if (endpoint.contact.name !== input.name || (endpoint.contact.title ?? "") !== (input.title ?? ""))
-        throw new ApiError("STATE_CONFLICT", "같은 연락 주소가 다른 관계자 정보에 연결되어 있습니다.");
-      contactId = endpoint.contact.id;
-    } else {
-      const contact = await tx.contact.create({
-        data: { companyId: candidate.companyId, name: input.name, title: input.title ?? null },
-      });
-      contactId = contact.id;
-    }
-    if (!endpoint) {
-      endpoint = await tx.contactEndpoint.create({
-        data: {
-          companyId: candidate.companyId,
-          contactId,
-          channel: input.channel,
-          address,
-          ownerType: "person",
-          discoveryMethod: "user_provided",
-          ownershipStatus: "supported",
-          validationStatus: "valid_format",
-          reachabilityStatus: "unknown",
-          linkedinMethods: [],
-          checkedAt: new Date(),
-        },
-        include: { contact: true },
-      });
-    } else if (!endpoint.contactId) {
-      endpoint = await tx.contactEndpoint.update({
-        where: { id: endpoint.id },
-        data: { contactId },
-        include: { contact: true },
-      });
-    }
+    const { contactId, endpointId } = await upsertRecipient(tx, candidate.companyId, input);
     await tx.candidate.update({
       where: { id: params.candidateId },
-      data: { selectedContactId: contactId, selectedEndpointId: endpoint.id },
+      data: { selectedContactId: contactId, selectedEndpointId: endpointId },
     });
     return {
       status: 200,
