@@ -1,19 +1,19 @@
+import { AppButton as Button } from "@/components/ui/app-button";
+import { AppTag as Tag } from "@/components/ui/app-tag";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
-  Button,
   Descriptions,
   Form,
   Input,
   Select,
   Skeleton,
   Space,
-  Tag,
   Typography,
 } from "antd";
-import { SidePane } from "@dhbot/ui-shell";
+import { AppShell } from "@/components/ui/app-shell";
 import { LoadingScreen } from "../../lib/LoadingScreen";
 import { PersonAvatar } from "../components/PersonAvatar";
 import { gmailWebUrl, openMailAppIfPossible } from "../lib/mailCompose";
@@ -71,12 +71,18 @@ export function ProfileDetail() {
         setMe(meResult);
         setPerson(personResult);
       } catch (e) {
-        setError(e instanceof ApiClientError ? e.message : "프로필을 불러오지 못했습니다.");
+        setError(
+          e instanceof ApiClientError
+            ? e.message
+            : "프로필을 불러오지 못했습니다.",
+        );
       }
     })();
   }, [session, notionPageId]);
 
-  const isOwnProfile = Boolean(me && person && me.notionPageId === person.notionPageId);
+  const isOwnProfile = Boolean(
+    me && person && me.notionPageId === person.notionPageId,
+  );
 
   async function enterEditMode() {
     if (!session || !person) return;
@@ -90,7 +96,11 @@ export function ProfileDetail() {
       form.setFieldsValue(buildInitialFormValues(person, pending));
       setMode("edit");
     } catch (e) {
-      message.error(e instanceof ApiClientError ? e.message : "수정 폼을 여는 데 실패했습니다.");
+      message.error(
+        e instanceof ApiClientError
+          ? e.message
+          : "수정 폼을 여는 데 실패했습니다.",
+      );
     }
   }
 
@@ -102,7 +112,9 @@ export function ProfileDetail() {
       message.success("수정 요청을 제출했습니다. 관리자 승인 후 반영됩니다.");
       setMode("view");
     } catch (e) {
-      message.error(e instanceof ApiClientError ? e.message : "제출에 실패했습니다.");
+      message.error(
+        e instanceof ApiClientError ? e.message : "제출에 실패했습니다.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -129,8 +141,7 @@ export function ProfileDetail() {
   }
 
   return (
-    <div className="app-shell">
-      <SidePane role={me.role} current="hr" />
+    <AppShell role={me.role} current="hr">
       <main>
         <div className="row section-gap">
           <Link to="/hr">← 디렉토리로</Link>
@@ -144,13 +155,21 @@ export function ProfileDetail() {
               {person.name}
             </Typography.Title>
             <Typography.Text type="secondary">
-              {person.cohort}기{person.currentCareerOneLine ? ` · ${person.currentCareerOneLine}` : ""}
+              {person.cohort}기
+              {person.currentCareerOneLine
+                ? ` · ${person.currentCareerOneLine}`
+                : ""}
             </Typography.Text>
           </div>
         </div>
 
         {mode === "view" ? (
-          <ProfileView person={person} isOwnProfile={isOwnProfile} onEdit={enterEditMode} phone={phone} />
+          <ProfileView
+            person={person}
+            isOwnProfile={isOwnProfile}
+            onEdit={enterEditMode}
+            phone={phone}
+          />
         ) : (
           <ProfileEditForm
             form={form}
@@ -161,7 +180,7 @@ export function ProfileDetail() {
           />
         )}
       </main>
-    </div>
+    </AppShell>
   );
 }
 
@@ -186,11 +205,17 @@ function ProfileView({
         className="section-gap"
         layout={phone ? "vertical" : "horizontal"}
       >
-        <Descriptions.Item label="학과">{person.department.join(", ") || "-"}</Descriptions.Item>
-        <Descriptions.Item label="직무 계열">{person.jobField.join(", ") || "-"}</Descriptions.Item>
+        <Descriptions.Item label="학과">
+          {person.department.join(", ") || "-"}
+        </Descriptions.Item>
+        <Descriptions.Item label="직무 계열">
+          {person.jobField.join(", ") || "-"}
+        </Descriptions.Item>
         {/* 직책은 읽기 전용 참고 정보(§12.3, 2026-09-28 결정) — 권한 판단엔 안 쓰지만
             화면에 보여주는 건 별개다. 값 없는 일반 회원은 항목 자체를 숨긴다. */}
-        {person.position && <Descriptions.Item label="직책">{person.position}</Descriptions.Item>}
+        {person.position && (
+          <Descriptions.Item label="직책">{person.position}</Descriptions.Item>
+        )}
         <Descriptions.Item label="LinkedIn">
           {person.linkedin ? (
             <a href={person.linkedin} target="_blank" rel="noreferrer">
@@ -211,7 +236,8 @@ function ProfileView({
                 target="_blank"
                 rel="noreferrer"
                 onClick={(e) => {
-                  if (person.email && openMailAppIfPossible(person.email)) e.preventDefault();
+                  if (person.email && openMailAppIfPossible(person.email))
+                    e.preventDefault();
                 }}
               >
                 <Button size="small">메일 보내기</Button>
@@ -261,7 +287,12 @@ function ProfileEditForm({
   if (!fieldOptions) return <Skeleton active paragraph={{ rows: 6 }} />;
 
   return (
-    <Form form={form} layout="vertical" onFinish={onSubmit} className="section-gap">
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={onSubmit}
+      className="section-gap"
+    >
       <Form.Item name="email" label="이메일">
         <Input />
       </Form.Item>
@@ -271,8 +302,17 @@ function ProfileEditForm({
       <Form.Item name="currentCareerOneLine" label="현재 커리어">
         <Input />
       </Form.Item>
-      <Form.Item name="cohort" label="기수" rules={[{ required: true, message: "기수를 선택하세요." }]}>
-        <Select options={fieldOptions.cohort.map((c) => ({ value: c, label: `${c}기` }))} />
+      <Form.Item
+        name="cohort"
+        label="기수"
+        rules={[{ required: true, message: "기수를 선택하세요." }]}
+      >
+        <Select
+          options={fieldOptions.cohort.map((c) => ({
+            value: c,
+            label: `${c}기`,
+          }))}
+        />
       </Form.Item>
       {/* 직무 계열·학과는 목록에 없는 값을 직접 입력해서 추가할 수 있다(mode="tags").
           쉼표는 Notion 옵션 이름에 쓸 수 없어서 구분자로 처리한다. 새 값은 관리자
@@ -300,7 +340,10 @@ function ProfileEditForm({
         />
       </Form.Item>
       <Form.Item name="team" label="소속팀">
-        <Select mode="multiple" options={fieldOptions.team.map((v) => ({ value: v, label: v }))} />
+        <Select
+          mode="multiple"
+          options={fieldOptions.team.map((v) => ({ value: v, label: v }))}
+        />
       </Form.Item>
       <Form.Item name="careersText" label="Careers">
         <Input.TextArea rows={4} placeholder="- 회사 | 직무 | 기간" />
@@ -326,7 +369,10 @@ function ProfileEditForm({
 // 원본 값 위에 "본인의 대기 중인 diff"가 있으면 그 after 값으로 덮어써서
 // 프리필한다(직전 초안을 이어서 고치는 형태, §12.3). diff의 key는 서버가
 // 쓰는 것과 반드시 같아야 한다(apps/backend/src/hr/lib/editRequests.ts 참고).
-function buildInitialFormValues(person: PersonDetail, pending: EditRequest | null): EditRequestFormValues {
+function buildInitialFormValues(
+  person: PersonDetail,
+  pending: EditRequest | null,
+): EditRequestFormValues {
   const base: EditRequestFormValues = {
     email: person.email,
     linkedin: person.linkedin,
@@ -345,17 +391,27 @@ function buildInitialFormValues(person: PersonDetail, pending: EditRequest | nul
   const fts = pending.diff.freeTextSections;
   return {
     email: sf["이메일"] ? (sf["이메일"].after as string | null) : base.email,
-    linkedin: sf["LinkedIn"] ? (sf["LinkedIn"].after as string | null) : base.linkedin,
+    linkedin: sf["LinkedIn"]
+      ? (sf["LinkedIn"].after as string | null)
+      : base.linkedin,
     currentCareerOneLine: sf["현재 커리어"]
       ? (sf["현재 커리어"].after as string | null)
       : base.currentCareerOneLine,
     cohort: sf["기수"] ? (sf["기수"].after as number) : base.cohort,
     // 직무 계열이 단일 값이던 시절 제출된 대기 요청(문자열/null)도 배열로 맞춘다.
-    jobField: sf["직무 계열"] ? toStringArray(sf["직무 계열"].after) : base.jobField,
+    jobField: sf["직무 계열"]
+      ? toStringArray(sf["직무 계열"].after)
+      : base.jobField,
     department: sf["학과"] ? (sf["학과"].after as string[]) : base.department,
     team: sf["소속팀"] ? (sf["소속팀"].after as string[]) : base.team,
-    careersText: fts["careers"] ? (fts["careers"].after as string) : base.careersText,
-    activitiesText: fts["activities"] ? (fts["activities"].after as string) : base.activitiesText,
-    projectsText: fts["projects"] ? (fts["projects"].after as string) : base.projectsText,
+    careersText: fts["careers"]
+      ? (fts["careers"].after as string)
+      : base.careersText,
+    activitiesText: fts["activities"]
+      ? (fts["activities"].after as string)
+      : base.activitiesText,
+    projectsText: fts["projects"]
+      ? (fts["projects"].after as string)
+      : base.projectsText,
   };
 }

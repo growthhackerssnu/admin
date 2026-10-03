@@ -1,0 +1,144 @@
+/* Restore the agreed unified message surface; no message card below review. */
+.uw-composer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.uw-message-scroll {
+  padding: var(--layout-section-gap) var(--layout-inset);
+}
+.uw-message-content {
+  width: 100%;
+  min-width: 0;
+}
+.uw-message-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: var(--layout-group-gap);
+  align-items: start;
+  padding-bottom: var(--layout-group-gap);
+  border-bottom: 1px solid var(--border);
+}
+.uw-message-recipient {
+  min-width: 0;
+}
+.uw-message-recipient .uw-section-heading h2,
+.uw-message-recipient > h2 {
+  font-size: var(--ds-type-caption);
+  color: var(--ds-gray-700);
+  font-weight: 500;
+  margin: 0 0 var(--layout-label-gap);
+}
+.uw-message-recipient .uw-contact-summary {
+  padding: 0;
+  gap: var(--layout-label-gap);
+  flex-direction: column;
+}
+.uw-message-recipient .uw-contact-summary > div:first-child {
+  gap: var(--ds-space-1);
+}
+.uw-message-recipient .uw-contact-summary strong {
+  font-size: var(--ds-type-body-1);
+}
+.uw-message-recipient .uw-contact-actions {
+  justify-content: flex-start;
+}
+.uw-message-recipient .uw-contact-options {
+  padding-top: 0;
+  margin-bottom: var(--layout-label-gap);
+}
+.uw-message-quarter {
+  min-width: 0;
+}
+.uw-message-quarter > button {
+  padding-left: 0;
+  margin-top: var(--ds-space-1);
+  height: auto;
+}
+.uw-message-quarter-fields {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(90px, 1fr) auto;
+  gap: var(--layout-control-gap);
+  align-items: end;
+  margin-top: var(--layout-group-gap);
+}
+.uw-message-period,
+.uw-message-notice,
+.uw-message-sent-meta {
+  margin: var(--layout-field-gap) 0 0;
+  font-size: var(--ds-type-caption);
+  color: var(--ds-gray-700);
+}
+.uw-message-sent-meta {
+  margin-top: 0;
+}
+.uw-message-warning {
+  margin: var(--layout-field-gap) 0 0;
+  color: var(--ds-text-strong);
+  font-size: var(--ds-type-caption);
+  border-left: 2px solid var(--ds-warning-foreground);
+  padding-left: var(--layout-label-gap);
+}
+.uw-message-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-group-gap);
+  margin-top: var(--layout-group-gap);
+}
+.uw-message-fields input {
+  font-size: var(--ds-type-body-1);
+  font-weight: 600;
+}
+.uw-message-fields textarea {
+  width: 100%;
+  min-height: 470px;
+  resize: vertical;
+  line-height: 1.75;
+}
+.uw-message-fields :is(input, textarea):read-only {
+  border-color: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+}
+.uw-message-empty {
+  min-height: 250px;
+  border: 0;
+  border-radius: 0;
+}
+.uw-message-empty [data-slot="empty-title"] {
+  color: var(--ds-gray-700);
+  font-size: var(--ds-type-body-2);
+  font-weight: 400;
+}
+.uw-message-footer {
+  flex-shrink: 0;
+  gap: var(--layout-label-gap);
+}
+.uw-message-reopen {
+  margin-right: auto;
+}
+.uw-message-history {
+  margin-top: var(--layout-group-gap);
+  font-size: var(--ds-type-caption);
+}
+.uw-message-history summary {
+  cursor: pointer;
+}
+@container (max-width: 420px) {
+  .uw-message-toolbar {
+    grid-template-columns: 1fr;
+    gap: var(--layout-field-gap);
+  }
+  .uw-message-quarter {
+    max-width: 240px;
+  }
+  .uw-message-quarter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .uw-message-quarter-fields > button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}

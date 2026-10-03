@@ -212,8 +212,8 @@ function Sidebar({
           onPointerLeave={onPointerLeave}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>워크스페이스 메뉴</SheetTitle>
+            <SheetDescription>이동할 워크스페이스를 선택하세요.</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

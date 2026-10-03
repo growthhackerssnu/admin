@@ -37,14 +37,14 @@
 .facet-options {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ds-space-1);
 }
 
 /* 검색창 + (모바일) 필터 버튼 한 줄 */
 .directory-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--ds-space-2);
   margin-bottom: var(--space-lg);
 }
 .directory-toolbar .directory-search {
@@ -56,7 +56,7 @@
 .person-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
-  gap: 16px;
+  gap: var(--ds-space-4);
 }
 
 /* 태블릿 이하: 왼쪽 레일 없이 한 열 레이아웃 */
@@ -72,9 +72,9 @@
 
 .filter-drawer-footer {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-2);
 }
-.filter-drawer-footer .ant-btn {
+.filter-drawer-footer :is(.ant-btn, .ds-compat-button) {
   flex: 1;
 }
 
@@ -102,17 +102,17 @@
 }
 
 .person-card-name {
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .person-card-meta {
-  font-size: 12px;
+  font-size: var(--ds-type-caption);
   color: var(--color-muted);
-  margin-top: 2px;
+  margin-top: var(--ds-space-1);
 }
 
 .person-card-career {
-  font-size: 12px;
+  font-size: var(--ds-type-caption);
   color: var(--color-muted);
   margin-top: var(--space-xs);
   overflow: hidden;
@@ -127,7 +127,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--hr-radius-card, 14px);
-  padding: 6px 14px;
+  padding: var(--ds-space-1) var(--ds-space-3);
 }
 .directory-facets .ant-collapse-header-text {
   font-weight: 700;
@@ -135,20 +135,20 @@
 .hr-count-badge {
   display: inline-block;
   min-width: 20px;
-  margin-left: 8px;
-  padding: 0 6px;
-  border-radius: 10px;
-  background: var(--hr-chip, #ccdcff);
-  color: var(--hr-ink, #001136);
-  font-size: 11px;
-  font-weight: 800;
+  margin-left: var(--ds-space-2);
+  padding: 0 var(--ds-space-1);
+  border-radius: var(--radius);
+  background: var(--hr-chip, var(--ds-brand-900));
+  color: var(--hr-ink, var(--ds-text-strong));
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
   line-height: 20px;
   text-align: center;
 }
 
 .directory-search.ant-input-affix-wrapper {
   background: var(--color-surface);
-  border-radius: 12px;
+  border-radius: var(--radius);
 }
 
 /* 기수 그룹 헤더: 라임 점 + 굵은 제목 */
@@ -159,17 +159,17 @@
 .cohort-heading {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-size: 18px;
-  font-weight: 800;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-type-body-1);
+  font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--hr-ink, #001136);
+  color: var(--hr-ink, var(--ds-text-strong));
 }
 .cohort-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--hr-accent, #7c96cf);
+  background: var(--hr-accent, var(--ds-brand-700));
   box-shadow: 0 0 0 3px rgba(124, 150, 207, 0.3);
 }
 .cohort-collapse .ant-collapse-content > .ant-collapse-content-box {
@@ -190,13 +190,13 @@
 /* 터치 기기에선 hover가 눌린 채 남아 어색해서, 마우스가 있는 기기에서만 적용 */
 @media (hover: hover) {
   .person-card-link:hover .person-card {
-    border-color: var(--hr-primary, #3e5c9c);
+    border-color: var(--hr-primary, var(--ds-link));
     box-shadow: 0 8px 22px rgba(0, 17, 54, 0.1);
     transform: translateY(-2px);
   }
 }
 .person-card-link:active .person-card {
-  border-color: var(--hr-primary, #3e5c9c);
+  border-color: var(--hr-primary, var(--ds-link));
 }
 
 /* 터치 영역: 접기 헤더·체크박스를 손가락으로 누르기 편한 높이로 */
@@ -207,7 +207,7 @@
     align-items: center;
   }
   .facet-options .ant-checkbox-wrapper {
-    padding: 6px 0;
+    padding: var(--ds-space-1) 0;
   }
 }
 .hr-filter-drawer .ant-collapse-header {
@@ -215,38 +215,38 @@
   align-items: center;
 }
 .hr-filter-drawer .facet-options .ant-checkbox-wrapper {
-  padding: 8px 0;
+  padding: var(--ds-space-2) 0;
 }
 @media (max-width: 599px) {
   .cohort-heading {
-    font-size: 17px;
+    font-size: var(--ds-type-body-1);
   }
 }
 .person-card-highlight.ant-card {
-  border-color: var(--hr-accent, #7c96cf);
+  border-color: var(--hr-accent, var(--ds-brand-700));
   background: var(--hr-accent-soft, #eef3ff);
 }
 .hr-badge {
   display: inline-block;
-  margin-bottom: 8px;
-  padding: 1px 9px;
-  border-radius: 999px;
-  background: var(--hr-chip, #ccdcff);
-  color: var(--hr-ink, #001136);
-  font-size: 11px;
-  font-weight: 800;
+  margin-bottom: var(--ds-space-2);
+  padding: var(--ds-space-1) var(--ds-space-2);
+  border-radius: var(--radius);
+  background: var(--hr-chip, var(--ds-brand-900));
+  color: var(--hr-ink, var(--ds-text-strong));
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 .person-card-name {
-  font-size: 15px;
-  font-weight: 750;
+  font-size: var(--ds-type-body-2);
+  font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--hr-ink, #001136);
+  color: var(--hr-ink, var(--ds-text-strong));
 }
 .person-card-meta {
-  font-size: 12px;
+  font-size: var(--ds-type-caption);
   font-weight: 600;
-  color: var(--hr-primary, #3e5c9c);
+  color: var(--hr-primary, var(--ds-link));
 }
 .person-card-career {
   font-weight: 500;

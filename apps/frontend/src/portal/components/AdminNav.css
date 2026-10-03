@@ -27,7 +27,7 @@
 .admin-nav-item-current {
   color: var(--color-text);
   font-weight: 800;
-  border-bottom-color: var(--hr-accent, #7c96cf);
+  border-bottom-color: var(--hr-accent, var(--ds-brand-700));
 }
 
 .admin-nav::-webkit-scrollbar {

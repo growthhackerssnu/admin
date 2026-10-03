@@ -1,6 +1,7 @@
+import { AppButton as Button } from "@/components/ui/app-button";
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { Alert, Button } from "antd";
+import { Alert } from "antd";
 import { ArrowRightOutlined } from "@ant-design/icons";
 import {
   APP_LABEL,
@@ -20,8 +21,7 @@ import { signOut } from "../../lib/supabase";
 // 결정 배경: ARCHITECTURE_PORTAL.md §2, §3.1
 //
 // 모양: 갈 수 있는 곳마다 화면을 3~4등분하는 큼직한 둥근 타일(2026-10-02).
-// 타일 색은 브랜드 팔레트(lib/brand.ts)에서 앱마다 고정해서, 어느 role로 들어와도
-// 같은 앱은 같은 색이다. 설명 문구는 초안이다.
+// 앱마다 동일한 공통 표면과 타이포를 사용한다. 설명 문구는 초안이다.
 const TILE: Record<
   AppKey,
   { en: string; desc: string; bg: string; tone: "dark" | "light" }
@@ -29,22 +29,27 @@ const TILE: Record<
   admin: {
     en: "ADMIN",
     desc: "회원 관리·권한 설정",
-    bg: "#ccdcff",
+    bg: "var(--background)",
     tone: "light",
   },
   dh: {
     en: "DH BOT",
     desc: "기업 리스트업·컨택 업무",
-    bg: "#152f69",
-    tone: "dark",
+    bg: "var(--background)",
+    tone: "light",
   },
   hr: {
     en: "GHedIn",
     desc: "알럼나이 디렉토리·프로필",
-    bg: "#3e5c9c",
-    tone: "dark",
+    bg: "var(--background)",
+    tone: "light",
   },
-  nut: { en: "NUT", desc: "재무·운영 현황", bg: "#7c96cf", tone: "light" },
+  nut: {
+    en: "NUT",
+    desc: "재무·운영 현황",
+    bg: "var(--background)",
+    tone: "light",
+  },
 };
 
 const ROLE_LABEL: Record<Me["role"], string> = {
@@ -137,7 +142,7 @@ export function Index() {
                 className={`index-tile index-tile-${tile.tone}`}
                 style={{
                   background: tile.bg,
-                  color: tile.tone === "dark" ? "#fff" : "#001136",
+                  color: "var(--ds-text-strong)",
                 }}
               >
                 <div className="index-tile-top">

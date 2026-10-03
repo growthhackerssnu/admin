@@ -1,7 +1,8 @@
+import { AppButton as Button } from "@/components/ui/app-button";
+import { AppTag as Tag } from "@/components/ui/app-tag";
 import {
   Alert,
   App as AntApp,
-  Button,
   Card,
   Empty,
   Form,
@@ -13,7 +14,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -122,7 +122,11 @@ function shiftMonths(date: string, months: number) {
 }
 
 // 그핵드인·관리자 화면과 같은 머리(eyebrow·제목·설명·로그아웃)와, 그 아래 화면 전환 탭.
-const NutNavContext = createContext<{ view: View; onView: (view: View) => void; term: string }>({
+const NutNavContext = createContext<{
+  view: View;
+  onView: (view: View) => void;
+  term: string;
+}>({
   view: "budget",
   onView: () => undefined,
   term: "",

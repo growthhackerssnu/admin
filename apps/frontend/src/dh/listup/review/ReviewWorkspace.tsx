@@ -3,6 +3,7 @@ import { BrandLogo } from "@/components/ui/brand-logo";
 import { ListFilter } from "@/components/ui/list-filter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import "@/design-system/globals.css";
 import "@/design-system/workspace.css";
 import {
@@ -23,7 +24,6 @@ import {
   type ReviewRepository,
 } from "./contracts";
 import { CandidateReview, SourceLink, type Change } from "./CandidateReview";
-import { MessagePage } from "./MessagePage";
 import { previewRepository } from "./previewRepository";
 import { UnifiedReviewLoading, UnifiedReviewPanel } from "./UnifiedReviewPanel";
 import "./review.css";
@@ -34,6 +34,7 @@ export default function ReviewWorkspace({
   repository?: ReviewRepository;
 }) {
   const [params, setParams] = useSearchParams();
+  const { confirm, dialog } = useConfirmation();
   const [data, setData] = useState<ReviewData>();
   const actor = data?.actor ?? currentActor;
   const [error, setError] = useState("");
@@ -127,10 +128,10 @@ export default function ReviewWorkspace({
   useEffect(() => {
     setQuery(params.get("q") ?? "");
   }, [params]);
-  const navigate = (patch: Record<string, string | null>) => {
+  const navigate = async (patch: Record<string, string | null>) => {
     if (
       reviewDirty.current &&
-      !window.confirm("저장하지 않은 입력을 버리고 이동할까요?")
+      !await confirm("저장하지 않은 입력을 버리고 이동할까요?", "저장하지 않은 입력", "버리고 이동")
     )
       return;
     reviewDirty.current = false;
@@ -288,21 +289,23 @@ export default function ReviewWorkspace({
   const focused =
     selected ?? (params.get("candidate") === "none" ? undefined : rows[0]);
   const openMessage = (id: string) =>
-    navigate({ message: id, candidate: null, view: "messages" });
-  if (tab === "review" && !message) {
+    navigate({ message: null, candidate: id, view: "review", owner: candidates.find(item => item.id === id)?.owner?.id === actor.id ? params.get("owner") : "all" });
+  // Old message links open the same three-pane workspace, never a separate page.
+  if (tab === "review" || tab === "messages" || params.has("message")) {
     if (loading) return <UnifiedReviewLoading />;
     if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><Button variant="outline" onClick={() => void load()}>다시 불러오기</Button></main>;
-    return <UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true}
-      owner={params.get("owner") === "all" ? "all" : "mine"}
-      onOwnerChange={(owner) => navigate({ owner, candidate: null })}
-      selectedId={params.get("candidate")}
+    return <>{dialog}<UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true}
+      owner={params.get("owner") === "all" || (message && message.owner?.id !== actor.id) ? "all" : "mine"}
+      onOwnerChange={(owner) => navigate({ owner, candidate: null, message: null })}
+      selectedId={detailId}
+      quarters={data.quarters} addQuarter={addQuarter}
       pending={actionPending} error={refreshFailure?.message ?? error} change={change} onDirty={trackDirty}
       reload={refreshFailure ? () => void reloadAfterSave() : undefined} reloading={pending}
-      onSelect={(id) => navigate({ candidate: id })}
-      onMessage={openMessage} />;
+      onSelect={(id) => { void navigate({ candidate: id, message: null, view: "review" }); }} /></>;
   }
   return (
     <div className="ds-workspace rv-app">
+      {dialog}
       {refreshFailure && <div className="rv-error" role="status"><p>{refreshFailure.message}</p><Button variant="outline" disabled={pending} onClick={() => void reloadAfterSave()}>다시 불러오기</Button></div>}
       <header className="rv-header">
         <div className="rv-brand"><BrandLogo variant="inline-blue" width={160} /></div>
@@ -355,18 +358,6 @@ export default function ReviewWorkspace({
           <p role="alert">{error}</p>
           <Button variant="outline" onClick={() => void load()}>다시 불러오기</Button>
         </main>
-      ) : message ? (
-        <MessagePage
-          key={message.id}
-          candidate={message}
-          actor={actor}
-          quarters={data.quarters}
-          change={change}
-          addQuarter={addQuarter}
-          pending={actionPending}
-          error={refreshFailure ? "" : error}
-          back={() => navigate({ message: null })}
-        />
       ) : (
         <main className="rv-content">
           <div className="rv-title">

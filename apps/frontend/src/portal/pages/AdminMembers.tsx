@@ -1,20 +1,20 @@
+import { AppButton as Button } from "@/components/ui/app-button";
+import { AppTag as Tag } from "@/components/ui/app-tag";
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
-  Button,
   Modal,
   Segmented,
   Select,
   Skeleton,
   Space,
   Table,
-  Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { SidePane } from "@dhbot/ui-shell";
+import { AppShell } from "@/components/ui/app-shell";
 import { AdminNav } from "../components/AdminNav";
 import {
   ApiClientError,
@@ -325,8 +325,7 @@ export function AdminMembers() {
   // 이 화면에 도달했다는 건 위에서 isAdmin이 true로 확인됐다는 뜻이라
   // role="admin"으로 고정해도 된다 — dh·hr로 오가는 side pane(§3.1).
   return (
-    <div className="app-shell">
-      <SidePane role="admin" current="admin" />
+    <AppShell role="admin" current="admin">
       <main>
         <div className="row section-gap">
           <div>
@@ -471,6 +470,6 @@ export function AdminMembers() {
           />
         </Modal>
       </main>
-    </div>
+    </AppShell>
   );
 }

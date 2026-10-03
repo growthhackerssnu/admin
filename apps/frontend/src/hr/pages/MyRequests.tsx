@@ -1,12 +1,19 @@
+import { AppButton as Button } from "@/components/ui/app-button";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Button, Empty, Modal, Table, Typography } from "antd";
-import { SidePane } from "@dhbot/ui-shell";
+import { Alert, Empty, Modal, Table, Typography } from "antd";
+import { AppShell } from "@/components/ui/app-shell";
 import { LoadingScreen } from "../../lib/LoadingScreen";
 import { HrNav } from "../components/HrNav";
 import { EditRequestDiff } from "../components/EditRequestDiff";
 import { EditRequestStatusTag } from "../components/EditRequestStatusTag";
-import { ApiClientError, getMe, getMyEditRequests, type EditRequest, type Me } from "../lib/api";
+import {
+  ApiClientError,
+  getMe,
+  getMyEditRequests,
+  type EditRequest,
+  type Me,
+} from "../lib/api";
 import { summarizeDiff } from "../lib/editRequestDisplay";
 import { useSession } from "../../lib/useSession";
 import { signOut } from "../../lib/supabase";
@@ -39,7 +46,11 @@ export function MyRequests() {
         setMe(meResult);
         setRequests(requestsResult);
       } catch (e) {
-        setError(e instanceof ApiClientError ? e.message : "수정 요청 이력을 불러오지 못했습니다.");
+        setError(
+          e instanceof ApiClientError
+            ? e.message
+            : "수정 요청 이력을 불러오지 못했습니다.",
+        );
       }
     })();
   }, [session]);
@@ -65,8 +76,7 @@ export function MyRequests() {
   }
 
   return (
-    <div className="app-shell">
-      <SidePane role={me.role} current="hr" />
+    <AppShell role={me.role} current="hr">
       <main>
         <div className="row section-gap">
           <Typography.Title level={3} style={{ marginBottom: 4 }}>
@@ -78,29 +88,44 @@ export function MyRequests() {
         <HrNav role={me.role} />
 
         {requests.length === 0 ? (
-          <Empty description="제출한 수정 요청이 없습니다" style={{ marginTop: 48 }} />
+          <Empty
+            description="제출한 수정 요청이 없습니다"
+            style={{ marginTop: 48 }}
+          />
         ) : (
           <Table
             rowKey="id"
             dataSource={requests}
             pagination={false}
             scroll={{ x: "max-content" }}
-            onRow={(record) => ({ onClick: () => setSelected(record), style: { cursor: "pointer" } })}
+            onRow={(record) => ({
+              onClick: () => setSelected(record),
+              style: { cursor: "pointer" },
+            })}
             columns={[
               {
                 title: "제출일시",
                 dataIndex: "submittedAt",
-                render: (value: string) => new Date(value).toLocaleString("ko-KR"),
+                render: (value: string) =>
+                  new Date(value).toLocaleString("ko-KR"),
               },
-              { title: "변경 항목", render: (_, record) => summarizeDiff(record.diff) },
+              {
+                title: "변경 항목",
+                render: (_, record) => summarizeDiff(record.diff),
+              },
               {
                 title: "상태",
                 dataIndex: "status",
-                render: (status: EditRequest["status"]) => <EditRequestStatusTag status={status} />,
+                render: (status: EditRequest["status"]) => (
+                  <EditRequestStatusTag status={status} />
+                ),
               },
               {
                 title: "반려 사유",
-                render: (_, record) => (record.status === "rejected" ? (record.reviewNote ?? "-") : "-"),
+                render: (_, record) =>
+                  record.status === "rejected"
+                    ? (record.reviewNote ?? "-")
+                    : "-",
               },
             ]}
           />
@@ -116,6 +141,6 @@ export function MyRequests() {
           {selected && <EditRequestDiff diff={selected.diff} />}
         </Modal>
       </main>
-    </div>
+    </AppShell>
   );
 }

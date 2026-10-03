@@ -1,7 +1,4 @@
-/* hr·회원 관리 로딩 화면. 이 CSS는 메인 번들에 들어 있어서(화면 코드를 불러오는 중에도 보여야
-   하므로) 브랜드 변수(brand.css)에 의존하지 않고 색을 직접 쓴다 — 두 단계(RouteFallback과
-   각 화면)가 완전히 같은 모양이어야 한다. 색은 lib/brand.ts의 협의 팔레트와 같다. */
-
+/* Shared route and data-loading presentation; root loads tokens before lazy routes. */
 .app-loading {
   min-height: 100vh;
   min-height: 100dvh;
@@ -9,27 +6,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: #f4f6fb;
-  font-family:
-    "Pretendard Variable",
-    Pretendard,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Malgun Gothic",
-    sans-serif;
+  padding: var(--ds-space-6);
+  background: var(--ds-surface-canvas);
+  font-family: var(--ds-font-family);
 }
 
 .app-loading-dots {
   display: flex;
-  gap: 10px;
+  gap: var(--ds-space-3);
 }
 .app-loading-dots span {
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #3e5c9c;
+  background: var(--ds-action-primary);
   opacity: 0.3;
 }
 @media (prefers-reduced-motion: no-preference) {

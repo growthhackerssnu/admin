@@ -1,8 +1,8 @@
+import { AppButton as Button } from "@/components/ui/app-button";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Alert,
-  Button,
   Card,
   Checkbox,
   Collapse,
@@ -12,12 +12,23 @@ import {
   Typography,
 } from "antd";
 import { FilterOutlined, SearchOutlined } from "@ant-design/icons";
-import { SidePane } from "@dhbot/ui-shell";
+import { AppShell } from "@/components/ui/app-shell";
 import { LoadingScreen } from "../../lib/LoadingScreen";
 import { HrNav } from "../components/HrNav";
 import { PersonAvatar } from "../components/PersonAvatar";
-import { COMPACT_QUERY, PHONE_QUERY, useMediaQuery } from "../lib/useMediaQuery";
-import { ApiClientError, getMe, getPeople, peekCached, type Me, type PersonSummary } from "../lib/api";
+import {
+  COMPACT_QUERY,
+  PHONE_QUERY,
+  useMediaQuery,
+} from "../lib/useMediaQuery";
+import {
+  ApiClientError,
+  getMe,
+  getPeople,
+  peekCached,
+  type Me,
+  type PersonSummary,
+} from "../lib/api";
 import {
   computeFacets,
   comparePeople,
@@ -46,7 +57,9 @@ export function Directory() {
   const [teams, setTeams] = useState<Set<string>>(new Set());
   // 접어둔 기수 목록. "펼친 기수"가 아니라 "접은 기수"를 기억해서, 필터로 새로
   // 나타나는 기수는 항상 기본(펼침)으로 보이게 한다. 표시 전용 상태라 필터와 무관.
-  const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(new Set());
+  const [collapsedCohorts, setCollapsedCohorts] = useState<Set<number>>(
+    new Set(),
+  );
   // 태블릿 이하에선 왼쪽 레일(내 프로필+패싯)이 없어지고, 필터는 서랍으로 연다.
   const compact = useMediaQuery(COMPACT_QUERY);
   const phone = useMediaQuery(PHONE_QUERY);
@@ -80,7 +93,11 @@ export function Directory() {
       } catch (e) {
         // 캐시로 이미 화면이 떠 있으면 조용히 유지하고, 아무것도 없을 때만 오류를 보인다.
         if (!cachedPeople) {
-          setError(e instanceof ApiClientError ? e.message : "디렉토리 정보를 불러오지 못했습니다.");
+          setError(
+            e instanceof ApiClientError
+              ? e.message
+              : "디렉토리 정보를 불러오지 못했습니다.",
+          );
         }
       }
     })();
@@ -127,7 +144,13 @@ export function Directory() {
       defaultActiveKey={defaultOpen ? ["cohort", "jobField", "team"] : []}
       items={[
         facetItem("cohort", "기수", facets.cohorts, cohorts, setCohorts),
-        facetItem("jobField", "직무 계열", facets.jobFields, jobFields, setJobFields),
+        facetItem(
+          "jobField",
+          "직무 계열",
+          facets.jobFields,
+          jobFields,
+          setJobFields,
+        ),
         facetItem("team", "소속팀", facets.teams, teams, setTeams),
       ].filter((item) => item !== null)}
     />
@@ -154,8 +177,7 @@ export function Directory() {
   }
 
   return (
-    <div className="app-shell">
-      <SidePane role={me.role} current="hr" />
+    <AppShell role={me.role} current="hr">
       <main>
         <div className="row section-gap">
           <div>
@@ -163,14 +185,22 @@ export function Directory() {
             <Typography.Title level={3} className="hr-page-title">
               그핵드인
             </Typography.Title>
-            <Typography.Text type="secondary">알럼나이 디렉토리 · {people.length}명</Typography.Text>
+            <Typography.Text type="secondary">
+              알럼나이 디렉토리 · {people.length}명
+            </Typography.Text>
           </div>
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
 
         <HrNav role={me.role} />
 
-        <div className={compact ? "directory-layout directory-layout-compact" : "directory-layout"}>
+        <div
+          className={
+            compact
+              ? "directory-layout directory-layout-compact"
+              : "directory-layout"
+          }
+        >
           {!compact && (
             <aside className="directory-side">
               {/* 내 프로필은 본문 전체 폭이 아니라 왼쪽 레일(패싯 위)에 그리드 카드와 같은 모양으로 둔다 —
@@ -192,22 +222,33 @@ export function Directory() {
               <Input
                 className="directory-search"
                 placeholder="이름으로 검색"
-                prefix={<SearchOutlined style={{ color: "#8da0c9" }} />}
+                prefix={
+                  <SearchOutlined style={{ color: "var(--ds-gray-600)" }} />
+                }
                 size="large"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 allowClear
               />
               {compact && (
-                <Button size="large" icon={<FilterOutlined />} onClick={() => setFilterOpen(true)}>
+                <Button
+                  size="large"
+                  icon={<FilterOutlined />}
+                  onClick={() => setFilterOpen(true)}
+                >
                   필터
-                  {activeFilterCount > 0 && <span className="hr-count-badge">{activeFilterCount}</span>}
+                  {activeFilterCount > 0 && (
+                    <span className="hr-count-badge">{activeFilterCount}</span>
+                  )}
                 </Button>
               )}
             </div>
 
             {filtered.length === 0 ? (
-              <Empty description="조건에 맞는 사람이 없습니다" style={{ marginTop: 48 }} />
+              <Empty
+                description="조건에 맞는 사람이 없습니다"
+                style={{ marginTop: 48 }}
+              />
             ) : (
               // 기수별로 접었다 펼 수 있다(기본은 전부 펼침). 사람이 하나도 없는 기수는
               // 그룹 자체가 안 생긴다.
@@ -218,8 +259,16 @@ export function Directory() {
                   .filter((g) => !collapsedCohorts.has(g.cohort))
                   .map((g) => String(g.cohort))}
                 onChange={(keys) => {
-                  const open = new Set((Array.isArray(keys) ? keys : [keys]).map(Number));
-                  setCollapsedCohorts(new Set(cohortGroups.filter((g) => !open.has(g.cohort)).map((g) => g.cohort)));
+                  const open = new Set(
+                    (Array.isArray(keys) ? keys : [keys]).map(Number),
+                  );
+                  setCollapsedCohorts(
+                    new Set(
+                      cohortGroups
+                        .filter((g) => !open.has(g.cohort))
+                        .map((g) => g.cohort),
+                    ),
+                  );
                 }}
                 items={cohortGroups.map((group) => ({
                   key: String(group.cohort),
@@ -257,10 +306,18 @@ export function Directory() {
         title="필터"
         footer={
           <div className="filter-drawer-footer">
-            <Button size="large" onClick={resetFilters} disabled={activeFilterCount === 0}>
+            <Button
+              size="large"
+              onClick={resetFilters}
+              disabled={activeFilterCount === 0}
+            >
               초기화
             </Button>
-            <Button size="large" type="primary" onClick={() => setFilterOpen(false)}>
+            <Button
+              size="large"
+              type="primary"
+              onClick={() => setFilterOpen(false)}
+            >
               {filtered.length}명 보기
             </Button>
           </div>
@@ -268,14 +325,25 @@ export function Directory() {
       >
         {facetPanel(true)}
       </Drawer>
-    </div>
+    </AppShell>
   );
 }
 
-function PersonCard({ person, highlight }: { person: PersonSummary; highlight?: boolean }) {
+function PersonCard({
+  person,
+  highlight,
+}: {
+  person: PersonSummary;
+  highlight?: boolean;
+}) {
   return (
     <Link to={`/hr/people/${person.notionPageId}`} className="person-card-link">
-      <Card size="small" className={highlight ? "person-card person-card-highlight" : "person-card"}>
+      <Card
+        size="small"
+        className={
+          highlight ? "person-card person-card-highlight" : "person-card"
+        }
+      >
         {highlight && <span className="hr-badge">내 프로필</span>}
         <div className="person-card-body">
           <PersonAvatar src={person.profileImageUrl} size={64} />
@@ -285,10 +353,15 @@ function PersonCard({ person, highlight }: { person: PersonSummary; highlight?: 
                 줄 길이가 들쭉날쭉해지고 카드 높이가 흔들려서 가독성이
                 떨어졌다. 기수+현재 직무 정도면 카드 용도(빠른 식별)엔 충분. */}
             <div className="person-card-meta">
-              {person.cohort}기{person.jobField.length > 0 ? ` · ${person.jobField.join(", ")}` : ""}
+              {person.cohort}기
+              {person.jobField.length > 0
+                ? ` · ${person.jobField.join(", ")}`
+                : ""}
             </div>
             {person.currentCareerOneLine && (
-              <div className="person-card-career">{person.currentCareerOneLine}</div>
+              <div className="person-card-career">
+                {person.currentCareerOneLine}
+              </div>
             )}
           </div>
         </div>
@@ -320,7 +393,9 @@ function facetItem(
     label: (
       <Typography.Text strong>
         {title}
-        {selected.size > 0 && <span className="hr-count-badge">{selected.size}</span>}
+        {selected.size > 0 && (
+          <span className="hr-count-badge">{selected.size}</span>
+        )}
       </Typography.Text>
     ),
     children: (
@@ -331,7 +406,11 @@ function facetItem(
             checked={selected.has(opt.key)}
             onChange={(e) => toggle(opt.key, e.target.checked)}
           >
-            {opt.label === NONE_LABEL ? <Typography.Text type="secondary">{opt.label}</Typography.Text> : opt.label}{" "}
+            {opt.label === NONE_LABEL ? (
+              <Typography.Text type="secondary">{opt.label}</Typography.Text>
+            ) : (
+              opt.label
+            )}{" "}
             <Typography.Text type="secondary">({opt.count})</Typography.Text>
           </Checkbox>
         ))}

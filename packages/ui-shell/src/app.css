@@ -18,13 +18,13 @@ h1 {
   margin: 0 0 var(--space-sm);
 }
 h2 {
-  font-size: 18px;
+  font-size: var(--ds-type-subtitle-1);
   margin: 0 0 var(--space-md);
 }
 p {
   line-height: 1.8;
 }
-header {
+.legacy-page-header {
   min-height: 64px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
@@ -43,14 +43,14 @@ main {
   flex-wrap: wrap;
 }
 .brand {
-  font-size: 18px;
-  font-weight: 650;
+  font-size: var(--ds-type-subtitle-1);
+  font-weight: 600;
 }
 .muted {
   color: var(--color-muted);
 }
 .meta {
-  font-size: 12px;
+  font-size: var(--ds-type-caption);
   color: var(--color-muted);
   margin-top: var(--space-sm);
 }
@@ -207,7 +207,7 @@ fieldset:disabled {
   background: var(--color-canvas);
 }
 .side-pane-item-current {
-  font-weight: 650;
+  font-weight: 600;
   color: var(--color-primary);
   background: var(--color-canvas);
 }

@@ -1,9 +1,9 @@
+import { AppButton as Button } from "@/components/ui/app-button";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
-  Button,
   Empty,
   Input,
   Modal,
@@ -12,7 +12,7 @@ import {
   Table,
   Typography,
 } from "antd";
-import { SidePane } from "@dhbot/ui-shell";
+import { AppShell } from "@/components/ui/app-shell";
 import { LoadingScreen } from "../../lib/LoadingScreen";
 import { HrNav } from "../components/HrNav";
 import { EditRequestDiff } from "../components/EditRequestDiff";
@@ -52,7 +52,10 @@ export function AdminQueue() {
   const [busy, setBusy] = useState(false);
 
   async function load(token: string) {
-    const [meResult, requestsResult] = await Promise.all([getMe(token), getAdminEditRequests(token)]);
+    const [meResult, requestsResult] = await Promise.all([
+      getMe(token),
+      getAdminEditRequests(token),
+    ]);
     setMe(meResult);
     setRequests(requestsResult);
   }
@@ -64,12 +67,21 @@ export function AdminQueue() {
       return;
     }
     load(session.access_token).catch((e) => {
-      setError(e instanceof ApiClientError ? e.message : "승인 큐를 불러오지 못했습니다.");
+      setError(
+        e instanceof ApiClientError
+          ? e.message
+          : "승인 큐를 불러오지 못했습니다.",
+      );
     });
   }, [session]);
 
   const counts = useMemo(() => {
-    const base = { all: requests?.length ?? 0, pending: 0, approved: 0, rejected: 0 };
+    const base = {
+      all: requests?.length ?? 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+    };
     for (const r of requests ?? []) base[r.status]++;
     return base;
   }, [requests]);
@@ -77,7 +89,8 @@ export function AdminQueue() {
   const filtered = useMemo(() => {
     return (requests ?? []).filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
-      if (search.trim() && !r.requesterName.includes(search.trim())) return false;
+      if (search.trim() && !r.requesterName.includes(search.trim()))
+        return false;
       return true;
     });
   }, [requests, statusFilter, search]);
@@ -97,7 +110,9 @@ export function AdminQueue() {
       setSelectedIds((ids) => ids.filter((i) => i !== id));
       await reload();
     } catch (e) {
-      message.error(e instanceof ApiClientError ? e.message : "승인에 실패했습니다.");
+      message.error(
+        e instanceof ApiClientError ? e.message : "승인에 실패했습니다.",
+      );
     } finally {
       setBusy(false);
     }
@@ -107,7 +122,12 @@ export function AdminQueue() {
     let reviewNote = "";
     modal.confirm({
       title: "반려 사유를 입력하세요",
-      content: <Input.TextArea rows={3} onChange={(e) => (reviewNote = e.target.value)} />,
+      content: (
+        <Input.TextArea
+          rows={3}
+          onChange={(e) => (reviewNote = e.target.value)}
+        />
+      ),
       okText: "반려",
       okButtonProps: { danger: true },
       onOk: async () => {
@@ -121,7 +141,9 @@ export function AdminQueue() {
           setDetail(null);
           await reload();
         } catch (e) {
-          message.error(e instanceof ApiClientError ? e.message : "반려에 실패했습니다.");
+          message.error(
+            e instanceof ApiClientError ? e.message : "반려에 실패했습니다.",
+          );
           throw e;
         }
       },
@@ -139,7 +161,11 @@ export function AdminQueue() {
       setSelectedIds([]);
       await reload();
     } catch (e) {
-      message.error(e instanceof ApiClientError ? e.message : "일괄 승인 중 일부가 실패했습니다.");
+      message.error(
+        e instanceof ApiClientError
+          ? e.message
+          : "일괄 승인 중 일부가 실패했습니다.",
+      );
     } finally {
       setBusy(false);
     }
@@ -166,8 +192,7 @@ export function AdminQueue() {
   }
 
   return (
-    <div className="app-shell">
-      <SidePane role={me.role} current="hr" />
+    <AppShell role={me.role} current="hr">
       <main>
         <div className="row section-gap">
           <Typography.Title level={3} style={{ marginBottom: 4 }}>
@@ -198,7 +223,10 @@ export function AdminQueue() {
         </div>
 
         {selectedIds.length > 0 && (
-          <div className="actions" style={{ borderTop: "none", marginTop: 0, paddingTop: 0 }}>
+          <div
+            className="actions"
+            style={{ borderTop: "none", marginTop: 0, paddingTop: 0 }}
+          >
             <span>{selectedIds.length}건 선택됨</span>
             <Space>
               <Button type="primary" loading={busy} onClick={handleBulkApprove}>
@@ -209,7 +237,10 @@ export function AdminQueue() {
         )}
 
         {filtered.length === 0 ? (
-          <Empty description="조건에 맞는 요청이 없습니다" style={{ marginTop: 48 }} />
+          <Empty
+            description="조건에 맞는 요청이 없습니다"
+            style={{ marginTop: 48 }}
+          />
         ) : (
           <Table
             rowKey="id"
@@ -217,25 +248,40 @@ export function AdminQueue() {
             pagination={false}
             // 좁은 화면에선 표를 가로로 밀어서 본다(열을 줄이지 않는다).
             scroll={{ x: "max-content" }}
-            onRow={(record) => ({ onClick: () => setDetail(record), style: { cursor: "pointer" } })}
+            onRow={(record) => ({
+              onClick: () => setDetail(record),
+              style: { cursor: "pointer" },
+            })}
             rowSelection={{
               selectedRowKeys: selectedIds,
               onChange: (keys) => setSelectedIds(keys as string[]),
-              getCheckboxProps: (record) => ({ disabled: record.status !== "pending" }),
+              getCheckboxProps: (record) => ({
+                disabled: record.status !== "pending",
+              }),
             }}
             columns={[
               { title: "요청자", dataIndex: "requesterName" },
-              { title: "기수", dataIndex: "requesterCohort", render: (v: string | null) => (v ? `${v}기` : "-") },
+              {
+                title: "기수",
+                dataIndex: "requesterCohort",
+                render: (v: string | null) => (v ? `${v}기` : "-"),
+              },
               {
                 title: "요청일시",
                 dataIndex: "submittedAt",
-                render: (value: string) => new Date(value).toLocaleString("ko-KR"),
+                render: (value: string) =>
+                  new Date(value).toLocaleString("ko-KR"),
               },
-              { title: "변경 항목", render: (_, record) => summarizeDiff(record.diff) },
+              {
+                title: "변경 항목",
+                render: (_, record) => summarizeDiff(record.diff),
+              },
               {
                 title: "상태",
                 dataIndex: "status",
-                render: (status: EditRequestStatus) => <EditRequestStatusTag status={status} />,
+                render: (status: EditRequestStatus) => (
+                  <EditRequestStatusTag status={status} />
+                ),
               },
             ]}
           />
@@ -245,11 +291,20 @@ export function AdminQueue() {
           open={detail !== null}
           onCancel={() => setDetail(null)}
           width="min(720px, calc(100vw - 24px))"
-          title={detail ? `${detail.requesterName}(${detail.requesterCohort ?? "-"}기) 수정 요청` : ""}
+          title={
+            detail
+              ? `${detail.requesterName}(${detail.requesterCohort ?? "-"}기) 수정 요청`
+              : ""
+          }
           footer={
             detail?.status === "pending"
               ? [
-                  <Button key="reject" danger disabled={busy} onClick={() => detail && handleReject(detail.id)}>
+                  <Button
+                    key="reject"
+                    danger
+                    disabled={busy}
+                    onClick={() => detail && handleReject(detail.id)}
+                  >
                     반려
                   </Button>,
                   <Button
@@ -264,12 +319,21 @@ export function AdminQueue() {
               : null
           }
         >
-          {detail && <EditRequestDiff diff={detail.diff} newOptions={detail.newOptions} />}
+          {detail && (
+            <EditRequestDiff
+              diff={detail.diff}
+              newOptions={detail.newOptions}
+            />
+          )}
           {detail && detail.status === "rejected" && detail.reviewNote && (
-            <Alert style={{ marginTop: 16 }} type="warning" message={`반려 사유: ${detail.reviewNote}`} />
+            <Alert
+              style={{ marginTop: 16 }}
+              type="warning"
+              message={`반려 사유: ${detail.reviewNote}`}
+            />
           )}
         </Modal>
       </main>
-    </div>
+    </AppShell>
   );
 }
