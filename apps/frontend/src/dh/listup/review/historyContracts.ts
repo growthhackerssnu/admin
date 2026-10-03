@@ -147,7 +147,11 @@ export type HistoryCommand =
 export interface HistoryRepository {
   mode: "live" | "preview" | "mock" | "unavailable";
   load(query?: HistoryQuery): Promise<HistoryData>;
-  loadCompany?(companyId: string): Promise<HistoryCompany>;
+  loadCompany?(
+    companyId: string,
+    opts?: { maxAge?: number },
+  ): Promise<HistoryCompany>;
+  prefetchCompanies?(companyIds: string[], maxAge: number): Promise<void>;
   getCompany?(companyId: string): HistoryCompany | undefined;
   searchCompanies?(query: string): Promise<HistoryCompany[]>;
   execute(
