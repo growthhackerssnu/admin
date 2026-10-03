@@ -353,6 +353,11 @@ export function HistoryWorkspace({
       ? detail
       : companies.find((c) => c.id === selectedId)
     : companies.find((c) => c.id === selectedId);
+  // List rows contain summaries, not loaded history. Hide their empty detail fields
+  // immediately on selection, before the fetch effect runs after the first paint.
+  const detailPending =
+    detailLoading ||
+    (live && Boolean(selectedId) && detail?.id !== selectedId && !detailError);
   const actionPending = pending || refreshFailure;
   const start = async () => {
     if (await execute({ type: "start" })) setMode("compose");
@@ -898,7 +903,7 @@ export function HistoryWorkspace({
               onRetry={() => void loadDetail()}
             />
           )}
-          {detailLoading && !addingProject && (
+          {detailPending && !addingProject && (
             <div
               className="hw-drawer-scroll"
               role="status"
@@ -910,7 +915,7 @@ export function HistoryWorkspace({
           )}
           {mode === "project" &&
             data?.canManage &&
-            !detailLoading &&
+            !detailPending &&
             !detailError && (
               <HistoryProjectForm
                 key={project?.id ?? selected?.id ?? "new"}
@@ -934,7 +939,7 @@ export function HistoryWorkspace({
           {mode === "compose" &&
             selected?.work &&
             data &&
-            !detailLoading &&
+            !detailPending &&
             !detailError && (
               <HistoryComposer
                 key={selected.work.id}
@@ -949,7 +954,7 @@ export function HistoryWorkspace({
           {mode === "detail" &&
             selected &&
             data &&
-            !detailLoading &&
+            !detailPending &&
             !detailError && (
               <>
                 <div className="hw-drawer-scroll">
