@@ -27,5 +27,5 @@ export default function LiveReviewWorkspace() {
   if (authenticated === null) return <main role="status">로그인 확인 중…</main>;
   if (!authenticated) return <Navigate to="/login" replace />;
   if (params.get("view") === "operations") return <OperationsPage repository={repository} />;
-  return <ReviewWorkspace repository={repository} />;
+  return <ReviewWorkspace repository={repository} historyMode="mock" />;
 }

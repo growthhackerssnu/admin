@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { MessageDraftEditor } from "./MessageDraftEditor";
 import {
   Select,
   SelectContent,
@@ -239,35 +239,8 @@ export function MessageComposer({
             </p>
           )}
           {candidate.draft || sentRecord ? (
-            <div className="uw-message-fields">
-              <Field>
-                <FieldLabel htmlFor="uw-message-subject" required={!sent}>
-                  {sent ? "당시 제목" : "제목"}
-                </FieldLabel>
-                <Input
-                  id="uw-message-subject"
-                  aria-required={!sent}
-                  disabled={pending}
-                  readOnly={locked}
-                  value={sent ? sentRecord.draft.subject : subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="uw-message-body" required={!sent}>
-                  {sent ? "당시 본문" : "본문"}
-                </FieldLabel>
-                <Textarea
-                  id="uw-message-body"
-                  aria-required={!sent}
-                  disabled={pending}
-                  readOnly={locked}
-                  rows={18}
-                  value={sent ? sentRecord.draft.body : body}
-                  onChange={(e) => setBody(e.target.value)}
-                />
-              </Field>
-            </div>
+            <MessageDraftEditor subject={sent ? sentRecord.draft.subject : subject} body={sent ? sentRecord.draft.body : body}
+              onSubject={setSubject} onBody={setBody} pending={pending} readOnly={locked} sent={sent} />
           ) : (
             <Empty className="uw-message-empty">
               <EmptyHeader>

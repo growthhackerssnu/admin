@@ -24,6 +24,7 @@ import {
 import "@/design-system/globals.css";
 import "./unified-review.css";
 import { MessageComposer } from "./MessageComposer";
+import { HistoryTabs, type HistoryTab } from "./HistoryTabs";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 
 type Change = (candidate: Candidate, command: CandidateCommand) => Promise<boolean>;
@@ -182,7 +183,7 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, quarters, addQuarter }: {
+export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, quarters, addQuarter, onTabChange }: {
   candidates: Candidate[];
   actor: Actor;
   canManageOps: boolean;
@@ -198,6 +199,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   onSelect: (id: string) => void;
   quarters: string[];
   addQuarter: (value: string) => Promise<boolean>;
+  onTabChange?: (tab: HistoryTab) => void;
 }) {
   const queueScrollRef = useAlignedScroll();
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -254,6 +256,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
     {dialog}
     <WorkspaceSidebar canManageOps={canManageOps} />
     <SidebarInset className="uw-inset">
+      {onTabChange && <header className="hw-topbar"><HistoryTabs value="review" onChange={onTabChange} /></header>}
       {error && <div className={`uw-error${reload ? " uw-refresh-notice" : ""}`} role={reload ? "status" : "alert"}><span>{error}</span>{reload && <Button variant="outline" size="sm" disabled={reloading} onClick={reload}>다시 불러오기</Button>}</div>}
       <ResizablePanelGroup orientation="horizontal" className="uw-panels">
         {queueOpen && !compact && <><ResizablePanel defaultSize="24%" minSize="17%" maxSize="38%">
