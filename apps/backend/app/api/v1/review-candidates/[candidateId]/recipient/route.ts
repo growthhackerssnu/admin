@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 const recipientInput = z.object({
   expectedRevision: z.number().int().positive(),
+  contactId: z.string().min(1).optional(),
   name: z.string().trim().min(1).max(150),
   title: z.string().trim().max(200).optional(),
   channel: z.enum(["linkedin", "email"]),
@@ -41,8 +42,10 @@ export const PUT = withListupApiHandler<{ candidateId: string }>(async (req, { m
   return withIdempotency(req, member, `/review-candidates/${params.candidateId}/recipient`, input, async (tx) => {
     const candidate = await tx.candidate.findUniqueOrThrow({
       where: { id: params.candidateId },
-      select: { companyId: true },
+      select: { companyId: true, selectedContactId: true },
     });
+    if (input.contactId && input.contactId !== candidate.selectedContactId)
+      throw new ApiError("STATE_CONFLICT", "현재 선택된 관계자만 수정할 수 있습니다. 다시 불러온 뒤 수정하세요.");
     const changed = await tx.candidate.updateMany({
       where: {
         id: params.candidateId,
@@ -62,7 +65,17 @@ export const PUT = withListupApiHandler<{ candidateId: string }>(async (req, { m
       include: { contact: true },
     });
     let contactId: string;
-    if (endpoint?.contact) {
+    if (input.contactId) {
+      if (endpoint?.contactId && endpoint.contactId !== input.contactId)
+        throw new ApiError("STATE_CONFLICT", "같은 연락 주소가 다른 관계자에게 연결되어 있습니다.");
+      const changedContact = await tx.contact.updateMany({
+        where: { id: input.contactId, companyId: candidate.companyId },
+        data: { name: input.name, title: input.title ?? null },
+      });
+      if (!changedContact.count)
+        throw new ApiError("STATE_CONFLICT", "수정할 관계자를 찾지 못했습니다. 다시 불러온 뒤 수정하세요.");
+      contactId = input.contactId;
+    } else if (endpoint?.contact) {
       if (endpoint.contact.name !== input.name || (endpoint.contact.title ?? "") !== (input.title ?? ""))
         throw new ApiError("STATE_CONFLICT", "같은 연락 주소가 다른 관계자 정보에 연결되어 있습니다.");
       contactId = endpoint.contact.id;
@@ -104,5 +117,5 @@ export const PUT = withListupApiHandler<{ candidateId: string }>(async (req, { m
       status: 200,
       body: { data: await getReviewCandidateDetail(tx, params.candidateId, member.id) },
     };
-  });
+  }, { maxWait: 10_000, timeout: 15_000 });
 });

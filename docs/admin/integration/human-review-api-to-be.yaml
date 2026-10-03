@@ -391,11 +391,13 @@ endpoints:
         address: valid-contact-address
       optional:
         title: string
+        contactId: current-selected-contact-id-for-explicit-edit
     preconditions: 조사 ready, 후보 담당자 수정 가능, 회사와 관계자 소속 일치. 판단 완료 건은 reopen 후 변경.
     behavior:
       - 서버가 candidate.companyId로 관계자 소속 지정. 같은 이름만으로 다른 관계자를 합치지 않음.
+      - contactId를 명시하면 현재 선택된 관계자의 이름·직함을 수정. 현재 선택과 다른 ID 또는 다른 관계자가 사용하는 연락 주소는 STATE_CONFLICT. 새 관계자 추가에는 contactId를 보내지 않음.
       - 선택 관계자와 endpoint 저장, reviewStatus=reviewing, revision 증가를 원자 처리. owner가 없는 후보를 첫 입력으로 선점하지 않음.
-      - 기존 발송에 사용한 관계자/주소를 덮어쓰지 않음. 달라진 정보는 별도 레코드로 저장 또는 명확히 일치한 레코드 재사용.
+      - 기존 발송과 초안의 수신자·주소 스냅샷은 변경하지 않음. 주소 변경 시 같은 관계자의 새 endpoint를 생성하거나 정확히 일치하는 endpoint를 재사용하며 이전 endpoint는 보존.
       - Candidate 변경을 기존 Outreach에 자동 덮어쓰지 않음. 재승인 후 메시지 수신자 반영 API 사용.
     response:
       status: 200
