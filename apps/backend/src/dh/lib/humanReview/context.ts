@@ -19,8 +19,20 @@ export type ContextOutreach = {
 };
 
 // 재연락 초안이 근거로 쓴 이전 연락의 스냅샷. 문안 생성 당시 내용을 그대로 보존한다.
+export type ProjectSnapshot = {
+  id: string;
+  version: number;
+  title: string;
+  year: number | null;
+  quarter: number | null;
+  status: string | null;
+  summary: string | null;
+  resultUrl: string | null;
+};
+
 export type HistorySnapshot = {
   key: string;
+  projects: ProjectSnapshot[];
   outreaches: {
     outreachId: string;
     acquisitionRoundId: string | null;
@@ -53,7 +65,7 @@ export async function loadOutreachContext(tx: Tx, row: ContextOutreach): Promise
     reviewDecisionId = row.candidate.activeReviewDecisionId;
     hasEvidence = row.candidate.reviewStatus === "approved" && researchId !== null;
   } else {
-    const [research, prior] = await Promise.all([
+    const [research, prior, projectRows] = await Promise.all([
       tx.companyResearch.findFirst({
         where: { companyId: row.companyId },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -70,8 +82,19 @@ export async function loadOutreachContext(tx: Tx, row: ContextOutreach): Promise
           outcomeEvents: { orderBy: [{ recordedAt: "asc" }, { id: "asc" }] },
         },
       }),
+      tx.pastProject.findMany({ where: { companyId: row.companyId }, orderBy: { id: "asc" } }),
     ]);
     researchId = research?.id ?? null;
+    const projects = projectRows.map((project) => ({
+      id: project.id,
+      version: project.version,
+      title: project.title,
+      year: project.year,
+      quarter: project.quarter,
+      status: project.status,
+      summary: project.summary,
+      resultUrl: project.resultUrl,
+    }));
     const outreaches = prior.map((item) => ({
       outreachId: item.id,
       acquisitionRoundId: item.acquisitionRoundId,
@@ -99,16 +122,19 @@ export async function loadOutreachContext(tx: Tx, row: ContextOutreach): Promise
         recordedAt: event.recordedAt.toISOString(),
       })),
     }));
-    const key = hash(
+    // 프로젝트는 id와 version만 키에 넣는다. 사람이 프로젝트를 고치면 version이 올라가
+    // 그 프로젝트를 근거로 만든 초안이 문맥 불일치로 표시된다.
+    const key = hash([
       outreaches.map((item) => [
         item.outreachId,
         item.sentMessages.map((sent) => sent.id),
         item.responses.map((response) => response.id),
         item.outcomeEvents.map((event) => event.id),
       ]),
-    );
-    history = { key, outreaches };
-    hasEvidence = outreaches.length > 0 || researchId !== null;
+      projects.map((project) => [project.id, project.version]),
+    ]);
+    history = { key, projects, outreaches };
+    hasEvidence = outreaches.length > 0 || projects.length > 0 || researchId !== null;
   }
 
   const fingerprint = hash([

@@ -144,7 +144,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | `acquisition_rounds`, `outreach_outcome_events` | 수주 회차(진행 중은 한 건, 수기 부분 unique 인덱스)와 수주 결과 변경 이력(append-only) | 아니오 |
 | `templates`, `message_draft_revisions` | 템플릿과 초안 리비전 | 미정 |
 | `sent_messages`, `responses` | 발송 기록과 응답 확인 | 미정 |
-| `past_projects` | 과거 협업 이력(기업, 한줄 설명, Notion 원본, 진행 분기, 기술·산업 분류) | 미정 |
+| `past_projects` | 협업 프로젝트 이력(기업, 한줄 설명, Notion 원본, 진행 분기, 기술·산업 분류) + 수동 관리 필드(상태, 담당자, 관계자, 결과 링크, 수주 출처, version). 상태가 확인되지 않은 과거 행은 `status`가 NULL이다 | 미정 |
 | `jobs` | 비동기 작업(발송 쪽) | 아니오 |
 | `idempotency_keys` | 멱등성 키. `dh` 스키마 전용이며 portal 것과 별개다 (§4.1) | 아니오 |
 

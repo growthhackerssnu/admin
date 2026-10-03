@@ -138,6 +138,13 @@ enum OutcomeStatus {
   @@schema("dh")
 }
 
+enum ProjectStatus {
+  won
+  in_progress
+  completed
+  @@schema("dh")
+}
+
 enum OutcomeEventSource {
   manual
   send_record
@@ -205,6 +212,9 @@ model Member {
   createdAcquisitionRounds AcquisitionRound[] @relation("AcquisitionRoundCreator")
   closedAcquisitionRounds  AcquisitionRound[] @relation("AcquisitionRoundCloser")
   outcomeEvents       OutreachOutcomeEvent[] @relation("OutcomeEventActor")
+  ownedPastProjects   PastProject[] @relation("PastProjectOwner")
+  createdPastProjects PastProject[] @relation("PastProjectCreator")
+  updatedPastProjects PastProject[] @relation("PastProjectUpdater")
 
   // hr(그핵드인) — 프로필 수정 승인 큐. 본인이 제출한 요청(alumni 포함 누구나)과
   // 자신이 검토한 요청(admin)은 서로 다른 관계다. DB_SCHEMA_HR.md §1 참고.
@@ -410,6 +420,7 @@ model Contact {
   selectedOnCandidates Candidate[]       @relation("CandidateSelectedContact")
   candidateReviewDecisions CandidateReviewDecision[] @relation("CandidateDecisionContact")
   draftRecipients MessageDraftRevision[] @relation("DraftRecipientContact")
+  pastProjects    PastProject[]
 
   @@index([companyId])
   @@map("contacts")
@@ -574,6 +585,7 @@ model Outreach {
   responses             Response[]
   targetQuarterChanges  OutreachTargetQuarterChange[]
   outcomeEvents         OutreachOutcomeEvent[]
+  sourcedProject        PastProject?
 
   @@unique([companyId, acquisitionRoundId])
   @@index([candidateId])
@@ -711,6 +723,26 @@ model PastProject {
   technologyCategory String? @map("technology_category")
   industryCategory   String? @map("industry_category")
   notionUrl          String? @map("notion_url")
+
+  // 팀장·관리자가 직접 등록·수정하는 협업 프로젝트 정보. 과거에 가져온 행은 상태·담당자가
+  // 확인되지 않았으므로 null로 두며 완료로 간주하지 않는다.
+  status             ProjectStatus?
+  resultUrl          String?  @map("result_url")
+  ownerId            String?  @map("owner_id")
+  owner              Member?  @relation("PastProjectOwner", fields: [ownerId], references: [id])
+  contactId          String?  @map("contact_id")
+  contact            Contact? @relation(fields: [contactId], references: [id])
+  // 수주 완료에서 이어진 프로젝트. 같은 수주 작업에서 두 번 등록하지 못하게 unique다.
+  sourceOutreachId   String?  @unique @map("source_outreach_id")
+  sourceOutreach     Outreach? @relation(fields: [sourceOutreachId], references: [id])
+  version            Int      @default(1)
+  createdById        String?  @map("created_by_id")
+  createdBy          Member?  @relation("PastProjectCreator", fields: [createdById], references: [id])
+  updatedById        String?  @map("updated_by_id")
+  updatedBy          Member?  @relation("PastProjectUpdater", fields: [updatedById], references: [id])
+  // 시스템이 기록한 시각이다. 과거 프로젝트가 진행된 시기가 아니다.
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   @@index([companyId, year, quarter])
 

@@ -27,7 +27,11 @@ import { runStructuredOutput } from "@/dh/lib/listup/gemini";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 120;
-const generateInput = z.object({ expectedVersion: z.number().int().positive() }).strict();
+const generateInput = z.object({
+  expectedVersion: z.number().int().positive(),
+  projectIds: z.array(z.string().min(1)).max(50).optional()
+    .refine((ids) => !ids || new Set(ids).size === ids.length, "중복된 projectId가 있습니다."),
+}).strict();
 type OutreachDetail = Awaited<ReturnType<typeof getHumanOutreachDetail>>;
 
 const areaLabels: Record<string, string> = {
@@ -72,9 +76,9 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
     throw new ApiError("STATE_CONFLICT", "이미 발송된 기업의 초안은 다시 만들 수 없습니다.");
   assertRoundOpen(outreach);
   if (!outreach.candidateId)
-    return generateRecontactDraft({
-      req, member, route, outreachId: outreach.id, expectedVersion: input.expectedVersion,
-    });
+    return generateRecontactDraft({ req, member, route, outreachId: outreach.id, input });
+  if (input.projectIds !== undefined)
+    throw new ApiError("VALIDATION_ERROR", "projectIds는 재연락·재협업 작업에서만 쓸 수 있습니다.");
   const candidate = outreach.candidate;
   if (
     !candidate || candidate.reviewStatus !== "approved" ||

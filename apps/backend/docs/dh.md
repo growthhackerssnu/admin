@@ -77,6 +77,18 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 | `POST …/send-records` | 담당자 | 발송 기록 + `pending` 결과 + 이력. 응답은 `{sentMessage, outreachVersion, outcomeStatus}` |
 | `POST …/outcomes` | 담당자 또는 팀장·관리자 | 수주 완료/거절. 종료 회차·확정 결과의 정정은 `note` 필수 |
 
+### 협업 이력·프로젝트
+
+수주 완료 기업과 프로젝트가 있는 기업이 협업 이력에 나온다. 프로젝트(`past_projects`)는 팀장·관리자가 직접 등록·수정하며, 수주 완료를 기록해도 프로젝트 행이 자동으로 생기지 않는다. 상태가 확인되지 않은 과거 행은 `status = null`(미기록)이고 완료로 취급하지 않는다.
+
+| 라우트 | 권한 | 내용 |
+|---|---|---|
+| `GET /collaboration-history` | 대외협력 | 기업당 한 행: 최신 프로젝트, 프로젝트 건수, 프로젝트 없는 수주 건수, 현재 회차 작업. 정렬은 최신 프로젝트/수주 분기 내림차순 |
+| `GET /companies/{id}/projects` | 대외협력 | 프로젝트(최신순)와 아직 프로젝트가 입력되지 않은 수주 작업 |
+| `GET /company-options` | 대외협력 | 프로젝트 등록용 기존 기업 검색. 같은 이름도 합치지 않음 |
+| `POST /projects`, `PATCH /projects/{id}` | 팀장·관리자 | 등록(기존 기업 또는 새 기업)·수정. `expectedVersion` 잠금, 수주 출처는 won·같은 기업·같은 분기·최신 version일 때만, 출처당 프로젝트 한 개 |
+| `POST …/draft-generation` | 담당자 | 재협업은 `projectIds`로 근거 프로젝트를 고른다(생략=전체, `[]`=제외). 프로젝트 id·version·내용을 `generationHistory`에 스냅샷하고 생성 중 수정되면 409 |
+
 정책(합의 전 임시): 종료됐거나 회차가 연결되지 않은 작업은 읽기 전용(`ROUND_CLOSED`), 종료 후 결과 정정 허용. 전이 표는 `src/dh/lib/humanReview/outcome.ts` 한 곳에서 바꾼다. 후보 승인 근거와 재연락 근거의 비교는 `src/dh/lib/humanReview/context.ts`가 맡는다.
 
 ## 참고 문서

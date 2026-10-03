@@ -8,7 +8,12 @@ const recontact: ContextOutreach = {
   currentTargetQuarterId: "q-1", acquisitionRoundId: "round-2", candidate: null,
 };
 
-const tx = (priorSentIds: string[], researchId: string | null = null) => ({
+const tx = (priorSentIds: string[], researchId: string | null = null, projects: { id: string; version: number }[] = []) => ({
+  pastProject: {
+    findMany: vi.fn().mockResolvedValue(projects.map((project) => ({
+      ...project, title: "프로젝트", year: 2026, quarter: 3, status: "completed", summary: null, resultUrl: null,
+    }))),
+  },
   companyResearch: { findFirst: vi.fn().mockResolvedValue(researchId ? { id: researchId } : null) },
   outreach: {
     findMany: vi.fn().mockResolvedValue(priorSentIds.map((id) => ({
@@ -41,6 +46,20 @@ describe("outreach context", () => {
       generationHistory: before.history,
     };
     expect(draftContextMismatch(draft, recontact, after)).toEqual(["history_changed"]);
+  });
+
+  it("uses stored projects as evidence and flags a draft whose project was edited afterwards", async () => {
+    const before = await loadOutreachContext(tx([], null, [{ id: "p-1", version: 1 }]) as never, recontact);
+    expect(before.hasEvidence).toBe(true);
+    expect(before.history?.projects).toHaveLength(1);
+    const edited = await loadOutreachContext(tx([], null, [{ id: "p-1", version: 2 }]) as never, recontact);
+    expect(edited.fingerprint).not.toBe(before.fingerprint);
+    const draft = {
+      generationResearchId: null, generationReviewDecisionId: null, recipientContactId: "contact-1",
+      recipientEndpointId: "endpoint-1", targetQuarterId: "q-1", contactPurposeSnapshot: "재협업 제안",
+      generationHistory: before.history,
+    };
+    expect(draftContextMismatch(draft, recontact, edited)).toEqual(["history_changed"]);
   });
 
   it("changes the fingerprint when the purpose or round changes", async () => {
