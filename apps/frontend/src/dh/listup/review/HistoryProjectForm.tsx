@@ -4,6 +4,8 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { WorkspaceCombobox } from "@/components/ui/workspace-combobox";
+import { WorkspaceError } from "@/components/ui/workspace-error";
+import type { Actor } from "./contracts";
 import {
   Select,
   SelectContent,
@@ -32,6 +34,9 @@ export function HistoryProjectForm({
   pending,
   onSave,
   onCancel,
+  members,
+  searchCompanies,
+  loadCompany,
 }: {
   companies: HistoryCompany[];
   company?: HistoryCompany;
@@ -44,9 +49,17 @@ export function HistoryProjectForm({
     newCompany?: { name: string; description: string },
   ) => Promise<boolean>;
   onCancel: () => void;
+  members?: Actor[];
+  searchCompanies?: (query: string) => Promise<HistoryCompany[]>;
+  loadCompany?: (id: string) => Promise<HistoryCompany>;
 }) {
   const key = project?.id ?? company?.id ?? "new";
-  const inferred = company?.wonQuarter?.match(/^(\d{4})-Q([1-4])$/);
+  const liveSource = !project
+    ? company?.wonSources?.find((s) => s.quarter)
+    : undefined;
+  const inferred = (liveSource?.quarter ?? company?.wonQuarter)?.match(
+    /^(\d{4})-Q([1-4])$/,
+  );
   const wonSource =
     !project && !company?.projects.length
       ? company?.sends.find((s) => s.outcome === "won")
@@ -70,10 +83,73 @@ export function HistoryProjectForm({
               contactName: "",
               resultUrl: "",
               version: 0,
-              sourceOutreachId: wonSource?.id,
+              sourceOutreachId: company?.wonSources
+                ? liveSource?.outreachId
+                : wonSource?.id,
+              expectedSourceOutreachVersion: liveSource?.version,
             },
       },
   );
+  const [query, setQuery] = useState("");
+  const [options, setOptions] = useState<HistoryCompany[]>([]);
+  const [selectedDetail, setSelectedDetail] = useState<HistoryCompany>();
+  const [searching, setSearching] = useState(false);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+  useEffect(() => {
+    if (!searchCompanies) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      setSearching(true);
+      setLookupError("");
+      void searchCompanies(query)
+        .then((rows) => {
+          if (active) setOptions(rows);
+        })
+        .catch((e) => {
+          if (active)
+            setLookupError(
+              e instanceof Error ? e.message : "기업 검색에 실패했습니다.",
+            );
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [query, searchCompanies]);
+  useEffect(() => {
+    if (
+      !loadCompany ||
+      !form.companyId ||
+      form.companyId === "new" ||
+      company?.id === form.companyId
+    )
+      return;
+    let active = true;
+    setSelectedDetail(undefined);
+    setCompanyLoading(true);
+    setLookupError("");
+    void loadCompany(form.companyId)
+      .then((c) => {
+        if (active) setSelectedDetail(c);
+      })
+      .catch((e) => {
+        if (active)
+          setLookupError(
+            e instanceof Error ? e.message : "관계자를 불러오지 못했습니다.",
+          );
+      })
+      .finally(() => {
+        if (active) setCompanyLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [form.companyId, loadCompany, company?.id]);
   const patch = (value: Partial<ProjectFormMemory>) =>
     setForm((old) => {
       const next = { ...old, ...value };
@@ -82,7 +158,34 @@ export function HistoryProjectForm({
     });
   const patchProject = (value: Partial<HistoryProject>) =>
     patch({ project: { ...form.project, ...value } });
-  const selected = companies.find((c) => c.id === form.companyId);
+  const choices = [
+    ...new Map(
+      [
+        ...(searchCompanies && query.trim() ? [] : companies),
+        ...options,
+        ...(company ? [company] : []),
+        ...(selectedDetail &&
+        (!query.trim() || selectedDetail.name.includes(query.trim()))
+          ? [selectedDetail]
+          : []),
+      ].map((c) => [c.id, c]),
+    ).values(),
+  ];
+  const selected =
+    selectedDetail?.id === form.companyId
+      ? selectedDetail
+      : company?.id === form.companyId
+        ? company
+        : (companies.find((c) => c.id === form.companyId) ??
+          options.find((c) => c.id === form.companyId));
+  const contacts = [
+    ...new Map(
+      (selected?.contacts ?? []).map((c) => [
+        members ? c.contactId : c.name,
+        c,
+      ]),
+    ).values(),
+  ];
   const p = form.project;
   const sourceLocked = Boolean(p.sourceOutreachId);
   const missing = [
@@ -122,7 +225,7 @@ export function HistoryProjectForm({
       className="hw-project-form"
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!valid || pending) return;
+        if (!valid || pending || companyLoading || lookupError) return;
         if (
           await onSave(
             form.companyId,
@@ -141,6 +244,7 @@ export function HistoryProjectForm({
       }}
     >
       <div className="hw-drawer-scroll">
+        {lookupError && <WorkspaceError message={lookupError} />}
         <Field>
           <FieldLabel htmlFor="hp-company" required>
             기업
@@ -150,11 +254,24 @@ export function HistoryProjectForm({
             required
             value={form.companyId}
             disabled={pending || Boolean(company || project)}
-            onChange={(companyId) => patch({ companyId })}
+            onChange={(companyId) =>
+              patch({
+                companyId,
+                project: {
+                  ...form.project,
+                  contactId: null,
+                  contactName: "",
+                  sourceOutreachId: undefined,
+                  expectedSourceOutreachVersion: undefined,
+                },
+              })
+            }
+            onSearch={searchCompanies ? setQuery : undefined}
+            loading={searching}
             placeholder="기업 선택"
             searchLabel="기업명 검색"
             options={[
-              ...companies.map((c) => ({
+              ...choices.map((c) => ({
                 value: c.id,
                 label: c.name,
                 keywords: [c.description],
@@ -246,6 +363,42 @@ export function HistoryProjectForm({
           </Field>
         </div>
         {sourceLocked && <p className="hw-muted">수주 기록의 진행 분기</p>}
+        {!project && company?.wonSources && company.wonSources.length > 0 && (
+          <Field>
+            <FieldLabel htmlFor="hp-source">연결할 수주 기록</FieldLabel>
+            <Select
+              disabled={pending}
+              value={p.sourceOutreachId ?? "none"}
+              onValueChange={(value) => {
+                const source = company.wonSources!.find(
+                  (s) => s.outreachId === value,
+                );
+                const quarter = source?.quarter?.match(/^(\d{4})-Q([1-4])$/);
+                patchProject({
+                  sourceOutreachId: source?.outreachId,
+                  expectedSourceOutreachVersion: source?.version,
+                  ...(quarter
+                    ? { year: Number(quarter[1]), quarter: Number(quarter[2]) }
+                    : {}),
+                });
+              }}
+            >
+              <SelectTrigger id="hp-source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="dw-select-content">
+                <SelectItem value="none">수동 등록</SelectItem>
+                {company.wonSources
+                  .filter((s) => s.quarter)
+                  .map((s) => (
+                    <SelectItem key={s.outreachId} value={s.outreachId}>
+                      {s.quarter} · {s.outreachId.slice(-6)}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
         <Field>
           <FieldLabel htmlFor="hp-status" required>
             진행 상태
@@ -282,20 +435,55 @@ export function HistoryProjectForm({
         <div className="hw-field-grid">
           <Field>
             <FieldLabel htmlFor="hp-owner">담당자</FieldLabel>
-            <Input
-              id="hp-owner"
-              disabled={pending}
-              value={p.ownerName}
-              onChange={(e) => patchProject({ ownerName: e.target.value })}
-            />
+            {members ? (
+              <WorkspaceCombobox
+                id="hp-owner"
+                disabled={pending}
+                value={p.ownerId ?? "none"}
+                onChange={(value) =>
+                  patchProject({
+                    ownerId: value === "none" ? null : value,
+                    ownerName: members.find((m) => m.id === value)?.name ?? "",
+                  })
+                }
+                options={[
+                  { value: "none", label: "미지정" },
+                  ...members.map((m) => ({ value: m.id, label: m.name })),
+                  ...(p.ownerId && !members.some((m) => m.id === p.ownerId)
+                    ? [
+                        {
+                          value: p.ownerId,
+                          label: p.ownerName || "기존 담당자",
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            ) : (
+              <Input
+                id="hp-owner"
+                disabled={pending}
+                value={p.ownerName}
+                onChange={(e) => patchProject({ ownerName: e.target.value })}
+              />
+            )}
           </Field>
           <Field>
             <FieldLabel htmlFor="hp-contact">관계자</FieldLabel>
             <Select
-              disabled={pending || !selected?.contacts.length}
-              value={p.contactName || "none"}
+              disabled={pending || companyLoading || !contacts.length}
+              value={(members ? p.contactId : p.contactName) || "none"}
               onValueChange={(value) =>
-                patchProject({ contactName: value === "none" ? "" : value })
+                patchProject(
+                  members
+                    ? {
+                        contactId: value === "none" ? null : value,
+                        contactName:
+                          contacts.find((c) => c.contactId === value)?.name ??
+                          "",
+                      }
+                    : { contactName: value === "none" ? "" : value },
+                )
               }
             >
               <SelectTrigger id="hp-contact">
@@ -303,14 +491,23 @@ export function HistoryProjectForm({
               </SelectTrigger>
               <SelectContent className="dw-select-content">
                 <SelectItem value="none">미지정</SelectItem>
-                {selected?.contacts.map((c, i) => (
-                  <SelectItem key={`${c.name}-${i}`} value={c.name}>
+                {contacts.map((c, i) => (
+                  <SelectItem
+                    key={`${c.name}-${i}`}
+                    value={members ? c.contactId! : c.name}
+                  >
                     {c.name}
                   </SelectItem>
                 ))}
-                {p.contactName &&
-                  !selected?.contacts.some((c) => c.name === p.contactName) && (
-                    <SelectItem value={p.contactName}>
+                {(members ? p.contactId : p.contactName) &&
+                  !contacts.some((c) =>
+                    members
+                      ? c.contactId === p.contactId
+                      : c.name === p.contactName,
+                  ) && (
+                    <SelectItem
+                      value={(members ? p.contactId : p.contactName)!}
+                    >
                       {p.contactName}
                     </SelectItem>
                   )}
@@ -354,7 +551,10 @@ export function HistoryProjectForm({
         >
           취소
         </Button>
-        <Button type="submit" disabled={!valid || pending}>
+        <Button
+          type="submit"
+          disabled={!valid || pending || companyLoading || Boolean(lookupError)}
+        >
           프로젝트 저장
         </Button>
       </footer>

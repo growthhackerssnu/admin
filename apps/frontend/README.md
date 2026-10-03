@@ -5,7 +5,7 @@
 | 경로 | 화면 | 코드 | 상세 |
 |---|---|---|---|
 | `/`, `/login`, `/index`, `/admin` | 로그인·가입(OTP)·앱 선택·회원 관리 | `src/portal` | [docs/portal.md](docs/portal.md) |
-| `/dh`, `/dh/listup` | 사람 검토 화면(현재 샘플 데이터). `/dh/listup`은 `/dh`로 이동 | `src/dh/listup/review` | [docs/dh.md](docs/dh.md) |
+| `/dh`, `/dh/listup` | 신규 발굴 / 과거 컨택 / 재수주 실데이터. `/dh/listup`은 `/dh`로 이동 | `src/dh/listup/review` | [docs/dh.md](docs/dh.md) |
 | `/hr`, `/hr/people/:id`, `/hr/requests`, `/hr/admin` | 그핵드인 | `src/hr` | [docs/hr.md](docs/hr.md) |
 | `/nut` | NUT 재무 | `src/nut` | [docs/nut.md](docs/nut.md) |
 
@@ -28,17 +28,20 @@ npm test -w apps/frontend
 
 | 이름 | 값 | 어디서 |
 |---|---|---|
-| `VITE_API_BASE_URL` | 운영 `https://api.ghsnu.com`, 로컬 `http://localhost:3000` | — |
+| `VITE_API_BASE_URL` | 운영 `https://admin-api.ghsnu.com`, 로컬 `http://localhost:3000` | — |
+| `DEV_API_PROXY_TARGET` | 선택. 개발 서버가 API 요청을 전달할 실제 백엔드 origin | 로컬 `.env.local`에만 설정 |
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` | Supabase Dashboard → Project Settings → API → Project URL |
 | `VITE_SUPABASE_ANON_KEY` | anon public 키 | 같은 화면 → Project API keys → `anon` `public` |
 
 브라우저에 그대로 노출되는 값이다. `service_role` 키나 DB 접속 문자열은 절대 넣지 않는다.
+
+운영 API를 로컬의 별도 포트에서 확인할 때는 `.env.local`의 `VITE_API_BASE_URL`을 현재 Vite origin(예: `http://127.0.0.1:5184`)으로, `DEV_API_PROXY_TARGET`을 `https://admin-api.ghsnu.com`으로 설정한다. 개발 서버의 `/api` 프록시가 인증 헤더를 그대로 전달한다. 운영 CORS·인증 정책을 변경하지 않는다. 이 프록시는 Vite 개발 서버에서만 사용하며 프로덕션 빌드에는 적용되지 않는다.
 
 ## Vercel 배포
 
 루트 `vercel.json`이 빌드 명령·출력 폴더·SPA fallback을 정의한다.
 
 1. Vercel에서 이 저장소로 프로젝트를 만든다. **Root Directory는 비워 둔다**(저장소 루트) — npm workspaces(`@dhbot/ui-shell`)를 설치해야 하기 때문이다.
-2. Environment Variables에 위 세 값을 넣는다(Production 기준 `VITE_API_BASE_URL=https://api.ghsnu.com`).
+2. Environment Variables에 위 세 `VITE_` 값을 넣는다(Production 기준 `VITE_API_BASE_URL=https://admin-api.ghsnu.com`).
 3. Domains에 `admin.ghsnu.com`을 연결한다.
 4. Supabase Dashboard → Authentication → URL Configuration에서 Site URL을 `https://admin.ghsnu.com`, Redirect URLs에 `https://admin.ghsnu.com`과 `http://localhost:5173`을 등록한다(Google 로그인 복귀 주소).

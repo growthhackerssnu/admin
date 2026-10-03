@@ -26,6 +26,7 @@ export function Login() {
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<SignupStep>("form");
   const [busy, setBusy] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   const [cohort, setCohort] = useState("");
   const [name, setName] = useState("");
@@ -56,6 +57,7 @@ export function Login() {
         });
       } catch (e) {
         setRedirecting(false);
+        setLoginError(e instanceof ApiClientError ? e.message : "계정 정보를 확인하지 못했습니다. 관리자에게 문의하세요.");
         // 명단에 없음(403)·서버 연결 실패 등 실제 이유를 보여준다.
         void message.error(
           e instanceof ApiClientError
@@ -160,10 +162,12 @@ export function Login() {
   }
 
   async function handleGoogleLogin() {
+    setLoginError("");
     setBusy(true);
     try {
       await signInWithGoogle();
     } catch {
+      setLoginError("Google 로그인을 시작할 수 없습니다.");
       void message.error("Google 로그인을 시작할 수 없습니다.");
       setBusy(false);
     }
@@ -226,6 +230,7 @@ export function Login() {
 
             {mode === "login" && (
               <div className="stack">
+                {loginError && <Alert type="error" showIcon message={loginError} />}
                 <Typography.Paragraph type="secondary">
                   이미 가입한 계정으로 Google 로그인합니다.
                 </Typography.Paragraph>

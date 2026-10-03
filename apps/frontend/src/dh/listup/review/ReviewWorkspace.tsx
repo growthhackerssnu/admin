@@ -30,15 +30,18 @@ import { UnifiedReviewLoading, UnifiedReviewPanel } from "./UnifiedReviewPanel";
 import { HistoryWorkspace, createHistoryMemory } from "./HistoryWorkspace";
 import { PreviewHistoryRepository, unavailableHistoryRepository } from "./historyRepository";
 import type { HistoryTab } from "./historyNavigation";
+import type { HistoryRepository } from "./historyContracts";
 import "./history-workspace.css";
 import "./review.css";
 
 export default function ReviewWorkspace({
   repository = previewRepository,
   historyMode = "unavailable",
+  liveHistoryRepository,
 }: {
   repository?: ReviewRepository;
   historyMode?: "mock" | "unavailable";
+  liveHistoryRepository?: HistoryRepository;
 }) {
   const [params, setParams] = useSearchParams();
   const { confirm, dialog } = useConfirmation();
@@ -48,10 +51,10 @@ export default function ReviewWorkspace({
   const historyRole = params.get("historyRole");
   const historyRepository = useMemo(() => repository.mode === "preview"
     ? new PreviewHistoryRepository(actor, historyRole !== "member")
-    : historyMode === "mock"
+    : liveHistoryRepository ?? (historyMode === "mock"
       ? new PreviewHistoryRepository(actor, data?.canManageOps === true, "mock")
-      : unavailableHistoryRepository,
-    [repository.mode, historyMode, actor.id, actor.name, data?.canManageOps, historyRole]);
+      : unavailableHistoryRepository),
+    [repository.mode, historyMode, liveHistoryRepository, actor.id, actor.name, data?.canManageOps, historyRole]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -308,7 +311,7 @@ export default function ReviewWorkspace({
     navigate({ message: null, candidate: id, view: "review", owner: candidates.find(item => item.id === id)?.owner?.id === actor.id ? params.get("owner") : "all" });
   const changeTab = (view: HistoryTab) => navigate({ view, message: null, historyCompany: view === "review" ? null : historyMemory.current.selected[view] });
   if (tab === "contact-history" || tab === "collaboration-history") {
-    return <>{dialog}<HistoryWorkspace kind={tab} repository={historyRepository} memory={historyMemory.current}
+    return <>{dialog}<HistoryWorkspace key={tab} kind={tab} repository={historyRepository} memory={historyMemory.current}
       selectedId={params.get("historyCompany")} onTabChange={changeTab}
       scenario={repository.mode === "preview" ? params.get("historyScenario") ?? "" : ""}
       onSelect={id => { historyMemory.current.selected[tab] = id; const next = new URLSearchParams(params); if (id) next.set("historyCompany", id); else next.delete("historyCompany"); setParams(next, { replace: true }); }} /></>;

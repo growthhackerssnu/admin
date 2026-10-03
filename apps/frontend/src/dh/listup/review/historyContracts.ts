@@ -10,6 +10,7 @@ export interface HistoryRound {
 }
 export interface HistorySend {
   id: string;
+  outreachId?: string;
   at: string;
   quarter: string;
   owner: Actor;
@@ -24,6 +25,7 @@ export interface HistoryDraft {
   subject: string;
   body: string;
   contextMatches: boolean;
+  topic?: string;
 }
 export interface HistoryWork {
   id: string;
@@ -34,6 +36,12 @@ export interface HistoryWork {
   recipient: Recipient | null;
   draft: HistoryDraft | null;
   sent: HistorySend | null;
+  quarter?: string;
+  canEdit?: boolean;
+  canGenerate?: boolean;
+  blockReasons?: string[];
+  contextFingerprint?: string;
+  sendStatus?: "before_send" | "sent";
 }
 export interface HistoryProject {
   id: string;
@@ -47,23 +55,81 @@ export interface HistoryProject {
   resultUrl: string;
   version: number;
   sourceOutreachId?: string;
+  expectedSourceOutreachVersion?: number;
+  ownerId?: string | null;
+  contactId?: string | null;
+}
+export interface HistoryRecipient extends Recipient {
+  contactId?: string;
+  endpointId?: string;
+}
+export interface HistoryWorkSummary {
+  id: string;
+  owner: Actor;
+  sendStatus: "before_send" | "sent";
+  canEdit: boolean;
+  canGenerate: boolean;
+  outcomeStatus: Outcome | null;
+  blockReasons: string[];
+}
+export interface HistoryListSummary {
+  kind: HistoryKind;
+  previousContact?: Pick<
+    HistorySend,
+    "at" | "quarter" | "owner" | "outcome"
+  > & { outreachId: string };
+  latestProject?: HistoryProject;
+  projectCount?: number;
+  wonWithoutProjectCount?: number;
+  currentWork: HistoryWorkSummary | null;
 }
 export interface HistoryCompany {
   id: string;
   name: string;
   description: string;
   research: string | null;
-  contacts: Recipient[];
+  contacts: HistoryRecipient[];
   sends: HistorySend[];
   projects: HistoryProject[];
   wonQuarter: string | null;
   work: HistoryWork | null;
+  list?: HistoryListSummary;
+  wonSources?: {
+    outreachId: string;
+    version: number;
+    quarter: string | null;
+  }[];
 }
 export interface HistoryData {
   actor: Actor;
   canManage: boolean;
   round: HistoryRound | null;
   companies: HistoryCompany[];
+  page?: { nextCursor: string | null; hasMore: boolean };
+  members?: Actor[];
+  owners?: Actor[];
+  quarters?: string[];
+}
+export interface HistoryFilters {
+  query: string;
+  outcome: string;
+  quarter: string;
+  owner: string;
+  work: string;
+  sort: string;
+  page: number;
+}
+export interface HistoryQuery {
+  kind: HistoryKind;
+  filters: HistoryFilters;
+  cursor?: string | null;
+}
+export class SavedHistoryRefreshError extends Error {
+  constructor(readonly companyId: string) {
+    super(
+      "저장은 완료됐지만 최신 자료를 불러오지 못했습니다. 다시 조회해주세요.",
+    );
+  }
 }
 export type HistoryCommand =
   | { type: "start" }
@@ -77,10 +143,13 @@ export type HistoryCommand =
       project: HistoryProject;
       newCompany?: { name: string; description: string };
     };
-/** Mock writes are browser-local. Live adapter must supply server permissions/version checks. */
+/** Live data is server-paginated; preview/mock adapters retain their browser-local behavior. */
 export interface HistoryRepository {
-  mode: "preview" | "mock" | "unavailable";
-  load(): Promise<HistoryData>;
+  mode: "live" | "preview" | "mock" | "unavailable";
+  load(query?: HistoryQuery): Promise<HistoryData>;
+  loadCompany?(companyId: string): Promise<HistoryCompany>;
+  getCompany?(companyId: string): HistoryCompany | undefined;
+  searchCompanies?(query: string): Promise<HistoryCompany[]>;
   execute(
     companyId: string,
     version: number | null,
@@ -116,6 +185,11 @@ export function generationReasons(
   if (company.work.sent) return ["이번 회차 발송을 마쳤습니다."];
   if (!round || company.work.roundId !== round.id)
     return ["현재 회차 작업이 아닙니다."];
+  if (company.work.blockReasons)
+    return company.work.blockReasons.map(
+      (reason) =>
+        historyBlockLabels[reason] ?? "현재 작업 상태를 다시 확인해주세요.",
+    );
   const reasons: string[] = [];
   if (!company.work.purpose.trim())
     reasons.push("이번 연락 목적을 입력해주세요.");
@@ -129,3 +203,11 @@ export function generationReasons(
     reasons.push("메시지에 사용할 저장 근거가 없습니다.");
   return reasons;
 }
+export const historyBlockLabels: Record<string, string> = {
+  not_owner: "본인 담당 작업만 수정할 수 있습니다.",
+  already_sent: "이번 회차 발송을 마쳤습니다.",
+  round_closed: "종료된 수주 회차의 작업입니다.",
+  purpose_missing: "이번 연락 목적을 입력해주세요.",
+  recipient_missing: "유효한 수신자를 저장해주세요.",
+  evidence_missing: "메시지에 사용할 저장 근거가 없습니다.",
+};

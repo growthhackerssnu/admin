@@ -1,4 +1,4 @@
-import { supabase } from "../../../lib/supabase";
+import { HumanReviewApi, type ApiEnvelope as Envelope } from "./humanReviewApi";
 import { SavedReviewRefreshError } from "./contracts";
 import type {
   Actor,
@@ -43,6 +43,7 @@ type CandidateDto = {
 };
 type OutreachDto = {
   id: string;
+  contextFingerprint: string;
   version: number;
   currentTargetQuarter: QuarterDto;
   recipient: RecipientDto | null;
@@ -64,7 +65,6 @@ type OutreachDto = {
     recordedById: string | null;
   } | null;
 };
-type Envelope<T> = { data: T; page?: { hasMore: boolean; nextCursor: string | null } };
 export type OperationsSummary = {
   assignable: number; researching: number; researchError: number; assigned: number;
   intakePaused: boolean; intakeVersion: number; canManage: boolean;
@@ -127,6 +127,7 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     approvedRevision: null,
     topic: outreach.draft.topic,
     contextMatches: outreach.draft.contextMatches,
+    contextFingerprint: outreach.contextFingerprint,
     subject: outreach.draft.subject,
     body: outreach.draft.body,
     quarter: quarter!,
@@ -173,41 +174,6 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     outreachId: outreach?.id ?? row.outreachId,
     outreachVersion: outreach?.version ?? null,
   };
-}
-
-class HumanReviewApi {
-  private readonly base: string;
-  constructor() {
-    const configured = import.meta.env.VITE_API_BASE_URL?.trim();
-    if (!configured) throw new Error("프론트엔드의 VITE_API_BASE_URL을 설정해주세요.");
-    const url = new URL(configured);
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash)
-      throw new Error("백엔드 주소가 올바르지 않습니다.");
-    this.base = configured.replace(/\/+$/, "").replace(/\/api\/v1$/, "") + "/api/v1";
-  }
-  async request<T>(path: string, method = "GET", body?: unknown, key?: string): Promise<Envelope<T>> {
-    const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session?.access_token) throw new Error("로그인 후 다시 시도해주세요.");
-    const headers: Record<string, string> = { Authorization: `Bearer ${data.session.access_token}` };
-    if (method !== "GET") {
-      if (!key) throw new Error("요청 식별자가 필요합니다.");
-      headers["Content-Type"] = "application/json";
-      headers["Idempotency-Key"] = key;
-    }
-    let response: Response;
-    try {
-      response = await fetch(this.base + path, {
-        method, headers, credentials: "omit", redirect: "error",
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
-    } catch {
-      throw new Error("서버에 연결하지 못했습니다. 처리 여부를 확인한 뒤 다시 시도해주세요.");
-    }
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.error?.message ?? `요청에 실패했습니다. (${response.status})`);
-    if (!payload || !("data" in payload)) throw new Error("서버 응답 형식이 올바르지 않습니다.");
-    return payload as Envelope<T>;
-  }
 }
 
 export class LiveReviewRepository implements ReviewRepository {
@@ -257,10 +223,10 @@ export class LiveReviewRepository implements ReviewRepository {
     return this.data;
   }
 
-  async loadCandidate(id: string): Promise<Candidate> {
+  async loadCandidate(id: string, force = false): Promise<Candidate> {
     const known = this.data?.candidates.find((item) => item.id === id);
     const cached = this.details.get(id);
-    if (cached && known && cached.version === known.version) return cached;
+    if (!force && cached && known && cached.version === known.version) return cached;
     // outreachId는 보통 이미 로드된 목록에 있으므로, 알고 있다면 후보 상세를 기다리지 않고
     // outreach 상세도 바로 병렬로 요청한다 (모를 때만 후보 상세 응답을 기다려 순차 조회).
     const [row, knownOutreach] = await Promise.all([
@@ -348,12 +314,14 @@ export class LiveReviewRepository implements ReviewRepository {
         break;
       case "saveDraft":
         if (!outreachId || !outreachVersion || !candidate.draft) throw new Error("현재 초안을 다시 불러와주세요.");
+        if (!candidate.draft.contextFingerprint) throw new Error("메시지 근거를 다시 불러온 뒤 저장해주세요.");
         await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/draft`, "PATCH", {
           expectedVersion: outreachVersion,
           expectedRevision: candidate.draft.revision,
           topic: candidate.draft.topic ?? candidate.draft.subject,
           subject: command.subject,
           body: command.body,
+          contextFingerprint: candidate.draft.contextFingerprint,
         }, key);
         break;
       case "send":
@@ -372,7 +340,9 @@ export class LiveReviewRepository implements ReviewRepository {
         throw new Error("현재 업무 흐름에서 지원하지 않는 행동입니다.");
     }
     try {
-      await this.loadCandidate(id);
+      // Candidate revision may stay unchanged when only the outreach or draft changes.
+      // A completed write must refresh its detail instead of returning the prefetch cache.
+      await this.loadCandidate(id, true);
       return this.data!;
     } catch {
       throw new SavedReviewRefreshError(this.data!);

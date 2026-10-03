@@ -21,6 +21,8 @@ export function WorkspaceCombobox({
   placeholder = "선택",
   searchLabel = "검색",
   required,
+  onSearch,
+  loading,
 }: {
   id?: string;
   value: string;
@@ -30,6 +32,8 @@ export function WorkspaceCombobox({
   placeholder?: string;
   searchLabel?: string;
   required?: boolean;
+  onSearch?: (query: string) => void;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = options.find((option) => option.value === value);
@@ -54,10 +58,16 @@ export function WorkspaceCombobox({
         align="start"
         className="ds-workspace ds-combobox-content"
       >
-        <Command>
-          <CommandInput aria-label={searchLabel} placeholder={searchLabel} />
+        <Command shouldFilter={!onSearch}>
+          <CommandInput
+            aria-label={searchLabel}
+            placeholder={searchLabel}
+            onValueChange={onSearch}
+          />
           <CommandList>
-            <CommandEmpty>검색 결과가 없습니다.</CommandEmpty>
+            <CommandEmpty>
+              {loading ? "검색 중…" : "검색 결과가 없습니다."}
+            </CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem

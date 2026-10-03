@@ -5,6 +5,7 @@ import { useKeepWarm } from "../../../lib/useKeepWarm";
 import ReviewWorkspace from "./ReviewWorkspace";
 import { LiveReviewRepository } from "./liveRepository";
 import { OperationsPage } from "./OperationsPage";
+import { LiveHistoryRepository } from "./liveHistoryRepository";
 
 export default function LiveReviewWorkspace() {
   const [params] = useSearchParams();
@@ -13,6 +14,10 @@ export default function LiveReviewWorkspace() {
     catch (error) { return error instanceof Error ? error : new Error("연결 설정을 확인해주세요."); }
   }, []);
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const historyRepository = useMemo(() => {
+    try { return new LiveHistoryRepository(); }
+    catch (error) { return error instanceof Error ? error : new Error("연결 설정을 확인해주세요."); }
+  }, []);
   useEffect(() => {
     let active = true;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -26,8 +31,9 @@ export default function LiveReviewWorkspace() {
   useKeepWarm(authenticated === true);
   if (params.get("reviewPreview") === "1") return <ReviewWorkspace />;
   if (repository instanceof Error) return <main role="alert">{repository.message}</main>;
+  if (historyRepository instanceof Error) return <main role="alert">{historyRepository.message}</main>;
   if (authenticated === null) return <main role="status">로그인 확인 중…</main>;
   if (!authenticated) return <Navigate to="/login" replace />;
   if (params.get("view") === "operations") return <OperationsPage repository={repository} />;
-  return <ReviewWorkspace repository={repository} historyMode="mock" />;
+  return <ReviewWorkspace repository={repository} liveHistoryRepository={historyRepository} />;
 }
