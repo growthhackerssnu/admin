@@ -55,7 +55,6 @@ export const POST = withListupApiHandler(async (req, { member }) => {
             toStatus: "unresolved" as const,
             source: "round_close" as const,
             actorId: null,
-            recordedAt: now,
           })),
         });
       await tx.acquisitionRound.update({

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   tx: {
     outreach: { findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
     companyResearch: { findFirst: vi.fn() },
+    pastProject: { findMany: vi.fn() },
     messageDraftRevision: { findUnique: vi.fn() },
     outreachOutcomeEvent: { create: vi.fn() },
     sentMessage: { create: vi.fn() },
@@ -49,6 +50,7 @@ describe("review outreach send record", () => {
     mocks.tx.outreach.findUniqueOrThrow.mockResolvedValue(outreach);
     mocks.tx.outreach.updateMany.mockResolvedValue({ count: 1 });
     mocks.tx.outreach.findMany.mockResolvedValue([]);
+    mocks.tx.pastProject.findMany.mockResolvedValue([]);
     mocks.tx.companyResearch.findFirst.mockResolvedValue({ id: "r-1" });
     mocks.tx.messageDraftRevision.findUnique.mockResolvedValue({ ...draft, generationResearchId: "r-1", generationHistory: { key: "ignored" } });
     mocks.tx.sentMessage.create.mockResolvedValue({

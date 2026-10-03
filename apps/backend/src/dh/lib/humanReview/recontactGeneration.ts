@@ -28,6 +28,7 @@ export function recontactPrompt(input: {
   contactPurpose: string;
   targetQuarter: { year: number; quarter: number };
   history: HistorySnapshot["outreaches"];
+  projects: HistorySnapshot["projects"];
   research: { claims: { category: string; content: string }[]; evidence: { id: string; title: string | null; excerpt: string | null }[] } | null;
 }) {
   return [
@@ -36,6 +37,7 @@ export function recontactPrompt(input: {
     "Do not invent past agreements, project results, people, or numbers. If a fact is not in the data, leave it out.",
     "An outcome of 'unresolved' only means no result was recorded when the round ended. It is not evidence that the company did not reply.",
     "Reference the earlier contact naturally and state the sender's purpose for this new message.",
+    "If projects are supplied, they are collaborations already recorded by the team. Mention only what their fields say; never invent results.",
     "Return topic (short, under 120 characters), subject, and body. Sign the body with the sender name.",
     JSON.stringify(input),
   ].join("\n\n");
@@ -55,9 +57,10 @@ export async function generateRecontactDraft(opts: {
   member: Member;
   route: string;
   outreachId: string;
-  expectedVersion: number;
+  input: { expectedVersion: number; projectIds?: string[] };
 }) {
-  const { req, member, route, outreachId, expectedVersion } = opts;
+  const { req, member, route, outreachId, input } = opts;
+  const { expectedVersion } = input;
   const outreach = await prisma.outreach.findUniqueOrThrow({
     where: { id: outreachId },
     include: {
@@ -76,8 +79,18 @@ export async function generateRecontactDraft(opts: {
   if (!outreach.recipientContact || !outreach.recipientEndpoint)
     throw blocked("수신자를 먼저 선택하세요.", ["recipient_missing"]);
   const ctx = await loadOutreachContext(prisma, outreach);
-  if (!ctx.hasEvidence || !ctx.history)
-    throw blocked("생성에 쓸 저장된 근거(이전 연락·조사)가 없습니다.", ["evidence_missing"]);
+  if (!ctx.history) throw blocked("생성에 쓸 저장된 근거가 없습니다.", ["evidence_missing"]);
+  // projectIds를 생략하면 이 기업의 저장 프로젝트 전체, 빈 배열이면 프로젝트 근거를 쓰지 않는다.
+  // 다른 기업의 프로젝트는 받지 않는다.
+  const known = new Set(ctx.history.projects.map((project) => project.id));
+  const unknown = (input.projectIds ?? []).filter((id) => !known.has(id));
+  if (unknown.length)
+    throw new ApiError("VALIDATION_ERROR", "이 기업의 프로젝트가 아닙니다.", { details: { invalidProjectIds: unknown } });
+  const selectedProjects = input.projectIds
+    ? ctx.history.projects.filter((project) => input.projectIds!.includes(project.id))
+    : ctx.history.projects;
+  if (!ctx.history.outreaches.length && !selectedProjects.length && ctx.researchId === null)
+    throw blocked("생성에 쓸 저장된 근거(이전 연락·조사·프로젝트)가 없습니다.", ["evidence_missing"]);
 
   let research: Parameters<typeof recontactPrompt>[0]["research"] = null;
   if (ctx.researchId) {
@@ -108,6 +121,7 @@ export async function generateRecontactDraft(opts: {
       contactPurpose: purpose,
       targetQuarter: outreach.currentTargetQuarter,
       history: ctx.history.outreaches,
+      projects: selectedProjects,
       research,
     }),
     recontactSchema,
@@ -118,7 +132,7 @@ export async function generateRecontactDraft(opts: {
     body: field(generation.value.body, "body", 20000),
   };
 
-  return withIdempotency(req, member, route, { expectedVersion }, async (tx) => {
+  return withIdempotency(req, member, route, input, async (tx) => {
     const current = await tx.outreach.findUniqueOrThrow({
       where: { id: outreach.id },
       include: {
@@ -149,7 +163,7 @@ export async function generateRecontactDraft(opts: {
         createdBy: "ai",
         generationResearchId: ctx.researchId,
         generationReviewDecisionId: null,
-        generationHistory: ctx.history ?? undefined,
+        generationHistory: { ...ctx.history, selectedProjectIds: selectedProjects.map((project) => project.id) },
         recipientContactId: current.recipientContactId,
         recipientEndpointId: current.recipientEndpointId,
         recipientSnapshot: {
