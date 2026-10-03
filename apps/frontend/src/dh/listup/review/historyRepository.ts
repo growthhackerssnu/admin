@@ -337,7 +337,7 @@ export class PreviewHistoryRepository implements HistoryRepository {
       else company.projects[i] = saved;
       if (company.work?.draft) company.work.draft.contextMatches = false;
     } else if (command.type === "start") {
-      if (!data.round) throw new Error("현재 수주 회차가 설정되지 않았습니다.");
+      if (!data.round) throw new Error("현재 수주 분기가 설정되지 않았습니다.");
       if (!company.work)
         company.work = {
           id: crypto.randomUUID(),

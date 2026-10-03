@@ -52,18 +52,16 @@
 .uw-message-quarter {
   min-width: 0;
 }
-.uw-message-quarter > button {
-  padding-left: 0;
-  margin-top: var(--ds-space-1);
-  height: auto;
+.uw-message-quarter-label {
+  margin: 0 0 var(--layout-label-gap);
+  color: var(--ds-gray-700);
+  font-size: var(--ds-type-caption);
 }
-.uw-message-quarter-fields {
-  display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(90px, 1fr) auto;
-  gap: var(--layout-control-gap);
-  align-items: end;
-  margin-top: var(--layout-group-gap);
+.uw-message-quarter strong {
+  font-size: var(--workspace-section-size, var(--ds-type-body-1));
+  font-weight: 600;
 }
+.uw-message-period > a { margin-left: var(--layout-control-gap); }
 .uw-message-period,
 .uw-message-notice,
 .uw-message-sent-meta {
@@ -133,12 +131,5 @@
   }
   .uw-message-quarter {
     max-width: 240px;
-  }
-  .uw-message-quarter-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .uw-message-quarter-fields > button {
-    grid-column: 1 / -1;
-    justify-self: end;
   }
 }

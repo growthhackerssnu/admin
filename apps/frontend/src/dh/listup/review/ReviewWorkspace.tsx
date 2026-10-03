@@ -18,6 +18,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   currentActor,
   SavedReviewRefreshError,
+  ReviewActionError,
   researchLabels,
   reviewLabels,
   type Candidate,
@@ -185,6 +186,7 @@ export default function ReviewWorkspace({
         }
         return true;
       }
+      if (error instanceof ReviewActionError && active.current) setData(error.data);
       if (active.current)
         setError(
           error instanceof Error
@@ -231,10 +233,17 @@ export default function ReviewWorkspace({
         repository.execute(candidate.id, candidate.version, command, key),
     );
   };
-  const addQuarter = (quarter: string) =>
-    perform(JSON.stringify({ quarter }), (key) =>
-      repository.addQuarter(quarter, key),
-    );
+  const retryRound = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
+    try {
+      const next = repository.refreshRound ? await repository.refreshRound() : await repository.load();
+      if (active.current) setData(next);
+    } catch (failure) {
+      if (active.current) setError(failure instanceof Error ? failure.message : "수주 분기를 불러오지 못했습니다.");
+    } finally { busy.current = false; if (active.current) setPending(false); }
+  };
   const candidates = data?.candidates ?? [];
   const ready = candidates.filter(
     (item) =>
@@ -324,7 +333,7 @@ export default function ReviewWorkspace({
       owner={params.get("owner") === "all" || (message && message.owner?.id !== actor.id) ? "all" : "mine"}
       onOwnerChange={(owner) => navigate({ owner, candidate: null, message: null })}
       selectedId={detailId}
-      quarters={data.quarters} addQuarter={addQuarter}
+      currentRound={data.currentRound} roundError={data.roundError} retryRound={() => void retryRound()}
       pending={actionPending} error={refreshFailure?.message ?? error} change={change} onDirty={trackDirty}
       reload={refreshFailure ? () => void reloadAfterSave() : undefined} reloading={pending}
       onSelect={(id) => { void navigate({ candidate: id, message: null, view: "review" }); }} /></>;
@@ -670,7 +679,7 @@ export default function ReviewWorkspace({
                       <thead>
                         <tr>
                           <th>기업</th>
-                          <th>{tab === "messages" ? "목표 분기" : "조사"}</th>
+                          <th>{tab === "messages" ? "수주 분기" : "조사"}</th>
                           <th>{tab === "messages" ? "메시지" : "검토"}</th>
                           <th>담당자</th>
                           <th>작업</th>

@@ -594,7 +594,7 @@ export class LiveHistoryRepository implements HistoryRepository {
       }
     } else if (command.type === "start") {
       if (!this.data?.round)
-        throw new Error("현재 수주 회차가 설정되지 않았습니다.");
+        throw new Error("현재 수주 분기가 설정되지 않았습니다.");
       path = `/companies/${encodeURIComponent(companyId)}/outreaches`;
       method = "POST";
       body = {

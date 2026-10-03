@@ -39,14 +39,16 @@ function approvedCompany(withDraft = false) {
     );
   return data;
 }
-function markup(candidate: Candidate) {
+const activeRound = initialReviewData().currentRound;
+function markup(candidate: Candidate, round = activeRound, roundError?: string) {
   return renderToStaticMarkup(
     <MessageComposer
       candidate={candidate}
       actor={currentActor}
-      quarters={["2027-Q1"]}
+      currentRound={round}
+      roundError={roundError}
+      retryRound={() => {}}
       change={async () => true}
-      addQuarter={async () => true}
       pending={false}
       onDirty={() => {}}
     />,
@@ -61,14 +63,34 @@ function button(html: string, label: string) {
 }
 
 describe("message work inside the company's center pane", () => {
-  it("requires a quarter before generation and enables generation after selection", () => {
-    const candidate = approvedCompany().candidates[0];
-    expect(
-      button(markup({ ...candidate, quarter: null }), "메시지 생성"),
-    ).toContain('disabled=""');
-    expect(button(markup(candidate), "메시지 생성")).not.toContain(
-      'disabled=""',
-    );
+  it("shows the fixed quarter and enables generation without individual quarter selection", () => {
+    const html = markup({ ...approvedCompany().candidates[0], quarter: null });
+    expect(html).toContain("수주 분기");
+    expect(html).toContain("2027년 1분기");
+    expect(html).not.toContain('role="combobox"');
+    expect(html).not.toContain("분기 추가");
+    expect(html).not.toContain("목표 분기 선택");
+    expect(button(html, "메시지 생성")).not.toContain('disabled=""');
+  });
+  it("distinguishes a missing setting from a failed lookup and offers retry only for the latter", () => {
+    const candidate = { ...approvedCompany().candidates[0], quarter: null };
+    const html = markup(candidate, null);
+    expect(html).toContain("수주 분기 미설정 · 팀장 설정 필요");
+    expect(button(html, "메시지 생성")).toContain('disabled=""');
+    expect(html).not.toContain("다시 불러오기");
+    const failed = markup(candidate, null, "수주 분기를 불러오지 못했습니다.");
+    expect(failed).not.toContain("팀장 설정 필요");
+    expect(failed).toContain("다시 불러오기");
+    expect(button(failed, "메시지 생성")).toContain('disabled=""');
+  });
+  it("keeps closed work in its original quarter and blocks editing and generation", () => {
+    const candidate = { ...approvedCompany(true).candidates[0], quarter: "2026-Q4", canEditMessage: false, canGenerateMessage: false, messageBlockReasons: ["round_closed"] };
+    const html = markup(candidate);
+    expect(html).toContain("2026년 4분기");
+    expect(html).toContain("종료된 수주 분기 · 읽기 전용");
+    expect(html).toContain('readonly=""');
+    expect(button(html, "다시 생성")).toContain('disabled=""');
+    expect(button(html, "발송 완료 표시")).toContain('disabled=""');
   });
   it("shows a saved draft and send actions without a separate page navigation", () => {
     const html = markup(approvedCompany(true).candidates[0]);

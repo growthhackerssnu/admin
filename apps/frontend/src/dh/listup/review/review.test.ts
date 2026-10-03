@@ -61,8 +61,9 @@ describe("human review workflow", () => {
     });
     expect(item.reviewStatus).toBe("rejected_contact");
   });
-  it("requires human approval and a quarter, without any AI fit field", () => {
-    expect(() => next(approved(), { type: "generate" })).toThrow("분기");
+  it("requires human approval and a configured team quarter, without any AI fit field", () => {
+    expect(() => next({ ...approved(), currentRound: null }, { type: "generate" })).toThrow("분기");
+    expect(next(approved(), { type: "generate" }).candidates[0].quarter).toBe("2027-Q1");
     const data = draft();
     expect(data.candidates[0].draft?.body).toContain("2027년 1~3월");
     expect(data.candidates[0].draft?.body).toContain(recipient.name);

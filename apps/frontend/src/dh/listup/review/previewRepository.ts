@@ -2,6 +2,7 @@ import { contactMessage } from "../messageTemplate";
 import { initialReviewData } from "./fixtures";
 import {
   canCopy,
+  quarterLabel,
   currentActor,
   validRecipient,
   draftCurrent,
@@ -106,6 +107,7 @@ export function applyCommand(
       invalidate();
       break;
     case "generate": {
+      if (!candidate.quarter && next.currentRound) candidate.quarter = quarterLabel(next.currentRound.targetQuarter);
       if (
         candidate.reviewStatus !== "approved" ||
         !candidate.recipient ||
@@ -113,7 +115,7 @@ export function applyCommand(
         !candidate.research
       )
         throw new Error(
-          "사람의 승인, 수신자, 목표 분기와 조사 자료가 필요합니다.",
+          "사람의 승인, 수신자, 수주 분기와 조사 자료가 필요합니다.",
         );
       // Preview only: deterministic rendering of the existing template; never an AI/API fallback.
       const message = contactMessage(
@@ -203,6 +205,7 @@ function read(): Envelope {
     throw new Error(
       "미리보기 저장 자료를 읽을 수 없습니다. 브라우저의 해당 미리보기 데이터를 확인해주세요.",
     );
+  if (stored.data.currentRound === undefined) stored.data.currentRound = initialReviewData().currentRound;
   return stored;
 }
 async function mutate(

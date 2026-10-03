@@ -1,7 +1,9 @@
-import { HumanReviewApi, type ApiEnvelope as Envelope } from "./humanReviewApi";
-import { SavedReviewRefreshError } from "./contracts";
+import { HumanReviewApi, HumanReviewApiError, type ApiEnvelope as Envelope } from "./humanReviewApi";
+import { SavedReviewRefreshError, ReviewActionError, quarterLabel } from "./contracts";
+import { AcquisitionQuarterApi } from "./acquisitionQuarter";
 import type {
   Actor,
+  AcquisitionRound,
   Candidate,
   CandidateCommand,
   Draft,
@@ -56,6 +58,10 @@ type OutreachDto = {
     generationResearchId: string | null;
     contextMatches: boolean;
   } | null;
+  acquisitionRound?: AcquisitionRound | null;
+  canEdit?: boolean;
+  canGenerate?: boolean;
+  blockReasons?: string[];
   latestSend: {
     id: string;
     sentAt: string;
@@ -88,10 +94,6 @@ const claimLabels: Record<string, string> = {
   recent_change: "최근 변화",
   public_challenge: "공개된 과제",
 };
-
-function quarterLabel(value: QuarterDto) {
-  return `${value.year}-Q${value.quarter}`;
-}
 
 function normalizeRecipient(value: RecipientDto | null): Recipient | null {
   return value ? {
@@ -173,23 +175,27 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     version: row.revision,
     outreachId: outreach?.id ?? row.outreachId,
     outreachVersion: outreach?.version ?? null,
+    outreachRound: outreach?.acquisitionRound,
+    canEditMessage: outreach?.canEdit,
+    canGenerateMessage: outreach?.canGenerate,
+    messageBlockReasons: outreach?.blockReasons,
   };
 }
 
 export class LiveReviewRepository implements ReviewRepository {
   readonly mode = "live" as const;
   private readonly api = new HumanReviewApi();
-  private quarterIds = new Map<string, string>();
+  readonly acquisitionQuarters = new AcquisitionQuarterApi(this.api);
+  private generations = new Map<string, { roundId: string | null; outreachId?: string; version?: number }>();
   private data: ReviewData | null = null;
   private details = new Map<string, Candidate>();
 
   async load(): Promise<ReviewData> {
-    const [me, quarters, summary] = await Promise.all([
+    const [me, summary, roundState] = await Promise.all([
       this.api.request<{ userId: string; displayName: string }>("/me"),
-      this.api.request<QuarterDto[]>("/target-quarters?limit=100"),
       this.api.request<OperationsSummary>("/review-queue/summary"),
+      this.readRound(),
     ]);
-    this.quarterIds = new Map(quarters.data.map((quarter) => [quarterLabel(quarter), quarter.id]));
     const rows: CandidateDto[] = [];
     const seen = new Set<string>();
     let cursor: string | null = null;
@@ -202,7 +208,9 @@ export class LiveReviewRepository implements ReviewRepository {
       if (next) seen.add(next);
       cursor = page.page?.hasMore ? next : null;
     } while (cursor);
+    if (this.data?.currentRound?.id !== roundState.currentRound?.id || roundState.roundError) this.details.clear();
     this.data = {
+      ...roundState,
       schema: 1,
       actor: { id: me.data.userId, name: me.data.displayName },
       canManageOps: summary.data.canManage,
@@ -210,7 +218,7 @@ export class LiveReviewRepository implements ReviewRepository {
         const detailed = this.details.get(row.id);
         return detailed?.version === row.revision ? detailed : normalizeCandidate(row);
       }),
-      quarters: [...this.quarterIds.keys()],
+      quarters: roundState.currentRound ? [quarterLabel(roundState.currentRound.targetQuarter)] : [],
       runs: [],
     };
     // 목록을 보여준 다음, 아직 상세(연구 내용 등)를 안 받아본 후보들을 백그라운드로
@@ -221,6 +229,36 @@ export class LiveReviewRepository implements ReviewRepository {
         .map((c) => this.loadCandidate(c.id)),
     );
     return this.data;
+  }
+
+  private async readRound() {
+    try { return { currentRound: await this.acquisitionQuarters.current(), roundError: undefined }; }
+    catch { return { currentRound: null, roundError: "수주 분기를 불러오지 못했습니다." }; }
+  }
+
+  async refreshRound(): Promise<ReviewData> {
+    if (!this.data) return this.load();
+    this.data = { ...this.data, ...await this.readRound() };
+    this.details.clear();
+    return this.data;
+  }
+
+  private rememberOutreach(id: string, outreach: OutreachDto) {
+    const previous = this.data!.candidates.find((item) => item.id === id)!;
+    const recipient = normalizeRecipient(outreach.recipient);
+    const quarter = quarterLabel(outreach.currentTargetQuarter);
+    const draft: Draft | null = outreach.draft && recipient ? {
+      ...outreach.draft, contextFingerprint: outreach.contextFingerprint,
+      approvedRevision: null, quarter, recipient,
+      researchId: outreach.draft.generationResearchId ?? "",
+    } : null;
+    const updated: Candidate = { ...previous, quarter, draft, outreachId: outreach.id,
+      outreachVersion: outreach.version, outreachRound: outreach.acquisitionRound,
+      canEditMessage: outreach.canEdit, canGenerateMessage: outreach.canGenerate,
+      messageBlockReasons: outreach.blockReasons };
+    this.details.set(id, updated);
+    this.data = { ...this.data!, candidates: this.data!.candidates.map((item) => item.id === id ? updated : item) };
+    return updated;
   }
 
   async loadCandidate(id: string, force = false): Promise<Candidate> {
@@ -274,6 +312,10 @@ export class LiveReviewRepository implements ReviewRepository {
           draft: candidate.draft ? { ...candidate.draft, contextMatches: false } : null,
           sent: candidate.sent,
           outreachVersion: candidate.outreachVersion,
+          outreachRound: candidate.outreachRound,
+          canEditMessage: candidate.canEditMessage,
+          canGenerateMessage: candidate.canGenerateMessage,
+          messageBlockReasons: candidate.messageBlockReasons,
         };
         this.details.set(id, updated);
         this.data = { ...this.data!, candidates: this.data!.candidates.map((item) => item.id === id ? updated : item) };
@@ -300,18 +342,60 @@ export class LiveReviewRepository implements ReviewRepository {
           }
         }
         break;
-      case "quarter": {
-        const targetQuarterId = this.quarterIds.get(command.quarter);
-        if (!targetQuarterId) throw new Error("등록된 목표 분기를 선택해주세요.");
-        if (!outreachId) await this.api.request(`${route}/outreaches`, "POST", { expectedRevision: expectedVersion, targetQuarterId }, key);
-        else if (outreachVersion) await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/target-quarter`, "PATCH", { expectedVersion: outreachVersion, targetQuarterId }, key);
-        else throw new Error("메시지 업무를 다시 불러와주세요.");
+      case "quarter":
+        throw new Error("수주 분기는 팀장 설정에서만 변경할 수 있습니다.");
+      case "generate": {
+        if (candidate.owner?.id !== this.data?.actor?.id || candidate.reviewStatus !== "approved")
+          throw new Error("담당 기업을 승인한 뒤 메시지를 생성해주세요.");
+        if (candidate.canEditMessage === false || candidate.canGenerateMessage === false)
+          throw new Error("현재 메시지 업무는 생성할 수 없습니다. 수주 분기와 관계자를 확인해주세요.");
+        let attempt = this.generations.get(key);
+        if (!attempt) {
+          if (!outreachId && (this.data?.roundError || !this.data?.currentRound))
+            throw new Error(this.data?.roundError ?? "수주 분기 미설정 · 팀장 설정 필요");
+          attempt = { roundId: this.data?.currentRound?.id ?? null, outreachId: outreachId ?? undefined, version: outreachVersion ?? undefined };
+          this.generations.set(key, attempt);
+        }
+        try {
+          if (!attempt.outreachId) {
+            try {
+              const prepared = (await this.api.request<OutreachDto>(`${route}/outreaches`, "POST", {
+                expectedRevision: expectedVersion, expectedRoundId: attempt.roundId,
+              }, `${key}-prepare-${attempt.roundId}`)).data;
+              this.rememberOutreach(id, prepared);
+              attempt.outreachId = prepared.id;
+              attempt.version = prepared.version;
+            } catch (error) {
+              if (!(error instanceof HumanReviewApiError) || error.code !== "OUTREACH_EXISTS") throw error;
+              const existing = await this.loadCandidate(id, true);
+              if (!existing.outreachId || existing.outreachRound?.id !== attempt.roundId || existing.canEditMessage !== true)
+                throw new Error("이미 존재하는 메시지 업무를 확인해주세요. 다른 업무로 자동 전환하지 않습니다.");
+              attempt.outreachId = existing.outreachId;
+              attempt.version = existing.outreachVersion ?? undefined;
+            }
+          }
+          if (attempt.version === undefined) throw new Error("메시지 업무를 다시 불러와주세요.");
+          const generated = (await this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(attempt.outreachId!)}/draft-generation`, "POST",
+            { expectedVersion: attempt.version }, `${key}-generate-${attempt.outreachId}-${attempt.version}`)).data;
+          this.rememberOutreach(id, generated);
+          this.generations.delete(key);
+        } catch (error) {
+          if (error instanceof HumanReviewApiError && ["ROUND_CHANGED", "NO_ACTIVE_ROUND", "ROUND_CLOSED"].includes(error.code ?? "")) {
+            this.generations.delete(key);
+            await this.refreshRound();
+            // Existing work keeps its own quarter. Refresh its server permission flags, never move it.
+            await this.loadCandidate(id, true).catch(() => {
+              if (this.data?.candidates.find((item) => item.id === id)?.outreachId) {
+                this.data = { ...this.data!, candidates: this.data!.candidates.map((item) => item.id === id
+                  ? { ...item, canEditMessage: false, canGenerateMessage: false, messageBlockReasons: ["round_closed"] } : item) };
+              }
+            });
+            throw new ReviewActionError("수주 분기가 변경되었거나 종료됐습니다. 현재 설정과 업무를 확인한 뒤 다시 시도해주세요.", this.data!);
+          }
+          throw new ReviewActionError(error instanceof Error ? error.message : "메시지를 생성하지 못했습니다.", this.data!);
+        }
         break;
       }
-      case "generate":
-        if (!outreachId || !outreachVersion) throw new Error("목표 분기를 선택해 메시지 업무를 준비해주세요.");
-        await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/draft-generation`, "POST", { expectedVersion: outreachVersion }, key);
-        break;
       case "saveDraft":
         if (!outreachId || !outreachVersion || !candidate.draft) throw new Error("현재 초안을 다시 불러와주세요.");
         if (!candidate.draft.contextFingerprint) throw new Error("메시지 근거를 다시 불러온 뒤 저장해주세요.");

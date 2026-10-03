@@ -154,6 +154,7 @@ export function initialReviewData(): ReviewData {
   ];
   return {
     schema: 1,
+    currentRound: { id: "preview-round", targetQuarter: { id: "preview-quarter", year: 2027, quarter: 1 }, startedAt: at, endedAt: null },
     actor: currentActor,
     candidates: companies,
     quarters: ["2026-Q4", "2027-Q1"],

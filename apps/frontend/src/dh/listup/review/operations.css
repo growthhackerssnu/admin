@@ -29,4 +29,7 @@
 .uw-ops-error { color: var(--destructive); }
 .uw-ops-notice { color: var(--ds-gray-700); }
 .uw-ops-loading { display: flex; align-items: center; gap: var(--layout-label-gap); }
+.uw-ops-current-quarter { margin-block: var(--layout-field-gap); color: var(--ds-text-strong); }
+.uw-ops-quarter-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--layout-control-gap); margin-block: var(--layout-field-gap); }
+.uw-ops-quarter-controls > [data-slot="field"] { flex: 1 1 160px; max-width: 280px; }
 @container (max-width: 700px) { .uw-ops-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--layout-inset) 0; } .uw-ops-metrics div:nth-child(3) { padding-left: 0; border-left: 0; } .uw-ops-fields { grid-template-columns: minmax(0,1fr); } .uw-ops-section-head { flex-direction: column; align-items: stretch; gap: var(--layout-field-gap); } }

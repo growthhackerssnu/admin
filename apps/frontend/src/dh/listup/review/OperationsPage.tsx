@@ -15,6 +15,7 @@ import type {
 } from "./liveRepository";
 import "@/design-system/globals.css";
 import "./operations.css";
+import { AcquisitionQuarterSettings } from "./AcquisitionQuarterSettings";
 
 const dateText = (offsetDays: number) => {
   const day = new Date();
@@ -71,6 +72,7 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
       {notice && <p className="uw-ops-notice" role="status">{notice}</p>}
       {!summary ? <p className="uw-ops-loading" role="status"><Spinner /> 운영 현황을 불러오는 중…</p> : !summary.canManage ?
         <p role="alert">팀장 또는 관리자만 배정과 수집 상태를 변경할 수 있습니다.</p> : <>
+        <AcquisitionQuarterSettings api={repository.acquisitionQuarters} />
         <section className="uw-ops-section" aria-labelledby="uw-ops-queue-title">
           <div className="uw-ops-section-head"><div><h2 id="uw-ops-queue-title">현재 검토 큐</h2><p>배정 가능한 기업만 회차에 포함됩니다.</p></div></div>
           <div className="uw-ops-metrics">

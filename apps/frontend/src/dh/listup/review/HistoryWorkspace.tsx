@@ -1149,7 +1149,7 @@ export function HistoryWorkspace({
                 <footer className="hw-composer-footer">
                   {!data.round && (
                     <p className="hw-block-reason">
-                      현재 수주 회차가 설정되지 않았습니다.
+                      현재 수주 분기가 설정되지 않았습니다.
                     </p>
                   )}
                   <Button
