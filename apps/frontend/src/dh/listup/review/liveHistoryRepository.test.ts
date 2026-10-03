@@ -527,3 +527,87 @@ describe("live history API contract", () => {
     ).toBe(true);
   });
 });
+
+describe("company detail loading", () => {
+  const paths = () => request.mock.calls.map(([path]) => new URL(path, "https://x.test").pathname);
+  // Holds the history response until released so we can see what was requested meanwhile.
+  function gateHistory() {
+    const base = request.getMockImplementation()!;
+    let release!: () => void;
+    const open = new Promise<void>((resolve) => (release = resolve));
+    request.mockImplementation(async (path: string, ...rest: unknown[]) => {
+      if (new URL(path, "https://x.test").pathname.endsWith("/history")) await open;
+      return (base as (...args: unknown[]) => unknown)(path, ...rest);
+    });
+    return release;
+  }
+
+  it("requests projects and the work row without waiting for history", async () => {
+    const r = repo();
+    await r.load(query());
+    request.mockClear();
+    const release = gateHistory();
+    const loading = r.loadCompany(company.id);
+    await vi.waitFor(() => expect(paths()).toContain("/review-outreaches/work-1"));
+    expect(paths()).toContain(`/companies/${company.id}/projects`);
+    release();
+    expect((await loading).work?.id).toBe("work-1");
+  });
+
+  it("reuses a fresh copy only when maxAge is given", async () => {
+    const r = await loaded();
+    await r.loadCompany(company.id, { maxAge: 60_000 });
+    expect(request).not.toHaveBeenCalled();
+    await r.loadCompany(company.id);
+    expect(paths()).toContain(`/companies/${company.id}/history`);
+  });
+
+  it("shares one in-flight request between a prefetch and a click", async () => {
+    const r = repo();
+    await r.load(query());
+    request.mockClear();
+    const [a, b] = await Promise.all([
+      r.loadCompany(company.id, { maxAge: 60_000 }),
+      r.loadCompany(company.id, { maxAge: 60_000 }),
+    ]);
+    expect(a).toBe(b);
+    expect(paths().filter((p) => p.endsWith("/history"))).toHaveLength(1);
+  });
+
+  it("does not let an older load overwrite the one started after a save", async () => {
+    const r = repo();
+    await r.load(query());
+    const release = gateHistory();
+    const older = r.loadCompany(company.id);
+    await vi.waitFor(() => expect(paths()).toContain("/review-outreaches/work-1"));
+    const base = request.getMockImplementation()!;
+    request.mockImplementation(async (path: string, ...rest: unknown[]) => {
+      const result = (await (base as (...args: unknown[]) => unknown)(path, ...rest)) as {
+        data: { researchSummary?: string };
+      };
+      if (new URL(path, "https://x.test").pathname.endsWith("/history"))
+        return { data: { ...result.data, researchSummary: "새 조사" } };
+      return result;
+    });
+    release();
+    await older;
+    const newer = await r.loadCompany(company.id);
+    expect(newer.research).toBe("새 조사");
+    expect(r.getCompany(company.id)?.research).toBe("새 조사");
+  });
+
+  it("prefetches each company once, and a newer prefetch drops the old queue", async () => {
+    const r = repo();
+    await r.load(query());
+    request.mockClear();
+    await r.prefetchCompanies([company.id], 60_000);
+    expect(paths().filter((p) => p.endsWith("/history"))).toHaveLength(1);
+    request.mockClear();
+    await r.prefetchCompanies([company.id], 60_000);
+    expect(request).not.toHaveBeenCalled();
+    const first = r.prefetchCompanies(["a", "b", "c", "d", "e", "f"], 60_000, 1);
+    await r.prefetchCompanies([], 60_000);
+    await first;
+    expect(paths().filter((p) => p.endsWith("/history")).length).toBeLessThan(6);
+  });
+});

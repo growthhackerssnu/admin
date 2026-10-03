@@ -154,6 +154,10 @@ export class LiveHistoryRepository implements HistoryRepository {
   private query = defaults();
   private data?: HistoryData;
   private details = new Map<string, HistoryCompany>();
+  private fetchedAt = new Map<string, number>();
+  private loadSeq = new Map<string, number>();
+  private inflight = new Map<string, Promise<HistoryCompany>>();
+  private prefetchRun = 0;
   private retryKeys = new Map<string, string>();
   private completedWrites = new Map<string, string>();
   private readSequence = 0;
@@ -381,9 +385,58 @@ export class LiveHistoryRepository implements HistoryRepository {
     if (sequence === this.readSequence) this.data = data;
     return data;
   }
-  async loadCompany(companyId: string): Promise<HistoryCompany> {
+  /**
+   * `maxAge` (ms) allows a recent copy or an in-flight request to be reused, so a click right
+   * after a prefetch costs nothing. Without it the call always hits the server (used after writes).
+   */
+  loadCompany(
+    companyId: string,
+    opts?: { maxAge?: number },
+  ): Promise<HistoryCompany> {
+    if (opts?.maxAge !== undefined) {
+      const cached = this.details.get(companyId);
+      const at = this.fetchedAt.get(companyId);
+      if (cached && at !== undefined && Date.now() - at < opts.maxAge)
+        return Promise.resolve(cached);
+      const running = this.inflight.get(companyId);
+      if (running) return running;
+    }
+    const request = this.fetchCompany(companyId).finally(() => {
+      if (this.inflight.get(companyId) === request)
+        this.inflight.delete(companyId);
+    });
+    this.inflight.set(companyId, request);
+    return request;
+  }
+  /** Warm the cache for rows the user is likely to open. A newer call replaces the older queue; errors are left to the click. */
+  async prefetchCompanies(companyIds: string[], maxAge: number, concurrency = 2) {
+    const run = ++this.prefetchRun;
+    const queue = [...companyIds];
+    await Promise.all(
+      Array.from({ length: concurrency }, async () => {
+        for (let id = queue.shift(); id && run === this.prefetchRun; id = queue.shift())
+          await this.loadCompany(id, { maxAge }).catch(() => undefined);
+      }),
+    );
+  }
+  private async fetchCompany(companyId: string): Promise<HistoryCompany> {
     await this.bootstrap();
+    const seq = (this.loadSeq.get(companyId) ?? 0) + 1;
+    this.loadSeq.set(companyId, seq);
     const encoded = encodeURIComponent(companyId);
+    // Projects and the work row don't depend on the history page, so start them now instead of
+    // after it. The work id comes from the list row; if history disagrees we fetch the right one.
+    const fetchWork = (id: string) =>
+      this.api.request<Work>(`/review-outreaches/${encodeURIComponent(id)}`);
+    const guessedWorkId = this.data?.companies.find((row) => row.id === companyId)
+      ?.list?.currentWork?.id;
+    const projectRequest = this.api.request<Projects>(
+      `/companies/${encoded}/projects?limit=100`,
+    );
+    const guessedWork = guessedWorkId ? fetchWork(guessedWorkId) : undefined;
+    // Rejections are re-raised where awaited; this only stops an abandoned request from being "unhandled".
+    projectRequest.catch(() => undefined);
+    guessedWork?.catch(() => undefined);
     const history = await this.api.request<Detail>(
       `/companies/${encoded}/history?limit=100`,
     );
@@ -401,13 +454,14 @@ export class LiveHistoryRepository implements HistoryRepository {
       events.push(...next.data.events);
       page = next.data.page;
     }
+    const workId = detail.currentWork?.id;
     const [projectPage, work] = await Promise.all([
-      this.api.request<Projects>(`/companies/${encoded}/projects?limit=100`),
-      detail.currentWork
-        ? this.api.request<Work>(
-            `/review-outreaches/${encodeURIComponent(detail.currentWork.id)}`,
-          )
-        : Promise.resolve(null),
+      projectRequest,
+      !workId
+        ? Promise.resolve(null)
+        : workId === guessedWorkId
+          ? guessedWork!
+          : fetchWork(workId),
     ]);
     const projects = [...projectPage.data.projects];
     page = projectPage.data.page;
@@ -466,7 +520,11 @@ export class LiveHistoryRepository implements HistoryRepository {
       this.data?.companies.find((row) => row.id === companyId)?.wonQuarter ??
       c.wonSources.find((s) => s.quarter)?.quarter ??
       null;
-    this.details.set(companyId, c);
+    // A slower, older load must not overwrite a newer one (e.g. a prefetch finishing after a save).
+    if (this.loadSeq.get(companyId) === seq) {
+      this.details.set(companyId, c);
+      this.fetchedAt.set(companyId, Date.now());
+    }
     return c;
   }
   async searchCompanies(query: string) {

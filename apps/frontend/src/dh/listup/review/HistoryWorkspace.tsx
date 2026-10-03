@@ -116,6 +116,9 @@ function previousSend(company: HistoryCompany) {
   return company.sends.find((send) => send.id !== company.work?.sent?.id);
 }
 
+// A drawer opened within this window of its last fetch (or prefetch) skips the network.
+const DETAIL_MAX_AGE_MS = 60_000;
+
 export function HistoryWorkspace({
   kind,
   repository,
@@ -180,7 +183,7 @@ export function HistoryWorkspace({
         filters: current,
         cursor: memory.cursors[kind][current.page - 1],
       });
-      if (alive.current && request === requestNumber.current)
+      if (alive.current && request === requestNumber.current) {
         setData(
           !live && scenario === "empty"
             ? { ...result, companies: [] }
@@ -188,6 +191,11 @@ export function HistoryWorkspace({
               ? { ...result, round: null }
               : result,
         );
+        void repository.prefetchCompanies?.(
+          result.companies.map((c) => c.id),
+          DETAIL_MAX_AGE_MS,
+        );
+      }
       return true;
     } catch (e) {
       if (alive.current && request === requestNumber.current)
@@ -242,16 +250,18 @@ export function HistoryWorkspace({
   useEffect(() => {
     if (!live || !selectedId || !repository.loadCompany) return;
     let active = true;
-    setDetail(undefined);
-    setDetailLoading(true);
+    // Show a cached copy immediately and refresh behind it; only a miss shows the loading state.
+    const cached = repository.getCompany?.(selectedId);
+    setDetail(cached);
+    setDetailLoading(!cached);
     setDetailError("");
     void repository
-      .loadCompany(selectedId)
+      .loadCompany(selectedId, { maxAge: DETAIL_MAX_AGE_MS })
       .then((c) => {
         if (active) setDetail(c);
       })
       .catch((e) => {
-        if (active)
+        if (active && !cached)
           setDetailError(
             e instanceof Error ? e.message : "기업 이력을 불러오지 못했습니다.",
           );
