@@ -61,6 +61,24 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 
 `api-contract.md`와 다르게 구현한 지점: **draftId는 별도 엔티티가 아니라 outreachId를 그대로 쓴다** — 우리 스키마는 outreach당 초안 스레드가 하나뿐이고(`message_draft_revisions`는 리비전 이력일 뿐), 계약 문서의 "draftId + revision" 중 draftId에 대응하는 안정적인 식별자가 outreachId다.
 
+## 수주 회차·연락 이력 (human-review 계열)
+
+팀장·관리자(`requireExternalLead`)가 목표 분기를 정하면 수주 회차가 시작된다. 회차는 `endedAt = null`인 한 건뿐이고, 분기를 바꾸면 이전 회차 종료 · 발송 후 결과 대기(`sent`+`pending`)의 `unresolved` 전환 · 새 회차 시작이 한 트랜잭션이다. 새 라우트는 모두 `{data}` / `{data, page}` / `{error:{code,message,details,requestId}}` 봉투(`withListupApiHandler`)와 `Idempotency-Key`(쓰기)를 쓴다.
+
+| 라우트 | 권한 | 내용 |
+|---|---|---|
+| `GET /acquisition-rounds/current`, `POST /acquisition-rounds` | 조회 / 팀장·관리자 | 현재 회차, 분기 변경(`expectedActiveRoundId`) |
+| `GET /contact-history` | 대외협력 | 기업당 한 행: 이전 연락 요약 + 현재 회차 작업. 검색·필터·정렬은 SQL, 커서는 정렬값+companyId |
+| `GET /companies/{id}/history` | 대외협력 | drawer: 기업·관계자·저장 조사 요약·전 회차 발송/응답/결과 이력 |
+| `POST /companies/{id}/outreaches` | 대외협력 | 현재 회차 작업을 만들거나(201) 기존 것을 그대로 반환(200). 후보·승인 이력을 만들지 않는다 |
+| `PATCH /review-outreaches/{id}`, `PUT …/recipient` | 담당자 | 연락 목적, 후보 없이 수신자 선택·직접 입력 |
+| `POST …/draft-generation` | 담당자 | 후보 없는 작업은 저장 조사·이전 연락 이력·목적으로 생성(웹 검색 없음), 근거는 `generationHistory`에 스냅샷 |
+| `PATCH …/draft` | 담당자 | `contextFingerprint`(목적·수신자·회차·근거의 서버 토큰) 필수 |
+| `POST …/send-records` | 담당자 | 발송 기록 + `pending` 결과 + 이력. 응답은 `{sentMessage, outreachVersion, outcomeStatus}` |
+| `POST …/outcomes` | 담당자 또는 팀장·관리자 | 수주 완료/거절. 종료 회차·확정 결과의 정정은 `note` 필수 |
+
+정책(합의 전 임시): 종료됐거나 회차가 연결되지 않은 작업은 읽기 전용(`ROUND_CLOSED`), 종료 후 결과 정정 허용. 전이 표는 `src/dh/lib/humanReview/outcome.ts` 한 곳에서 바꾼다. 후보 승인 근거와 재연락 근거의 비교는 `src/dh/lib/humanReview/context.ts`가 맡는다.
+
 ## 참고 문서
 
 - [API 계약](../../../docs/admin/api-contract.md)

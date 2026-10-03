@@ -41,7 +41,9 @@ async function main() {
     prisma.response.deleteMany(),
     prisma.sentMessage.deleteMany(),
     prisma.messageDraftRevision.deleteMany(),
+    prisma.outreachOutcomeEvent.deleteMany(),
     prisma.outreach.deleteMany(),
+    prisma.acquisitionRound.deleteMany(),
     prisma.pastProject.deleteMany(),
     prisma.prelaunchContact.deleteMany(),
     prisma.contactEndpoint.deleteMany(),
@@ -94,6 +96,11 @@ async function main() {
     data: { year: 2026, quarter: 3 },
   });
 
+  // 현재 진행 중인 수주 회차. 시드 작업은 모두 이 회차에 속한다.
+  const currentRound = await prisma.acquisitionRound.create({
+    data: { targetQuarterId: currentQuarter.id, startedAt: new Date(), createdById: jaewook.id },
+  });
+
   async function makeCompany(input: {
     name: string;
     product: string;
@@ -114,6 +121,7 @@ async function main() {
       data: {
         companyId: company.id,
         ownerId: input.owner.id,
+        acquisitionRoundId: currentRound.id,
         currentTargetQuarterId: currentQuarter.id,
         route: input.route,
         workStage: input.workStage,

@@ -55,8 +55,10 @@ export const POST = withApiHandler<{ candidateId: string }>(
             "적합 판정과 사용 가능한 연락처가 확인된 후보만 컨택을 시작할 수 있습니다.",
           );
         }
-        const existing = await tx.outreach.findUnique({
+        // 회차 도입 전 경로라 회차 없이 기업당 한 건만 허용하던 동작을 그대로 유지한다.
+        const existing = await tx.outreach.findFirst({
           where: { companyId: candidate.companyId },
+          select: { id: true },
         });
         if (existing)
           throw new ApiError(

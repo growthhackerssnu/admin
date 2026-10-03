@@ -1,3 +1,4 @@
+import type { ZodType } from "zod";
 import { ApiError } from "./errors";
 
 export const DEFAULT_LIMIT = 20;
@@ -51,4 +52,21 @@ export function buildPage<T extends { id: string }>(
   const items = hasMore ? rows.slice(0, limit) : rows;
   const last = items[items.length - 1];
   return { items, nextCursor: hasMore && last ? encodeCursor(last.id) : null, hasMore };
+}
+
+// 정렬값+id처럼 여러 값을 담는 커서. 형식 검증은 호출하는 쪽의 zod 스키마가 한다.
+export function encodeSortCursor(value: unknown): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+export function decodeSortCursor<T>(cursor: string, schema: ZodType<T>): T {
+  try {
+    const parsed = schema.safeParse(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")));
+    if (parsed.success) return parsed.data;
+  } catch {
+    // 아래에서 같은 오류로 처리한다.
+  }
+  throw new ApiError("VALIDATION_ERROR", "cursor 값이 올바르지 않습니다.", {
+    fieldErrors: { cursor: "서버가 발급한 값이 아님" },
+  });
 }

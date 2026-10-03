@@ -1,42 +1,37 @@
-import type { Prisma } from "@/generated/prisma";
+import type { Member, Prisma } from "@/generated/prisma";
 import { ApiError } from "@/dh/lib/errors";
+import { roundInclude, serializeRound } from "@/dh/lib/rounds";
+import { buildCurrentWork } from "@/dh/lib/humanReview/currentWork";
+import { draftContextMismatch, loadOutreachContext } from "@/dh/lib/humanReview/context";
 
-export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outreachId: string) {
+export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outreachId: string, member: Member) {
   const row = await tx.outreach.findUnique({
     where: { id: outreachId },
     include: {
       owner: { select: { id: true, displayName: true } },
       currentTargetQuarter: { select: { id: true, year: true, quarter: true } },
+      acquisitionRound: { include: roundInclude },
       recipientContact: { select: { id: true, name: true, title: true } },
       recipientEndpoint: { select: { id: true, channel: true, address: true } },
-      candidate: { select: { currentResearchId: true, activeReviewDecisionId: true } },
+      candidate: { select: { reviewStatus: true, currentResearchId: true, activeReviewDecisionId: true } },
       draftRevisions: { orderBy: { revision: "desc" }, take: 1 },
       sentMessages: { orderBy: { sentAt: "desc" }, take: 1 },
     },
   });
   if (!row) throw new ApiError("NOT_FOUND", "메시지 업무를 찾지 못했습니다.");
+  const ctx = await loadOutreachContext(tx, row);
   const draft = row.draftRevisions[0];
-  const mismatch: string[] = [];
-  if (draft) {
-    if (row.candidate?.currentResearchId !== draft.generationResearchId)
-      mismatch.push("research_changed");
-    if (row.candidate?.activeReviewDecisionId !== draft.generationReviewDecisionId)
-      mismatch.push("review_changed");
-    if (row.recipientContactId !== draft.recipientContactId ||
-        row.recipientEndpointId !== draft.recipientEndpointId)
-      mismatch.push("recipient_changed");
-    if (row.currentTargetQuarterId !== draft.targetQuarterId)
-      mismatch.push("quarter_changed");
-    if ((row.contactPurpose ?? null) !== (draft.contactPurposeSnapshot ?? null))
-      mismatch.push("purpose_changed");
-  }
+  const mismatch = draft ? draftContextMismatch(draft, row, ctx) : [];
   const sent = row.sentMessages[0];
+  const sendStatus = row.sendStatus ?? (sent ? "sent" : "before_send");
   return {
-    id: row.id,
-    candidateId: row.candidateId,
+    ...buildCurrentWork({ ...row, sendStatus }, member.id, ctx.hasEvidence),
     companyId: row.companyId,
+    candidateId: row.candidateId,
+    acquisitionRound: row.acquisitionRound ? serializeRound(row.acquisitionRound) : null,
+    route: row.route,
+    previousOutreachId: row.previousOutreachId,
     contactPurpose: row.contactPurpose,
-    owner: { id: row.owner.id, name: row.owner.displayName },
     version: row.version,
     currentTargetQuarter: row.currentTargetQuarter,
     recipient: row.recipientContact && row.recipientEndpoint ? {
@@ -48,8 +43,8 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
       address: row.recipientEndpoint.address,
     } : null,
     selectedChannel: row.selectedChannel,
-    sendStatus: row.sendStatus ?? (sent ? "sent" : "before_send"),
     currentRevision: row.currentRevision,
+    contextFingerprint: ctx.fingerprint,
     draft: draft ? {
       outreachId: row.id,
       revision: draft.revision,
@@ -68,6 +63,7 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
       recipientEndpointId: draft.recipientEndpointId,
       recipientSnapshot: draft.recipientSnapshot,
       targetQuarterId: draft.targetQuarterId,
+      contextFingerprint: ctx.fingerprint,
       contextMatches: mismatch.length === 0,
       contextMismatchReasons: mismatch,
     } : null,

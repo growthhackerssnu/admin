@@ -9,7 +9,7 @@ export const reviewCandidateInclude = {
   selectedContact: { select: { id: true, name: true, title: true } },
   selectedEndpoint: { select: { id: true, channel: true, address: true } },
   activeReviewDecision: { include: { decidedBy: { select: { id: true, displayName: true } } } },
-  outreaches: { select: { id: true }, take: 1 },
+  outreaches: { select: { id: true }, orderBy: { createdAt: "desc" }, take: 1 },
   tasks: {
     where: { pipeline: "human_review", type: "company_research", status: "failed" },
     select: { errorCode: true, errorMessage: true, errorRetryable: true },

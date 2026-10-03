@@ -2,6 +2,8 @@ import { z } from "zod";
 import { withListupApiHandler } from "@/dh/lib/listup/apiHandler";
 import { requireReviewOwner } from "@/dh/lib/humanReview/access";
 import { withIdempotency } from "@/dh/lib/idempotency";
+import { draftContextMismatch, loadOutreachContext } from "@/dh/lib/humanReview/context";
+import { assertRoundOpen } from "@/dh/lib/rounds";
 import { ApiError } from "@/dh/lib/errors";
 import { prisma } from "@/lib/prisma";
 
@@ -29,6 +31,7 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
       where: { id: params.outreachId },
       include: {
         candidate: true,
+        acquisitionRound: { select: { endedAt: true } },
         recipientContact: true,
         recipientEndpoint: true,
         sentMessages: { select: { id: true }, take: 1 },
@@ -38,32 +41,31 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
       throw new ApiError("VERSION_CONFLICT", "메시지 업무가 변경됐습니다. 다시 조회하세요.");
     if (outreach.sendStatus !== "before_send" || outreach.sentMessages.length)
       throw new ApiError("STATE_CONFLICT", "첫 발송은 이미 기록됐습니다.");
+    assertRoundOpen(outreach);
     if (
       outreach.currentRevision !== input.draftRevision ||
       !outreach.recipientContact || !outreach.recipientEndpoint ||
-      outreach.candidate?.reviewStatus !== "approved"
+      (outreach.candidate && outreach.candidate.reviewStatus !== "approved")
     ) throw new ApiError("STATE_CONFLICT", "현재 승인·수신자·초안이 필요합니다.");
     const draft = await tx.messageDraftRevision.findUnique({
       where: { outreachId_revision: { outreachId: outreach.id, revision: input.draftRevision } },
     });
-    if (
-      !draft || draft.generationResearchId !== outreach.candidate.currentResearchId ||
-      draft.generationReviewDecisionId !== outreach.candidate.activeReviewDecisionId ||
-      draft.recipientContactId !== outreach.recipientContactId ||
-      draft.recipientEndpointId !== outreach.recipientEndpointId ||
-      draft.targetQuarterId !== outreach.currentTargetQuarterId ||
-      (draft.contactPurposeSnapshot ?? null) !== (outreach.contactPurpose ?? null)
-    ) throw new ApiError("DRAFT_CONTEXT_CHANGED", "현재 조사·수신자·분기와 초안이 다릅니다. 먼저 수정하거나 다시 생성하세요.");
+    if (!draft || draftContextMismatch(draft, outreach, await loadOutreachContext(tx, outreach)).length)
+      throw new ApiError("DRAFT_CONTEXT_CHANGED", "현재 조사·수신자·분기와 초안이 다릅니다. 먼저 수정하거나 다시 생성하세요.");
     const changed = await tx.outreach.updateMany({
       where: { id: outreach.id, version: input.expectedVersion, sendStatus: "before_send" },
       data: {
         sendStatus: "sent",
         workStage: "response_check",
         lastSentQuarterId: outreach.currentTargetQuarterId,
+        outcomeStatus: "pending",
         version: { increment: 1 },
       },
     });
     if (!changed.count) throw new ApiError("STATE_CONFLICT", "다른 발송 기록이 먼저 저장됐습니다.");
+    await tx.outreachOutcomeEvent.create({
+      data: { outreachId: outreach.id, fromStatus: null, toStatus: "pending", source: "send_record", actorId: member.id },
+    });
     const sent = await tx.sentMessage.create({
       data: {
         outreachId: outreach.id,
@@ -87,18 +89,22 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
       status: 201,
       body: {
         data: {
-          id: sent.id,
-          outreachId: sent.outreachId,
-          targetQuarterId: sent.targetQuarterId,
-          channel: sent.channel,
-          recipientNameSnapshot: sent.recipientNameSnapshot,
-          addressSnapshot: sent.addressSnapshot,
-          subjectSnapshot: sent.subjectSnapshot,
-          bodySnapshot: sent.bodySnapshot,
-          draftRevision: sent.draftRevision,
-          sentAt: sent.sentAt.toISOString(),
-          createdAt: sent.createdAt.toISOString(),
-          recordedById: sent.recordedById,
+          sentMessage: {
+            id: sent.id,
+            outreachId: sent.outreachId,
+            targetQuarterId: sent.targetQuarterId,
+            channel: sent.channel,
+            recipientNameSnapshot: sent.recipientNameSnapshot,
+            addressSnapshot: sent.addressSnapshot,
+            subjectSnapshot: sent.subjectSnapshot,
+            bodySnapshot: sent.bodySnapshot,
+            draftRevision: sent.draftRevision,
+            sentAt: sent.sentAt.toISOString(),
+            createdAt: sent.createdAt.toISOString(),
+            recordedById: sent.recordedById,
+          },
+          outreachVersion: input.expectedVersion + 1,
+          outcomeStatus: "pending",
         },
       },
     };

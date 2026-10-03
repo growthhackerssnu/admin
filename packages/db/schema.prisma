@@ -130,6 +130,21 @@ enum OutreachSendStatus {
   @@schema("dh")
 }
 
+enum OutcomeStatus {
+  pending
+  won
+  rejected
+  unresolved
+  @@schema("dh")
+}
+
+enum OutcomeEventSource {
+  manual
+  send_record
+  round_close
+  @@schema("dh")
+}
+
 enum JobType {
   cycle_search
   contact_search
@@ -187,6 +202,9 @@ model Member {
   claimedPersonEntry  PeopleDirectory?
   ghbotTokens         GhbotAccessToken[] @relation("GhbotTokenMember")
   ghbotTokensIssued   GhbotAccessToken[] @relation("GhbotTokenIssuer")
+  createdAcquisitionRounds AcquisitionRound[] @relation("AcquisitionRoundCreator")
+  closedAcquisitionRounds  AcquisitionRound[] @relation("AcquisitionRoundCloser")
+  outcomeEvents       OutreachOutcomeEvent[] @relation("OutcomeEventActor")
 
   // hr(그핵드인) — 프로필 수정 승인 큐. 본인이 제출한 요청(alumni 포함 누구나)과
   // 자신이 검토한 요청(admin)은 서로 다른 관계다. DB_SCHEMA_HR.md §1 참고.
@@ -295,6 +313,7 @@ model TargetQuarter {
   sentMessages       SentMessage[]
   draftRevisions    MessageDraftRevision[] @relation("DraftTargetQuarter")
   searchRuns         SearchRun[]
+  acquisitionRounds  AcquisitionRound[]
   changedFrom        OutreachTargetQuarterChange[] @relation("QuarterChangeFrom")
   changedTo          OutreachTargetQuarterChange[] @relation("QuarterChangeTo")
 
@@ -448,14 +467,60 @@ model PrelaunchContact {
   @@schema("dh")
 }
 
+// ---------- 수주 회차 ----------
+// 팀장·관리자가 목표 분기를 설정한 시점부터 다음 변경 시점까지가 한 회차다.
+// 진행 중(ended_at IS NULL) 회차는 전체에서 한 건만 허용한다 — 수기 부분 unique 인덱스.
+model AcquisitionRound {
+  id              String        @id @default(cuid())
+  targetQuarterId String        @map("target_quarter_id")
+  targetQuarter   TargetQuarter @relation(fields: [targetQuarterId], references: [id])
+  startedAt       DateTime      @map("started_at")
+  endedAt         DateTime?     @map("ended_at")
+  createdById     String        @map("created_by_id")
+  createdBy       Member        @relation("AcquisitionRoundCreator", fields: [createdById], references: [id])
+  closedById      String?       @map("closed_by_id")
+  closedBy        Member?       @relation("AcquisitionRoundCloser", fields: [closedById], references: [id])
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  outreaches Outreach[]
+
+  @@map("acquisition_rounds")
+  @@schema("dh")
+}
+
+// 수주 결과 변경 이력. append-only. 현재 값은 outreaches.outcome_status.
+model OutreachOutcomeEvent {
+  id         String             @id @default(cuid())
+  outreachId String             @map("outreach_id")
+  outreach   Outreach           @relation(fields: [outreachId], references: [id])
+  fromStatus OutcomeStatus?     @map("from_status")
+  toStatus   OutcomeStatus      @map("to_status")
+  note       String?
+  source     OutcomeEventSource
+  actorId    String?            @map("actor_id")
+  actor      Member?            @relation("OutcomeEventActor", fields: [actorId], references: [id])
+  recordedAt DateTime           @default(now()) @map("recorded_at")
+
+  @@index([outreachId, recordedAt, id])
+  @@map("outreach_outcome_events")
+  @@schema("dh")
+}
+
 // ---------- 컨택 건 ----------
-// 기업당 Outreach는 한 행이다(unique companyId). 이번 제품 범위에서는
+// 기업·수주 회차당 Outreach는 한 행이다(unique company_id + acquisition_round_id).
+// 회차 연결 전의 과거 행은 acquisition_round_id가 NULL이다. 회차 안에서는
 // 첫 발송 한 번만 허용한다. 과거 SentMessage는 변경하지 않는다.
 
 model Outreach {
   id                    String            @id @default(cuid())
-  companyId             String            @unique @map("company_id")
+  companyId             String            @map("company_id")
   company               Company           @relation(fields: [companyId], references: [id])
+  acquisitionRoundId    String?           @map("acquisition_round_id")
+  acquisitionRound      AcquisitionRound? @relation(fields: [acquisitionRoundId], references: [id])
+  previousOutreachId    String?           @map("previous_outreach_id")
+  previousOutreach      Outreach?         @relation("OutreachPrevious", fields: [previousOutreachId], references: [id])
+  nextOutreaches        Outreach[]        @relation("OutreachPrevious")
+  outcomeStatus         OutcomeStatus?    @map("outcome_status")
   candidateId           String?           @map("candidate_id")
   candidate             Candidate?        @relation(fields: [candidateId], references: [id])
   contactPurpose        String?           @map("contact_purpose")
@@ -508,8 +573,12 @@ model Outreach {
   sentMessages          SentMessage[]
   responses             Response[]
   targetQuarterChanges  OutreachTargetQuarterChange[]
+  outcomeEvents         OutreachOutcomeEvent[]
 
+  @@unique([companyId, acquisitionRoundId])
   @@index([candidateId])
+  @@index([acquisitionRoundId, ownerId])
+  @@index([acquisitionRoundId, outcomeStatus])
   @@index([currentTargetQuarterId, createdAt(sort: Desc), id(sort: Desc)])
   @@map("outreaches")
   @@schema("dh")
@@ -564,6 +633,7 @@ model MessageDraftRevision {
   targetQuarter              TargetQuarter? @relation("DraftTargetQuarter", fields: [targetQuarterId], references: [id])
   contactPurposeSnapshot     String?    @map("contact_purpose_snapshot")
   historySourceIds           Json?      @map("history_source_ids")
+  generationHistory          Json?      @map("generation_history")
 
   @@unique([outreachId, revision])
   @@map("message_draft_revisions")
@@ -600,6 +670,7 @@ model SentMessage {
   responses Response[]
 
   @@unique([outreachId, draftRevision])
+  @@index([outreachId, sentAt, id])
   @@map("sent_messages")
   @@schema("dh")
 }

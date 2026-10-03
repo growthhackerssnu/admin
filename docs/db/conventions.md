@@ -140,7 +140,8 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 |---|---|---|
 | `quarters` | 수주 분기. 라벨(`2026-Q4`)은 담당자가 정한다 | 미정 |
 | `companies`, `contacts`, `contact_endpoints`, `prelaunch_contacts` | 기업과 관계자 | **예정** (§6) |
-| `outreaches` | 컨택 건 (기업당 1건) | **예정** (§6) |
+| `outreaches` | 컨택 건 (기업·수주 회차당 1건). 회차 연결 전의 과거 행은 `acquisition_round_id`가 NULL이다 | **예정** (§6) |
+| `acquisition_rounds`, `outreach_outcome_events` | 수주 회차(진행 중은 한 건, 수기 부분 unique 인덱스)와 수주 결과 변경 이력(append-only) | 아니오 |
 | `templates`, `message_draft_revisions` | 템플릿과 초안 리비전 | 미정 |
 | `sent_messages`, `responses` | 발송 기록과 응답 확인 | 미정 |
 | `past_projects` | 과거 협업 이력(기업, 한줄 설명, Notion 원본, 진행 분기, 기술·산업 분류) | 미정 |
