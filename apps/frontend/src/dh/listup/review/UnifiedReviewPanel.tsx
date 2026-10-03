@@ -23,6 +23,8 @@ import {
 } from "./contracts";
 import "@/design-system/globals.css";
 import "./unified-review.css";
+import { MessageComposer } from "./MessageComposer";
+import { useConfirmation } from "@/components/ui/confirmation-dialog";
 
 type Change = (candidate: Candidate, command: CandidateCommand) => Promise<boolean>;
 type StatusFilter = "all" | "ready" | "reviewing" | "approved" | "rejected" | "error";
@@ -65,15 +67,17 @@ function RailToggle() {
   return <WorkspaceIconButton icon="menu" label="주 메뉴 열기 또는 닫기" onClick={toggleSidebar} />;
 }
 
-function ContactWork({ candidate, actor, pending, change, onDirty }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void }) {
+function ContactWork({ candidate, actor, pending, change, onDirty, quarters, addQuarter }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void; quarters: string[]; addQuarter: (value: string) => Promise<boolean> }) {
   const scrollRef = useAlignedScroll();
   const owned = candidate.owner?.id === actor.id;
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [contact, setContact] = useState<Recipient>(candidate.recipient ?? blankContact);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [messageDirty, setMessageDirty] = useState(false);
+  const trackMessageDirty = useCallback((value: boolean) => setMessageDirty(value), []);
   const saved = candidate.contacts ?? (candidate.recipient ? [candidate.recipient] : []);
-  const dirty = (Boolean(mode) && JSON.stringify(contact) !== JSON.stringify(candidate.recipient ?? blankContact)) || Boolean(note.trim());
+  const dirty = (Boolean(mode) && JSON.stringify(contact) !== JSON.stringify(candidate.recipient ?? blankContact)) || Boolean(note.trim()) || messageDirty;
   useEffect(() => { onDirty(dirty); return () => onDirty(false); }, [dirty, onDirty]);
   useEffect(() => {
     setContact(candidate.recipient ?? blankContact);
@@ -96,7 +100,7 @@ function ContactWork({ candidate, actor, pending, change, onDirty }: { candidate
     if (await change(candidate, { type: "decide", status, note })) setNote("");
   };
   const decided = ["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus);
-  const canAct = owned && candidate.researchStatus === "ready" && !pending;
+  const canAct = owned && candidate.researchStatus === "ready" && !pending && !messageDirty;
   return (
     <section className="uw-focus" aria-label={`${candidate.name} 검토`}>
       <header className="uw-pane-head">
@@ -141,6 +145,9 @@ function ContactWork({ candidate, actor, pending, change, onDirty }: { candidate
               {canAct && <Button variant="ghost" size="sm" onClick={() => void change(candidate, { type: "reopen" })}>판단 변경</Button>}</div>
               {candidate.decisions.at(-1)?.note && <p>{candidate.decisions.at(-1)?.note}</p>}</div>}
             {!decided && owned && <Field className="uw-note"><FieldLabel htmlFor="uw-decision-note">판단 메모 <small>선택</small></FieldLabel><Textarea id="uw-decision-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} /></Field>}
+            {(candidate.reviewStatus === "approved" || candidate.sent.length > 0) && <MessageComposer
+              candidate={candidate} actor={actor} quarters={quarters} addQuarter={addQuarter}
+              change={change} pending={pending || Boolean(mode)} onDirty={trackMessageDirty} />}
           </div>
         )}
       </div>
@@ -170,7 +177,7 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, onMessage }: {
+export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, quarters, addQuarter }: {
   candidates: Candidate[];
   actor: Actor;
   canManageOps: boolean;
@@ -184,7 +191,8 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   change: Change;
   onDirty: (dirty: boolean) => void;
   onSelect: (id: string) => void;
-  onMessage: (id: string) => void;
+  quarters: string[];
+  addQuarter: (value: string) => Promise<boolean>;
 }) {
   const queueScrollRef = useAlignedScroll();
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -194,6 +202,8 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   const [queueOpen, setQueueOpen] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(() => !matchMedia("(max-width: 900px)").matches);
   const [dirty, setDirty] = useState(false);
+  const [editorEpoch, setEditorEpoch] = useState(0);
+  const { confirm, dialog } = useConfirmation();
   useEffect(() => { if (compact && detailsOpen) document.querySelector<HTMLButtonElement>(".uw-mobile-details button")?.focus(); }, [compact, detailsOpen]);
   const reportDirty = useCallback((value: boolean) => { setDirty(value); onDirty(value); }, [onDirty]);
   useEffect(() => {
@@ -210,12 +220,18 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   useEffect(() => { if (!selectedId && visible[0]) onSelect(visible[0].id); }, [selectedId, visible, onSelect]);
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedId);
   const focused = visible.find((candidate) => candidate.id === selectedId) ?? (dirty ? selectedCandidate : undefined) ?? visible[0];
+  const changeStatus = async (value: string) => {
+    if (dirty && !await confirm("저장하지 않은 입력을 버리고 필터를 바꿀까요?", "저장하지 않은 입력", "버리고 변경")) return;
+    if (dirty) setEditorEpoch(value => value + 1);
+    reportDirty(false);
+    setStatus(value as StatusFilter);
+  };
   const queueContent = (
           <aside className="uw-queue" aria-label="기업 목록">
             <header className="uw-pane-head uw-queue-head"><RailToggle />{compact && <WorkspaceIconButton icon="close" label="목록 닫기" onClick={() => setQueueOpen(false)} />}</header>
             <div className="uw-queue-tools"><div className="uw-filter-row"><div className="uw-filter-leading"><WorkspaceIconButton className="uw-search-toggle" icon={searchOpen ? "close" : "search"} label={searchOpen ? "검색 닫기" : "검색 열기"} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }} /><span>{visible.length}건</span></div><div className="uw-filter-actions">
               <ListFilter label="담당 필터" value={owner} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={(value) => onOwnerChange(value as OwnerFilter)} />
-              <ListFilter label="상태 필터" value={status} options={statusOptions} onChange={(value) => setStatus(value as StatusFilter)} />
+              <ListFilter label="상태 필터" value={status} options={statusOptions} onChange={changeStatus} />
             </div></div>
               {searchOpen && <InputGroup className="uw-search"><InputGroupAddon><Search size={15} /></InputGroupAddon><InputGroupInput autoFocus aria-label="기업명 또는 설명 검색" placeholder="기업명 또는 설명 검색" value={query} onChange={(e) => setQuery(e.target.value)} /></InputGroup>}</div>
             <div ref={queueScrollRef} className="uw-items">{visible.map((candidate) => <button className="uw-item" type="button" key={candidate.id} aria-current={focused?.id === candidate.id} onClick={() => { onSelect(candidate.id); if (compact) setQueueOpen(false); }}>
@@ -230,6 +246,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
           </aside>
   );
   return <SidebarProvider defaultOpen className="ds-workspace uw-shell">
+    {dialog}
     <WorkspaceSidebar canManageOps={canManageOps} />
     <SidebarInset className="uw-inset">
       {error && <div className={`uw-error${reload ? " uw-refresh-notice" : ""}`} role={reload ? "status" : "alert"}><span>{error}</span>{reload && <Button variant="outline" size="sm" disabled={reloading} onClick={reload}>다시 불러오기</Button>}</div>}
@@ -237,10 +254,10 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
         {queueOpen && !compact && <><ResizablePanel defaultSize="24%" minSize="17%" maxSize="38%">
           {queueContent}</ResizablePanel>{!compact && <ResizableHandle withHandle className="uw-handle" />}</>}
         {<ResizablePanel defaultSize={compact ? "100%" : detailsOpen ? (queueOpen ? "52%" : "72%") : "100%"} minSize={compact ? "100%" : "34%"}>
-          <div aria-hidden={compact && (queueOpen || detailsOpen) ? true : undefined} {...(compact && (queueOpen || detailsOpen) ? { inert: "" } : {})} className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""} ${focused?.reviewStatus === "approved" ? "uw-message-ready" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={focused.id} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
+          <div aria-hidden={compact && (queueOpen || detailsOpen) ? true : undefined} {...(compact && (queueOpen || detailsOpen) ? { inert: "" } : {})} className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={`${focused.id}-${editorEpoch}`} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} quarters={quarters} addQuarter={addQuarter} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
             <div className="uw-pane-controls"><WorkspaceIconButton icon={queueOpen ? "leftClose" : "leftOpen"} label={queueOpen ? "목록 닫기" : "목록 열기"} onClick={() => { setQueueOpen(!queueOpen); if (compact) setDetailsOpen(false); }} />
               <WorkspaceIconButton icon={detailsOpen ? "rightClose" : "rightOpen"} label={detailsOpen ? "기업 정보 닫기" : "기업 정보 열기"} onClick={() => setDetailsOpen(!detailsOpen)} />
-              {focused?.reviewStatus === "approved" && <Button size="sm" variant="outline" onClick={() => onMessage(focused.id)}>메시지 열기</Button>}</div>
+              </div>
           </div>
         </ResizablePanel>}
         {detailsOpen && !compact && <><ResizableHandle withHandle className="uw-handle" /><ResizablePanel defaultSize="24%" minSize="18%" maxSize="38%">{focused ? <Details candidate={focused} onClose={() => setDetailsOpen(false)} /> : <aside className="uw-details" />}</ResizablePanel></>}

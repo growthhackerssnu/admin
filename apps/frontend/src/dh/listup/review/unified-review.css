@@ -42,7 +42,6 @@
 .uw-focus { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .uw-focus > .uw-pane-head { padding-right: 98px; }
 .uw-center-with-menu .uw-focus > .uw-pane-head { padding-left: 56px; }
-.uw-message-ready .uw-focus > .uw-pane-head { padding-right: 205px; }
 .uw-focus-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 .uw-contact-area { width: 100%; padding: var(--layout-section-gap) var(--layout-inset); }
 .uw-section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--layout-field-gap); }

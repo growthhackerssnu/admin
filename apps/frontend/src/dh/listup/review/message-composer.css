@@ -1,0 +1,130 @@
+.uw-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-field-gap);
+  min-width: 0;
+  padding-top: var(--layout-group-gap);
+  margin-top: var(--layout-group-gap);
+  border-top: 1px solid var(--border);
+}
+.uw-composer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--layout-control-gap);
+}
+.uw-composer-heading h2 {
+  margin: 0;
+  color: var(--ds-text-strong);
+  font-size: var(--ds-type-subtitle-1);
+  font-weight: 600;
+}
+.uw-composer-tools {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--layout-control-gap);
+}
+.uw-composer-quarter {
+  flex: 1 1 160px;
+  max-width: 240px;
+}
+.uw-composer-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--layout-control-gap);
+  margin-left: auto;
+}
+.uw-composer-quarter-fields {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(90px, 1fr) auto;
+  gap: var(--layout-control-gap);
+  align-items: end;
+}
+.uw-composer label {
+  font-size: var(--ds-type-caption);
+}
+.uw-composer-hint,
+.uw-composer-notice {
+  margin: 0;
+  font-size: var(--ds-type-caption);
+  color: var(--ds-gray-700);
+}
+.uw-composer-warning {
+  margin: 0;
+  color: var(--ds-text-strong);
+  font-size: var(--ds-type-caption);
+  border-left: 2px solid var(--ds-warning-foreground);
+  padding-left: var(--layout-label-gap);
+}
+.uw-composer-paper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-field-gap);
+  min-width: 0;
+  padding: var(--layout-group-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+}
+.uw-composer-paper h3,
+.uw-composer-history h3 {
+  margin: 0;
+  font-size: var(--ds-type-subtitle-1);
+  line-height: 1.6;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.uw-composer-body {
+  font-size: var(--ds-type-body-2);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.uw-composer-paper textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.8;
+}
+.uw-composer-send {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-label-gap);
+  padding-block: var(--layout-control-gap);
+  background: var(--background);
+  border-top: 1px solid var(--border);
+}
+.uw-composer-send-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--layout-control-gap);
+  justify-content: flex-end;
+}
+.uw-composer-history {
+  font-size: var(--ds-type-caption);
+}
+.uw-composer-history summary {
+  cursor: pointer;
+}
+.uw-composer-history article {
+  padding-top: var(--layout-field-gap);
+}
+@container (max-width: 620px) {
+  .uw-composer-edit-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .uw-composer-quarter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .uw-composer-quarter-fields > button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+  .uw-composer-paper {
+    padding: var(--layout-field-gap);
+  }
+}
