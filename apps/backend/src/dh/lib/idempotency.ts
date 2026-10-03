@@ -18,7 +18,8 @@ export async function withIdempotency<T>(
   route: string,
   payload: unknown,
   handler: (tx: Prisma.TransactionClient) => Promise<{ status: number; body: T }>,
-  transactionOptions?: { maxWait?: number; timeout?: number },
+  // Prisma 기본 timeout 5초는 원격 DB 왕복이 많은 작업(상세 조회 포함)에서 P2028로 500을 낸다.
+  transactionOptions: { maxWait?: number; timeout?: number } = { maxWait: 10_000, timeout: 15_000 },
 ): Promise<{ status: number; body: T }> {
   const replay = await readIdempotentResult<T>(req, member, route, payload);
   if (replay) return replay;
