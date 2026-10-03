@@ -160,7 +160,6 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
         <Button variant="destructive" disabled={pending} onClick={() => void decide("rejected_fit")}>fit 부적합</Button>
         <Button variant="outline" disabled={pending} onClick={() => void decide("rejected_contact")}>연락처 없음</Button>
         <Button className="uw-approve" disabled={pending || Boolean(mode) || !candidate.recipient} onClick={() => void decide("approved")}>{pending && <Spinner />}승인</Button>
-        {(Boolean(mode) || !candidate.recipient) && <div className="uw-action-reason"><span>{mode ? "관계자 저장 후 승인 가능" : "관계자 입력 후 승인 가능"}</span><Button size="sm" variant="link" onClick={() => { if (!mode) { setContact(blankContact); setMode("add"); } else document.getElementById("uw-contact-name")?.focus(); }}>{mode ? "입력으로 이동" : "관계자 입력"}</Button></div>}
       </footer>}
       </>}
     </section>
