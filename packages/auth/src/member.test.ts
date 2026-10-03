@@ -8,11 +8,27 @@ class FakeError extends Error {
   }
 }
 
-type FakeMember = { id: string; role: AuthRole; active: boolean; email: string };
+type FakeMember = {
+  id: string;
+  role: AuthRole;
+  active: boolean;
+  email: string;
+  supabaseUserId: string | null;
+  lastLoginAt: Date | null;
+};
 
-const ACTING: FakeMember = { id: "m1", role: "acting", active: true, email: "a@ghsnu.com" };
-const ALUMNI: FakeMember = { id: "m2", role: "alumni", active: true, email: "b@ghsnu.com" };
-const INACTIVE: FakeMember = { id: "m3", role: "acting", active: false, email: "c@ghsnu.com" };
+const ACTING: FakeMember = {
+  id: "m1", role: "acting", active: true, email: "a@ghsnu.com",
+  supabaseUserId: null, lastLoginAt: null,
+};
+const ALUMNI: FakeMember = {
+  id: "m2", role: "alumni", active: true, email: "b@ghsnu.com",
+  supabaseUserId: null, lastLoginAt: null,
+};
+const INACTIVE: FakeMember = {
+  id: "m3", role: "acting", active: false, email: "c@ghsnu.com",
+  supabaseUserId: null, lastLoginAt: null,
+};
 
 function build(opts: {
   member?: FakeMember | null;
@@ -21,16 +37,16 @@ function build(opts: {
 }) {
   const markLogin = vi.fn(async (id: string, supabaseUserId: string) => {
     const base = opts.member ?? ACTING;
-    return { ...base, id, supabaseUserId } as FakeMember;
+    return { ...base, id, supabaseUserId, lastLoginAt: new Date() } as FakeMember;
   });
   const findByEmail = vi.fn(async () => opts.member ?? null);
 
   const getSupabaseClient = () => ({
     auth: {
-      getUser: async () => {
+      getClaims: async () => {
         if (opts.supabase === "throws") throw new Error("네트워크 끊김");
-        if (opts.supabase === "invalid") return { data: { user: null }, error: { message: "bad" } };
-        return { data: { user: { id: "sb-1", email: "a@ghsnu.com" } }, error: null };
+        if (opts.supabase === "invalid") return { data: null, error: { message: "bad" } };
+        return { data: { claims: { sub: "sb-1", email: "a@ghsnu.com" } }, error: null };
       },
     },
   });
@@ -116,5 +132,38 @@ describe("createGetAuthenticatedMember", () => {
     const member = (await get(req("Bearer x"))) as FakeMember;
     expect(member.role).toBe("acting");
     expect(markLogin).toHaveBeenCalledWith("m1", "sb-1");
+  });
+
+  it("최근에 같은 supabaseUserId로 이미 기록됐으면 markLogin을 건너뛴다", async () => {
+    const fresh = { ...ACTING, supabaseUserId: "sb-1", lastLoginAt: new Date() };
+    const { get, markLogin } = build({ member: fresh });
+    const member = (await get(req("Bearer x"))) as FakeMember;
+    expect(markLogin).not.toHaveBeenCalled();
+    expect(member).toEqual(fresh);
+  });
+
+  it("마지막 기록이 스로틀 윈도(5분)를 지났으면 다시 markLogin을 호출한다", async () => {
+    const stale = {
+      ...ACTING,
+      supabaseUserId: "sb-1",
+      lastLoginAt: new Date(Date.now() - 6 * 60 * 1000),
+    };
+    const { get, markLogin } = build({ member: stale });
+    await get(req("Bearer x"));
+    expect(markLogin).toHaveBeenCalledWith("m1", "sb-1");
+  });
+
+  it("supabaseUserId가 바뀌었으면 최근 기록이 있어도 markLogin을 호출한다", async () => {
+    const otherDevice = { ...ACTING, supabaseUserId: "other-sb-id", lastLoginAt: new Date() };
+    const { get, markLogin } = build({ member: otherDevice });
+    await get(req("Bearer x"));
+    expect(markLogin).toHaveBeenCalledWith("m1", "sb-1");
+  });
+
+  it("스킵 경로여도 deny 판정은 정상 작동한다", async () => {
+    const freshAlumni = { ...ALUMNI, supabaseUserId: "sb-1", lastLoginAt: new Date() };
+    const { get, markLogin } = build({ member: freshAlumni, deny: ["alumni"] });
+    expect(await codeOf(get(req("Bearer x")))).toBe("FORBIDDEN");
+    expect(markLogin).not.toHaveBeenCalled();
   });
 });

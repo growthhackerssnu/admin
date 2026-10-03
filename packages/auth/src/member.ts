@@ -18,6 +18,8 @@ export type AuthMemberShape = {
   id: string;
   role: AuthRole;
   active: boolean;
+  supabaseUserId: string | null;
+  lastLoginAt: Date | null;
 };
 
 export type AuthErrorCode = "UNAUTHENTICATED" | "FORBIDDEN";
@@ -29,8 +31,8 @@ export type RequestLike = {
 
 export type SupabaseAuthLike = {
   auth: {
-    getUser(token: string): Promise<{
-      data: { user: { id: string; email?: string | null } | null };
+    getClaims(jwt: string): Promise<{
+      data: { claims: { sub: string; email?: string | null } } | null;
       error: unknown;
     }>;
   };
@@ -80,9 +82,9 @@ export function createGetAuthenticatedMember<M extends AuthMemberShape>(
     // 정확히 "인증 서비스 연결 실패"로 흡수된다.
     let verified: { supabaseUserId: string; email: string } | null = null;
     try {
-      const { data, error } = await getSupabaseClient().auth.getUser(token);
-      if (!error && data.user?.email) {
-        verified = { supabaseUserId: data.user.id, email: data.user.email };
+      const { data, error } = await getSupabaseClient().auth.getClaims(token);
+      if (!error && data?.claims.email) {
+        verified = { supabaseUserId: data.claims.sub, email: data.claims.email };
       }
     } catch {
       throw toError("UNAUTHENTICATED", "인증 서비스에 연결할 수 없습니다.");
@@ -106,11 +108,20 @@ export function createGetAuthenticatedMember<M extends AuthMemberShape>(
       throw toError("FORBIDDEN", "비활성화된 계정입니다.");
     }
 
-    // ★ 순서 주의: deny 검사보다 먼저 갱신한다.
+    // ★ 순서 주의: deny 검사보다 먼저 갱신(또는 갱신 스킵 판단)한다.
     // 토큰이 유효하고 활성 계정이면 — 이 앱의 업무 권한이 없는 role이라도 —
     // "이 사람이 방금 접근을 시도했다"는 사실 자체는 남긴다. 관리자 명단 화면의
     // "최근 접속일"이 alumni에게도 의미 있으려면 여기서 갱신해야 한다.
-    const member = await markLogin(found.id, supabaseUserId);
+    //
+    // 다만 "최근 접속일"이 목적이지 요청마다 갱신해야 하는 카운터는 아니다 —
+    // 화면 하나가 API를 여러 개 동시에 부르면 매번 write가 걸려 불필요한 DB
+    // 부하가 생긴다. 같은 supabaseUserId로 최근에 이미 기록했으면 건너뛴다.
+    const MARK_LOGIN_THROTTLE_MS = 5 * 60 * 1000;
+    const alreadyFresh =
+      found.supabaseUserId === supabaseUserId &&
+      found.lastLoginAt !== null &&
+      Date.now() - found.lastLoginAt.getTime() < MARK_LOGIN_THROTTLE_MS;
+    const member = alreadyFresh ? found : await markLogin(found.id, supabaseUserId);
 
     if (deny.includes(member.role)) {
       throw toError("FORBIDDEN", messages.deniedRole ?? "이 계정은 이 서비스에 접근할 수 없습니다.");
