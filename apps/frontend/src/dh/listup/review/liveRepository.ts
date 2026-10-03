@@ -251,10 +251,18 @@ export class LiveReviewRepository implements ReviewRepository {
   }
 
   async loadCandidate(id: string): Promise<Candidate> {
-    const row = (await this.api.request<CandidateDto>(`/review-candidates/${encodeURIComponent(id)}`)).data;
-    const outreach = row.outreachId
+    // outreachId는 보통 이미 로드된 목록에 있으므로, 알고 있다면 후보 상세를 기다리지 않고
+    // outreach 상세도 바로 병렬로 요청한다 (모를 때만 후보 상세 응답을 기다려 순차 조회).
+    const knownOutreachId = this.data?.candidates.find((item) => item.id === id)?.outreachId;
+    const [row, knownOutreach] = await Promise.all([
+      this.api.request<CandidateDto>(`/review-candidates/${encodeURIComponent(id)}`).then((e) => e.data),
+      knownOutreachId
+        ? this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(knownOutreachId)}`).then((e) => e.data)
+        : Promise.resolve(undefined),
+    ]);
+    const outreach = knownOutreach ?? (row.outreachId
       ? (await this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(row.outreachId)}`)).data
-      : undefined;
+      : undefined);
     const candidate = normalizeCandidate(row, outreach);
     this.details.set(id, candidate);
     if (this.data) this.data = {
