@@ -40,7 +40,7 @@
   gap: var(--ds-space-1);
 }
 .uw-message-recipient .uw-contact-summary strong {
-  font-size: var(--ds-type-body-1);
+  font-size: var(--workspace-section-size, var(--ds-type-body-1));
 }
 .uw-message-recipient .uw-contact-actions {
   justify-content: flex-start;
@@ -88,7 +88,7 @@
   margin-top: var(--layout-group-gap);
 }
 .uw-message-fields input {
-  font-size: var(--ds-type-body-1);
+  font-size: var(--workspace-section-size, var(--ds-type-body-1));
   font-weight: 600;
 }
 .uw-message-fields textarea {

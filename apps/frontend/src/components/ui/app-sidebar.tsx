@@ -22,8 +22,10 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarHeader,
 } from "./sidebar";
 import { SidebarBrand } from "./sidebar-brand";
+import { BrandLogo } from "./brand-logo";
 
 const icons = {
   admin: ShieldCheck,
@@ -31,61 +33,97 @@ const icons = {
   hr: UsersRound,
   nut: Wallet,
 };
+export function AppNavigationLinks({
+  role,
+  current,
+  onNavigate,
+  iconOnly = false,
+}: {
+  role: Role;
+  current: AppKey;
+  onNavigate?: () => void;
+  iconOnly?: boolean;
+}) {
+  const inRouter = useInRouterContext();
+  return (
+    <SidebarMenu>
+      {reachableApps(role).map((app) => {
+        const Icon = icons[app];
+        const content = (
+          <>
+            <Icon />
+            <span>{APP_LABEL[app]}</span>
+          </>
+        );
+        return (
+          <SidebarMenuItem key={app}>
+            <SidebarMenuButton
+              asChild
+              isActive={current === app}
+              tooltip={
+                iconOnly
+                  ? { children: APP_LABEL[app], hidden: false }
+                  : APP_LABEL[app]
+              }
+            >
+              {inRouter ? (
+                <Link
+                  to={APP_PATH[app]}
+                  aria-label={APP_LABEL[app]}
+                  aria-current={current === app ? "page" : undefined}
+                  onClick={onNavigate}
+                >
+                  {content}
+                </Link>
+              ) : (
+                <a
+                  href={APP_PATH[app]}
+                  aria-label={APP_LABEL[app]}
+                  onClick={onNavigate}
+                >
+                  {content}
+                </a>
+              )}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
+}
 export function AppSidebar({
   role = "acting",
   current,
   canManageOps = false,
+  appearance = "full",
 }: {
   role?: Role;
   current: AppKey;
   canManageOps?: boolean;
+  appearance?: "full" | "rail";
 }) {
   const inRouter = useInRouterContext();
   const apps = reachableApps(role);
   if (role === "alumni" || apps.length < 2) return null;
-  return (
-    <Sidebar
-      collapsible="icon"
-      expandOnHover
-      aria-label="워크스페이스 탐색"
-      className="dw-sidebar"
-    >
-      <SidebarBrand />
+  const content = (
+    <>
+      {appearance === "rail" ? (
+        <SidebarHeader className="ds-app-rail-brand">
+          <BrandLogo variant="signature-blue" width={32} />
+          <BrandLogo variant="inline-blue" width={160} decorative />
+        </SidebarHeader>
+      ) : (
+        <SidebarBrand />
+      )}
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>워크스페이스</SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
-              {apps.map((app) => {
-                const Icon = icons[app];
-                const content = (
-                  <>
-                    <Icon />
-                    <span>{APP_LABEL[app]}</span>
-                  </>
-                );
-                return (
-                  <SidebarMenuItem key={app}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={current === app}
-                      tooltip={APP_LABEL[app]}
-                    >
-                      {inRouter ? (
-                        <Link
-                          to={APP_PATH[app]}
-                          aria-current={current === app ? "page" : undefined}
-                        >
-                          {content}
-                        </Link>
-                      ) : (
-                        <a href={APP_PATH[app]}>{content}</a>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <AppNavigationLinks
+              role={role}
+              current={current}
+              iconOnly={appearance === "rail"}
+            />
           </SidebarGroupContent>
         </SidebarGroup>
         {canManageOps && (
@@ -113,6 +151,16 @@ export function AppSidebar({
           </SidebarGroup>
         )}
       </SidebarContent>
+    </>
+  );
+  return (
+    <Sidebar
+      collapsible={appearance === "rail" ? "none" : "icon"}
+      expandOnHover={appearance !== "rail"}
+      aria-label="워크스페이스 탐색"
+      className={`dw-sidebar${appearance === "rail" ? " ds-app-rail" : ""}`}
+    >
+      {appearance === "rail" ? <div className="ds-app-rail-content">{content}</div> : content}
     </Sidebar>
   );
 }

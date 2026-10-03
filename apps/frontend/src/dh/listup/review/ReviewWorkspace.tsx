@@ -29,7 +29,7 @@ import { previewRepository } from "./previewRepository";
 import { UnifiedReviewLoading, UnifiedReviewPanel } from "./UnifiedReviewPanel";
 import { HistoryWorkspace, createHistoryMemory } from "./HistoryWorkspace";
 import { PreviewHistoryRepository, unavailableHistoryRepository } from "./historyRepository";
-import type { HistoryTab } from "./HistoryTabs";
+import type { HistoryTab } from "./historyNavigation";
 import "./history-workspace.css";
 import "./review.css";
 
@@ -148,7 +148,7 @@ export default function ReviewWorkspace({
       reviewDirty.current &&
       !await confirm("저장하지 않은 입력을 버리고 이동할까요?", "저장하지 않은 입력", "버리고 이동")
     )
-      return;
+      return false;
     reviewDirty.current = false;
     const next = new URLSearchParams(params);
     Object.entries(patch).forEach(([key, value]) =>
@@ -156,6 +156,7 @@ export default function ReviewWorkspace({
     );
     setParams(next);
     setError("");
+    return true;
   };
   const perform = async (
     signature: string,
@@ -305,7 +306,7 @@ export default function ReviewWorkspace({
     selected ?? (params.get("candidate") === "none" ? undefined : rows[0]);
   const openMessage = (id: string) =>
     navigate({ message: null, candidate: id, view: "review", owner: candidates.find(item => item.id === id)?.owner?.id === actor.id ? params.get("owner") : "all" });
-  const changeTab = (view: HistoryTab) => { void navigate({ view, message: null, historyCompany: view === "review" ? null : historyMemory.current.selected[view] }); };
+  const changeTab = (view: HistoryTab) => navigate({ view, message: null, historyCompany: view === "review" ? null : historyMemory.current.selected[view] });
   if (tab === "contact-history" || tab === "collaboration-history") {
     return <>{dialog}<HistoryWorkspace kind={tab} repository={historyRepository} memory={historyMemory.current}
       selectedId={params.get("historyCompany")} onTabChange={changeTab}

@@ -67,6 +67,7 @@ export const designTokens = {
   "--layout-section-gap": "var(--ds-space-8)",
   "--layout-header-height": "66px",
   "--layout-summary-max": "240px",
+  "--layout-company-list-width": "384px",
   "--layout-list-inset": "var(--ds-space-2)",
   "--layout-list-row-inset": "var(--ds-space-3)",
   "--layout-list-row-gap": "var(--ds-space-1)",

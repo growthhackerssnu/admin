@@ -29,9 +29,8 @@ import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
 import {
   SidebarInset,
   SidebarProvider,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { WorkspaceSidebar } from "@/components/ui/workspace-sidebar";
+import { DhWorkspaceNavigation } from "./DhWorkspaceNavigation";
 import { safeUrl } from "./contracts";
 import {
   collaborationCompany,
@@ -44,7 +43,7 @@ import {
   type HistoryProject,
   type HistoryRepository,
 } from "./historyContracts";
-import { HistoryTabs, type HistoryTab } from "./HistoryTabs";
+import { historyTabs, type HistoryTab } from "./historyNavigation";
 import { HistoryComposer, type ComposerForms } from "./HistoryComposer";
 import {
   HistoryProjectForm,
@@ -97,16 +96,6 @@ export const createHistoryMemory = (): HistoryMemory => ({
   },
   selected: { "contact-history": null, "collaboration-history": null },
 });
-function MenuToggle() {
-  const { toggleSidebar } = useSidebar();
-  return (
-    <WorkspaceIconButton
-      icon="menu"
-      label="주 메뉴 열기 또는 닫기"
-      onClick={toggleSidebar}
-    />
-  );
-}
 function Status({
   label,
   tone = "neutral",
@@ -143,7 +132,7 @@ export function HistoryWorkspace({
   kind: HistoryKind;
   repository: HistoryRepository;
   memory: HistoryMemory;
-  onTabChange: (tab: HistoryTab) => void;
+  onTabChange: (tab: HistoryTab) => void | boolean | Promise<void | boolean>;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   scenario?: string;
@@ -351,12 +340,11 @@ export function HistoryWorkspace({
   const rows = filtered.slice((page - 1) * 15, page * 15);
   const open = Boolean((drawerOpen && selected) || addingProject);
   return (
-    <SidebarProvider defaultOpen className="ds-workspace uw-shell hw-shell">
-      <WorkspaceSidebar canManageOps={data?.canManage} />
+    <SidebarProvider defaultOpen className="ds-workspace dw-section-workspace uw-shell hw-shell">
+      <DhWorkspaceNavigation value={kind} onChange={onTabChange} canManageOps={data?.canManage} />
       <SidebarInset className="uw-inset hw-inset">
         <header className="hw-topbar">
-          <MenuToggle />
-          <HistoryTabs value={kind} onChange={onTabChange} />
+          <h1 className="ds-section-page-title">{historyTabs.find(tab => tab.value === kind)?.label}</h1>
           {repository.mode === "mock" && (
             <WorkspaceStatus className="hw-mock-label">
               목업 데이터
@@ -574,8 +562,10 @@ export function HistoryWorkspace({
                           onSelect(c.id);
                         }}
                       >
-                        <strong>{c.name}</strong>
-                        <span>{c.description}</span>
+                        <strong className="ds-table-primary">{c.name}</strong>
+                        <span className="ds-table-secondary">
+                          {c.description}
+                        </span>
                       </button>
                     </TableCell>
                     <TableCell>
@@ -652,7 +642,9 @@ export function HistoryWorkspace({
                             }
                             tone={c.work.sent ? "success" : "neutral"}
                           />
-                          <small>{c.work.owner.name}</small>
+                          <small className="ds-table-secondary">
+                            {c.work.owner.name}
+                          </small>
                         </div>
                       ) : (
                         <span className="hw-muted">작업 없음</span>
@@ -692,7 +684,7 @@ export function HistoryWorkspace({
         <SheetContent
           showOverlay={false}
           showCloseButton={false}
-          className={`ds-workspace hw-drawer ${mode === "compose" ? "hw-drawer-wide" : ""}`}
+          className={`ds-workspace dw-section-workspace hw-drawer ${mode === "compose" ? "hw-drawer-wide" : ""}`}
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => {
             if (pending) e.preventDefault();

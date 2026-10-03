@@ -23,6 +23,7 @@ import { LayoutDraft } from "./layout-draft";
 import { BrandPreview } from "./brand-preview";
 import { PaletteDraft } from "./palette-draft";
 import { DataPreview } from "./data-preview";
+import { NavigationPreview } from "./navigation-preview";
 import { Toaster } from "@/components/ui/sonner";
 
 const brand = ["0", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-brand-${step}`]);
@@ -86,6 +87,8 @@ function App() {
       </div>
       <div className="ds-demo ds-resizable-demo"><h3 className="ds-subtitle-2">세 칸 크기 조절 · Resizable</h3><ResizablePanelGroup orientation="horizontal" className="h-28 rounded-md border"><ResizablePanel defaultSize="24%" minSize="17%" className="ds-panel-list grid place-items-center">목록</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="52%" minSize="34%" className="grid place-items-center">현재 작업</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="24%" minSize="18%" className="grid place-items-center">기업 정보</ResizablePanel></ResizablePanelGroup></div>
     </section>
+    <Separator />
+    <NavigationPreview />
     <Separator />
     <DataPreview />
     <Separator />
