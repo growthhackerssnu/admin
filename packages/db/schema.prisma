@@ -592,6 +592,9 @@ model Outreach {
   @@index([acquisitionRoundId, ownerId])
   @@index([acquisitionRoundId, outcomeStatus])
   @@index([currentTargetQuarterId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([workStage, updatedAt(sort: Desc)])
+  @@index([ownerId, updatedAt(sort: Desc)])
+  @@index([updatedAt(sort: Desc)])
   @@map("outreaches")
   @@schema("dh")
 }
