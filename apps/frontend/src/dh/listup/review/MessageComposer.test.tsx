@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MessageComposer } from "./MessageComposer";
 import {
   currentActor,
@@ -8,6 +8,10 @@ import {
 } from "./contracts";
 import { initialReviewData } from "./fixtures";
 import { applyCommand } from "./previewRepository";
+
+vi.mock("@/design-system/use-aligned-scroll", () => ({
+  useAlignedScroll: () => ({ current: null }),
+}));
 
 function approvedCompany(withDraft = false) {
   let data = initialReviewData();
@@ -70,6 +74,10 @@ describe("message work inside the company's center pane", () => {
     const html = markup(approvedCompany(true).candidates[0]);
     expect(html).toContain('aria-label="메시지 작성"');
     expect(html).not.toContain("메시지 목록");
+    expect(html).not.toContain("내용 수정");
+    expect(html).not.toContain('readonly=""');
+    expect(html).toContain('id="uw-message-subject"');
+    expect(html).toContain('id="uw-message-body"');
     expect(button(html, "본문 복사")).not.toContain('disabled=""');
     expect(button(html, "발송 완료 표시")).not.toContain('disabled=""');
   });
@@ -80,8 +88,9 @@ describe("message work inside the company's center pane", () => {
       owner: { id: "someone-else", name: "다른 담당자" },
     });
     expect(html).toContain(candidate.draft!.subject);
-    for (const label of ["내용 수정", "다시 생성", "발송 완료 표시"])
-      expect(button(html, label)).toContain('disabled=""');
+    expect(html).toContain('readonly=""');
+    expect(html).not.toContain("발송 완료 표시");
+    expect(html).not.toContain("수정 저장");
   });
   it("shows the first-send history without offering a second send or regeneration", () => {
     const data = approvedCompany(true);

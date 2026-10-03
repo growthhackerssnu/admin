@@ -101,21 +101,9 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
   };
   const decided = ["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus);
   const canAct = owned && candidate.researchStatus === "ready" && !pending && !messageDirty;
-  return (
-    <section className="uw-focus" aria-label={`${candidate.name} 검토`}>
-      <header className="uw-pane-head">
-        <div className="uw-head-copy"><h1>{candidate.name}</h1><p>{candidate.summary}</p></div>
-        {candidate.owner && !owned && <span className="uw-readonly">{candidate.owner.name} · 조회 전용</span>}
-      </header>
-      <div ref={scrollRef} className="uw-focus-scroll">
-        {candidate.researchStatus === "error" ? (
-          <div className="uw-state-message" role="alert"><h2>조사 오류</h2><p>{candidate.error?.message}</p>
-            {candidate.error?.retryable && owned && <Button variant="outline" disabled={pending} onClick={() => void change(candidate, { type: "retry" })}>다시 조사</Button>}</div>
-        ) : candidate.researchStatus !== "ready" ? (
-          <div className="uw-state-message" role="status"><Spinner /><p>{researchLabels[candidate.researchStatus]}</p></div>
-        ) : (
-          <div className="uw-contact-area">
-            {(!decided || candidate.recipient) && <div className="uw-section-heading"><h2>연락할 관계자</h2>
+  const messageMode = candidate.reviewStatus === "approved" || candidate.sent.length > 0;
+  const contactControls = <div className={messageMode ? "uw-message-recipient" : undefined}>
+            {(!decided || candidate.recipient) && <div className="uw-section-heading"><h2>{messageMode ? "수신자" : "연락할 관계자"}</h2>
               {!decided && owned && <a href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(candidate.name)}`} target="_blank" rel="noopener noreferrer">LinkedIn에서 찾기</a>}
             </div>}
             {saved.length > 1 && <div className="uw-contact-options" aria-label="저장된 관계자">
@@ -125,8 +113,8 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
             {candidate.recipient && !editing && <div className="uw-contact-summary">
               <div><strong>{candidate.recipient.name}</strong><span>{candidate.recipient.title || "직함 미입력"} · {candidate.recipient.channel === "linkedin" ? "LinkedIn" : "이메일"}</span>
                 {candidate.recipient.channel === "linkedin" && safeUrl(candidate.recipient.address) ? <a href={safeUrl(candidate.recipient.address)} target="_blank" rel="noopener noreferrer">프로필 열기</a> : <span>{candidate.recipient.address}</span>}</div>
-              {canAct && <div className="uw-contact-actions"><Button variant="ghost" size="sm" onClick={() => { setContact(candidate.recipient!); setMode("edit"); }}>수정</Button>
-                <Button variant="ghost" size="sm" onClick={() => { setContact(blankContact); setMode("add"); }}><Plus size={14} /> 추가</Button></div>}
+              {owned && !candidate.sent.length && <div className="uw-contact-actions"><Button disabled={!canAct} variant="ghost" size="sm" onClick={() => { setContact(candidate.recipient!); setMode("edit"); }}>수정</Button>
+                <Button disabled={!canAct} variant="ghost" size="sm" onClick={() => { setContact(blankContact); setMode("add"); }}><Plus size={14} /> 추가</Button></div>}
             </div>}
             {!candidate.recipient && !editing && !decided && <Empty className="uw-contact-empty">
               <EmptyHeader><EmptyMedia variant="icon"><UserRound aria-hidden="true" /></EmptyMedia><EmptyTitle>관계자 정보 없음</EmptyTitle></EmptyHeader>
@@ -141,13 +129,30 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
               <div className="uw-form-actions"><Button variant="ghost" onClick={() => setMode(null)}>취소</Button>
                 <Button onClick={() => void save()} disabled={pending}>{pending && <Spinner />}관계자 저장</Button></div>
             </FieldGroup>}
+  </div>;
+  return (
+    <section className="uw-focus" aria-label={`${candidate.name} 검토`}>
+      <header className="uw-pane-head">
+        <div className="uw-head-copy"><h1>{candidate.name}</h1><p>{candidate.summary}</p></div>
+        {candidate.owner && !owned && <span className="uw-readonly">{candidate.owner.name} · 조회 전용</span>}
+      </header>
+      {messageMode ? <MessageComposer candidate={candidate} actor={actor} quarters={quarters}
+        addQuarter={addQuarter} change={change} pending={pending || Boolean(mode)}
+        onDirty={trackMessageDirty} recipientControls={contactControls}
+        onReopen={owned && !candidate.sent.length ? () => void change(candidate, { type: "reopen" }) : undefined} /> : <>
+      <div ref={scrollRef} className="uw-focus-scroll">
+        {candidate.researchStatus === "error" ? (
+          <div className="uw-state-message" role="alert"><h2>조사 오류</h2><p>{candidate.error?.message}</p>
+            {candidate.error?.retryable && owned && <Button variant="outline" disabled={pending} onClick={() => void change(candidate, { type: "retry" })}>다시 조사</Button>}</div>
+        ) : candidate.researchStatus !== "ready" ? (
+          <div className="uw-state-message" role="status"><Spinner /><p>{researchLabels[candidate.researchStatus]}</p></div>
+        ) : (
+          <div className="uw-contact-area">
+            {contactControls}
             {decided && <div className="uw-decision"><div className="uw-decision-row"><StatusBadge candidate={candidate} />
               {canAct && <Button variant="ghost" size="sm" onClick={() => void change(candidate, { type: "reopen" })}>판단 변경</Button>}</div>
               {candidate.decisions.at(-1)?.note && <p>{candidate.decisions.at(-1)?.note}</p>}</div>}
             {!decided && owned && <Field className="uw-note"><FieldLabel htmlFor="uw-decision-note">판단 메모 <small>선택</small></FieldLabel><Textarea id="uw-decision-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} /></Field>}
-            {(candidate.reviewStatus === "approved" || candidate.sent.length > 0) && <MessageComposer
-              candidate={candidate} actor={actor} quarters={quarters} addQuarter={addQuarter}
-              change={change} pending={pending || Boolean(mode)} onDirty={trackMessageDirty} />}
           </div>
         )}
       </div>
@@ -157,6 +162,7 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
         <Button className="uw-approve" disabled={pending || Boolean(mode) || !candidate.recipient} onClick={() => void decide("approved")}>{pending && <Spinner />}승인</Button>
         {(Boolean(mode) || !candidate.recipient) && <div className="uw-action-reason"><span>{mode ? "관계자 저장 후 승인 가능" : "관계자 입력 후 승인 가능"}</span><Button size="sm" variant="link" onClick={() => { if (!mode) { setContact(blankContact); setMode("add"); } else document.getElementById("uw-contact-name")?.focus(); }}>{mode ? "입력으로 이동" : "관계자 입력"}</Button></div>}
       </footer>}
+      </>}
     </section>
   );
 }
