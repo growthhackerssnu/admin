@@ -42,7 +42,7 @@ export function MessageComposer({
   recipientControls?: ReactNode;
   onReopen?: () => void;
 }) {
-  const scrollRef = useAlignedScroll();
+  const scrollRef = useAlignedScroll(".uw-center");
   const [subject, setSubject] = useState(candidate.draft?.subject ?? "");
   const [body, setBody] = useState(candidate.draft?.body ?? "");
   const [addingQuarter, setAddingQuarter] = useState(false);

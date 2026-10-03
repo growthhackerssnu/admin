@@ -103,7 +103,6 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--ds-gray-200);
 }
 .ds-section-sidebar-head strong {
   font-size: var(--ds-type-body-2);

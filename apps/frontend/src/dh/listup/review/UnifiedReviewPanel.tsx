@@ -70,7 +70,7 @@ function RailToggle() {
 }
 
 function ContactWork({ candidate, actor, pending, change, onDirty, quarters, addQuarter }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void; quarters: string[]; addQuarter: (value: string) => Promise<boolean> }) {
-  const scrollRef = useAlignedScroll();
+  const scrollRef = useAlignedScroll(".uw-center");
   const owned = candidate.owner?.id === actor.id;
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
   const [contact, setContact] = useState<Recipient>(candidate.recipient ?? blankContact);
