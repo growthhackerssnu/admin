@@ -24,11 +24,15 @@ export function withListupApiHandler<P = Record<string, string>>(handler: RouteH
   return async (req: NextRequest, routeCtx: { params: P }) => {
     const requestId = crypto.randomUUID();
     try {
+      const start = performance.now();
       const member = await getAuthenticatedMember(req);
+      const authDone = performance.now();
       const result = await handler(req, { member, requestId, params: routeCtx.params });
+      // 브라우저 DevTools > Network > Timing에서 인증과 핸들러 시간을 나눠 볼 수 있다.
+      const timing = `auth;dur=${Math.round(authDone - start)}, handler;dur=${Math.round(performance.now() - authDone)}`;
       return NextResponse.json(result.body, {
         status: result.status ?? 200,
-        ...(result.headers ? { headers: result.headers } : {}),
+        headers: { "Server-Timing": timing, ...result.headers },
       });
     } catch (err) {
       if (err instanceof ApiError) {
