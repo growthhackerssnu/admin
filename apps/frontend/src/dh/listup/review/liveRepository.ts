@@ -1,4 +1,5 @@
 import { supabase } from "../../../lib/supabase";
+import { SavedReviewRefreshError } from "./contracts";
 import type {
   Actor,
   Candidate,
@@ -163,6 +164,7 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
       note: latestDecision.note ?? "",
     }] : [],
     recipient,
+    recipientContactId: row.selectedRecipient?.contactId ?? null,
     contacts: recipient ? [recipient] : [],
     quarter,
     draft,
@@ -272,11 +274,28 @@ export class LiveReviewRepository implements ReviewRepository {
     const outreachId = candidate.outreachId;
     const outreachVersion = candidate.outreachVersion;
     switch (command.type) {
-      case "contact":
+      case "contact": {
         if (["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus))
           throw new Error("판단 변경으로 검토를 다시 연 뒤 관계자를 수정해주세요.");
-        await this.api.request(`${route}/recipient`, "PUT", { expectedRevision: expectedVersion, ...command.recipient }, key);
+        const editing = command.mode !== "add" && Boolean(candidate.recipient);
+        if (editing && !candidate.recipientContactId)
+          throw new Error("관계자 정보를 다시 불러온 뒤 수정해주세요.");
+        const saved = (await this.api.request<CandidateDto>(`${route}/recipient`, "PUT", {
+          expectedRevision: expectedVersion,
+          ...command.recipient,
+          ...(editing ? { contactId: candidate.recipientContactId } : {}),
+        }, key)).data;
+        const updated = {
+          ...normalizeCandidate(saved),
+          quarter: candidate.quarter,
+          draft: candidate.draft ? { ...candidate.draft, contextMatches: false } : null,
+          sent: candidate.sent,
+          outreachVersion: candidate.outreachVersion,
+        };
+        this.details.set(id, updated);
+        this.data = { ...this.data!, candidates: this.data!.candidates.map((item) => item.id === id ? updated : item) };
         break;
+      }
       case "decide":
       case "reopen":
         await this.api.request(`${route}/decisions`, "POST", {
@@ -335,16 +354,25 @@ export class LiveReviewRepository implements ReviewRepository {
       case "approveDraft":
         throw new Error("현재 업무 흐름에서 지원하지 않는 행동입니다.");
     }
-    const data = await this.load();
-    await this.loadCandidate(id);
-    return this.data ?? data;
+    try {
+      const data = await this.load();
+      await this.loadCandidate(id);
+      return this.data ?? data;
+    } catch {
+      throw new SavedReviewRefreshError(this.data!);
+    }
   }
 
   async addQuarter(value: string, key: string): Promise<ReviewData> {
     const match = /^(\d{4})-Q([1-4])$/.exec(value);
     if (!match) throw new Error("분기는 YYYY-Q1 형식으로 입력해주세요.");
     await this.api.request("/target-quarters", "POST", { year: Number(match[1]), quarter: Number(match[2]) }, key);
-    return this.load();
+    try {
+      return await this.load();
+    } catch {
+      if (!this.data) throw new Error("분기는 저장됐습니다. 화면을 다시 불러와주세요.");
+      throw new SavedReviewRefreshError(this.data);
+    }
   }
 
   async loadOperations() {

@@ -85,6 +85,7 @@
 .uw-state-message h2 { font-size: var(--ds-type-headline-6); color: var(--ds-text-strong); }
 .uw-empty { padding: 16px; color: var(--ds-gray-700); font-size: var(--ds-type-caption); }
 .uw-error { padding: var(--layout-control-gap) var(--layout-inset); color: var(--destructive); background: var(--background); font-size: var(--ds-type-caption); border-bottom: 1px solid var(--border); }
+.uw-refresh-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--layout-control-gap); color: var(--foreground); }
 @media (max-width: 900px) { .uw-shell, .uw-inset { position: relative; height: 100dvh; min-height: 0; } }
 @container (max-width: 620px) { .uw-field-row { grid-template-columns: 1fr; } .uw-contact-summary { flex-direction: column; } .uw-focus-footer { flex-wrap: wrap; } }
 @container (max-width: 320px) { .uw-filter-row { display: grid; grid-template-columns: 1fr; gap: 4px; } .uw-filter-actions { justify-content: flex-end; } .uw-queue-tools { padding-block: 8px; } }

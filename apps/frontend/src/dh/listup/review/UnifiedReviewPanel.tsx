@@ -170,7 +170,7 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, change, onDirty, onSelect, onMessage }: {
+export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, onMessage }: {
   candidates: Candidate[];
   actor: Actor;
   canManageOps: boolean;
@@ -179,6 +179,8 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   selectedId: string | null;
   pending: boolean;
   error: string;
+  reload?: () => void;
+  reloading?: boolean;
   change: Change;
   onDirty: (dirty: boolean) => void;
   onSelect: (id: string) => void;
@@ -230,7 +232,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   return <SidebarProvider defaultOpen className="ds-workspace uw-shell">
     <WorkspaceSidebar canManageOps={canManageOps} />
     <SidebarInset className="uw-inset">
-      {error && <div className="uw-error" role="alert">{error}</div>}
+      {error && <div className={`uw-error${reload ? " uw-refresh-notice" : ""}`} role={reload ? "status" : "alert"}><span>{error}</span>{reload && <Button variant="outline" size="sm" disabled={reloading} onClick={reload}>다시 불러오기</Button>}</div>}
       <ResizablePanelGroup orientation="horizontal" className="uw-panels">
         {queueOpen && !compact && <><ResizablePanel defaultSize="24%" minSize="17%" maxSize="38%">
           {queueContent}</ResizablePanel>{!compact && <ResizableHandle withHandle className="uw-handle" />}</>}

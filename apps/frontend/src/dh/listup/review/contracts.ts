@@ -64,6 +64,7 @@ export interface Candidate {
   reviewStatus: ReviewStatus;
   decisions: Decision[];
   recipient: Recipient | null;
+  recipientContactId?: string | null;
   /** Additional saved recipients in the frontend preview. `recipient` is the active one. */
   contacts?: Recipient[];
   quarter: string | null;
@@ -122,6 +123,14 @@ export interface ReviewRepository {
     operationKey: string,
   ): Promise<ReviewData>;
   addQuarter(quarter: string, operationKey: string): Promise<ReviewData>;
+}
+
+/** The write succeeded; only the subsequent read failed. Never repeat the write. */
+export class SavedReviewRefreshError extends Error {
+  constructor(readonly data: ReviewData) {
+    super("저장은 완료됐지만 최신 화면을 불러오지 못했습니다. 다시 불러온 뒤 계속 진행해주세요.");
+    this.name = "SavedReviewRefreshError";
+  }
 }
 
 export const researchLabels: Record<ResearchStatus, string> = {

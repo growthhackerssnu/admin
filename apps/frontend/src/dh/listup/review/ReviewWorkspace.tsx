@@ -15,6 +15,7 @@ import {
 import { useSearchParams } from "react-router-dom";
 import {
   currentActor,
+  SavedReviewRefreshError,
   researchLabels,
   reviewLabels,
   type Candidate,
@@ -38,6 +39,8 @@ export default function ReviewWorkspace({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [refreshFailure, setRefreshFailure] = useState<SavedReviewRefreshError | null>(null);
+  const actionPending = pending || Boolean(refreshFailure);
   const busy = useRef(false);
   const reviewDirty = useRef(false);
   const trackDirty = useCallback((dirty: boolean) => {
@@ -142,7 +145,7 @@ export default function ReviewWorkspace({
     signature: string,
     action: (key: string) => Promise<ReviewData>,
   ): Promise<boolean> => {
-    if (busy.current) return false;
+    if (busy.current || refreshFailure) return false;
     busy.current = true;
     setPending(true);
     setError("");
@@ -154,6 +157,14 @@ export default function ReviewWorkspace({
       operation.current = undefined;
       return true;
     } catch (error) {
+      if (error instanceof SavedReviewRefreshError) {
+        operation.current = undefined;
+        if (active.current) {
+          setData(error.data);
+          setRefreshFailure(error);
+        }
+        return true;
+      }
       if (active.current)
         setError(
           error instanceof Error
@@ -161,6 +172,28 @@ export default function ReviewWorkspace({
             : "저장하지 못했습니다. 입력은 유지됩니다.",
         );
       return false;
+    } finally {
+      busy.current = false;
+      if (active.current) setPending(false);
+    }
+  };
+  const reloadAfterSave = async () => {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(true);
+    try {
+      let next = await repository.load();
+      if (repository.loadCandidate && detailId && detailId !== "none") {
+        const candidate = await repository.loadCandidate(detailId);
+        next = { ...next, candidates: next.candidates.map((item) => item.id === candidate.id ? candidate : item) };
+      }
+      if (active.current) {
+        setData(next);
+        setRefreshFailure(null);
+        setError("");
+      }
+    } catch {
+      // Keep the successful write distinct from a failed read, and keep actions locked.
     } finally {
       busy.current = false;
       if (active.current) setPending(false);
@@ -263,12 +296,14 @@ export default function ReviewWorkspace({
       owner={params.get("owner") === "all" ? "all" : "mine"}
       onOwnerChange={(owner) => navigate({ owner, candidate: null })}
       selectedId={params.get("candidate")}
-      pending={pending} error={error} change={change} onDirty={trackDirty}
+      pending={actionPending} error={refreshFailure?.message ?? error} change={change} onDirty={trackDirty}
+      reload={refreshFailure ? () => void reloadAfterSave() : undefined} reloading={pending}
       onSelect={(id) => navigate({ candidate: id })}
       onMessage={openMessage} />;
   }
   return (
     <div className="ds-workspace rv-app">
+      {refreshFailure && <div className="rv-error" role="status"><p>{refreshFailure.message}</p><Button variant="outline" disabled={pending} onClick={() => void reloadAfterSave()}>다시 불러오기</Button></div>}
       <header className="rv-header">
         <div className="rv-brand"><BrandLogo variant="inline-blue" width={160} /></div>
         <div className="rv-account">
@@ -328,8 +363,8 @@ export default function ReviewWorkspace({
           quarters={data.quarters}
           change={change}
           addQuarter={addQuarter}
-          pending={pending}
-          error={error}
+          pending={actionPending}
+          error={refreshFailure ? "" : error}
           back={() => navigate({ message: null })}
         />
       ) : (
@@ -581,7 +616,7 @@ export default function ReviewWorkspace({
                       inline
                       candidate={focused}
                       actor={actor}
-                      pending={pending}
+                      pending={actionPending}
                       error={error}
                       change={change}
                       onDirty={trackDirty}
@@ -737,8 +772,8 @@ export default function ReviewWorkspace({
           key={selected.id}
           candidate={selected}
           actor={actor}
-          pending={pending}
-          error={error}
+          pending={actionPending}
+          error={refreshFailure ? "" : error}
           change={change}
           close={() => navigate({ candidate: null })}
           message={() => openMessage(selected.id)}
