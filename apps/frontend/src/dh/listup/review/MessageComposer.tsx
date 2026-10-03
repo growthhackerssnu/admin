@@ -1,21 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { MessageDraftEditor } from "./MessageDraftEditor";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { useAlignedScroll } from "@/design-system/use-aligned-scroll";
 import { projectSchedule } from "../messageTemplate";
-import { canCopy, draftCurrent, type Actor, type Candidate } from "./contracts";
+import { canCopy, draftCurrent, type Actor, type Candidate, type AcquisitionRound, quarterLabel } from "./contracts";
 import { type Change } from "./CandidateReview";
 import "./message-composer.css";
 
@@ -24,9 +15,11 @@ import "./message-composer.css";
 export function MessageComposer({
   candidate,
   actor,
-  quarters,
+  currentRound,
+  roundError,
+  retryRound,
+  canManageOps,
   change,
-  addQuarter,
   pending,
   onDirty,
   recipientControls,
@@ -34,9 +27,11 @@ export function MessageComposer({
 }: {
   candidate: Candidate;
   actor: Actor;
-  quarters: string[];
+  currentRound?: AcquisitionRound | null;
+  roundError?: string;
+  retryRound?: () => void;
+  canManageOps?: boolean;
   change: Change;
-  addQuarter: (value: string) => Promise<boolean>;
   pending: boolean;
   onDirty: (dirty: boolean) => void;
   recipientControls?: ReactNode;
@@ -45,9 +40,6 @@ export function MessageComposer({
   const scrollRef = useAlignedScroll(".uw-center");
   const [subject, setSubject] = useState(candidate.draft?.subject ?? "");
   const [body, setBody] = useState(candidate.draft?.body ?? "");
-  const [addingQuarter, setAddingQuarter] = useState(false);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [part, setPart] = useState(1);
   const [notice, setNotice] = useState("");
   const { confirm, dialog } = useConfirmation();
   const dirty =
@@ -72,7 +64,14 @@ export function MessageComposer({
   const sent = candidate.sent.length > 0;
   const owned = candidate.owner?.id === actor.id;
   const locked =
-    pending || !owned || candidate.reviewStatus !== "approved" || sent;
+    pending || !owned || candidate.reviewStatus !== "approved" || sent || candidate.canEditMessage === false;
+  const quarter = candidate.quarter ?? (currentRound ? quarterLabel(currentRound.targetQuarter) : null);
+  const quarterIssue = candidate.messageBlockReasons?.includes("round_closed")
+    ? "종료된 수주 분기 · 읽기 전용"
+    : candidate.messageBlockReasons?.includes("not_owner") ? "다른 담당자의 메시지 업무 · 조회 전용"
+    : !candidate.outreachId && roundError ? roundError
+    : !candidate.outreachId && !currentRound ? "수주 분기 미설정 · 팀장 설정 필요"
+    : candidate.canGenerateMessage === false ? "메시지 생성에 필요한 관계자와 조사 자료를 확인해주세요." : "";
   const current = draftCurrent(candidate);
   const copyable = canCopy(candidate) && !dirty;
   const sentRecord = candidate.sent[0];
@@ -119,107 +118,18 @@ export function MessageComposer({
                   </div>
                 )}
                 <div className="uw-message-quarter">
-                  <Field>
-                    <FieldLabel htmlFor="uw-message-quarter" required>
-                      목표 분기
-                    </FieldLabel>
-                    <Select
-                      disabled={locked || dirty}
-                      value={candidate.quarter ?? ""}
-                      onValueChange={(quarter) =>
-                        void change(candidate, { type: "quarter", quarter })
-                      }
-                    >
-                      <SelectTrigger
-                        id="uw-message-quarter"
-                        aria-label="메시지 목표 분기"
-                        aria-required="true"
-                      >
-                        <SelectValue placeholder="분기 선택" />
-                      </SelectTrigger>
-                      <SelectContent
-                        className="dw-select-content"
-                        position="popper"
-                      >
-                        {quarters.map((q) => (
-                          <SelectItem key={q} value={q}>
-                            {q.replace("-Q", "년 ")}분기
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    disabled={locked || dirty}
-                    onClick={() => setAddingQuarter(!addingQuarter)}
-                  >
-                    분기 추가
-                  </Button>
+                  <p className="uw-message-quarter-label">수주 분기</p>
+                  <strong>{quarter ? `${quarter.replace("-Q", "년 ")}분기` : "미설정"}</strong>
                 </div>
               </div>
-              {addingQuarter && (
-                <div className="uw-message-quarter-fields">
-                  <Field>
-                    <FieldLabel htmlFor="uw-quarter-year">연도</FieldLabel>
-                    <Input
-                      id="uw-quarter-year"
-                      type="number"
-                      min={2000}
-                      max={2100}
-                      disabled={locked}
-                      value={year}
-                      onChange={(e) => setYear(e.target.valueAsNumber)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="uw-quarter-part">분기</FieldLabel>
-                    <Select
-                      disabled={locked}
-                      value={String(part)}
-                      onValueChange={(value) => setPart(Number(value))}
-                    >
-                      <SelectTrigger id="uw-quarter-part">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent
-                        className="dw-select-content"
-                        position="popper"
-                      >
-                        {[1, 2, 3, 4].map((q) => (
-                          <SelectItem key={q} value={String(q)}>
-                            {q}분기
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Button
-                    variant="outline"
-                    disabled={
-                      locked ||
-                      !Number.isInteger(year) ||
-                      year < 2000 ||
-                      year > 2100
-                    }
-                    onClick={async () => {
-                      const quarter = `${year}-Q${part}`;
-                      if (await addQuarter(quarter)) {
-                        setAddingQuarter(false);
-                        await change(candidate, { type: "quarter", quarter });
-                      }
-                    }}
-                  >
-                    추가하고 선택
-                  </Button>
-                </div>
+              {quarter && (
+                <p className="uw-message-period">제안 기간 · {projectSchedule(quarter).period}</p>
               )}
-              {candidate.quarter && (
-                <p className="uw-message-period">
-                  제안 기간 · {projectSchedule(candidate.quarter).period}
-                </p>
-              )}
+              {quarterIssue && <div className="uw-message-period" role={roundError ? "alert" : "status"}>
+                {quarterIssue}
+                {!candidate.outreachId && roundError && retryRound && <Button variant="link" size="sm" disabled={pending} onClick={retryRound}>다시 불러오기</Button>}
+                {!candidate.outreachId && !roundError && !currentRound && canManageOps && <a href="/dh?view=operations">수주 분기 설정</a>}
+              </div>}
               {candidate.draft && !current && (
                 <p className="uw-message-warning" role="status">
                   분기·수신자 또는 조사 자료가 변경되었습니다. 다시
@@ -268,7 +178,7 @@ export function MessageComposer({
               variant="ghost"
               size="sm"
               className="uw-message-reopen"
-              disabled={pending || dirty}
+              disabled={pending || dirty || candidate.canEditMessage === false}
               onClick={onReopen}
             >
               판단 변경
@@ -317,7 +227,7 @@ export function MessageComposer({
               <Button
                 size="sm"
                 variant={!candidate.draft || !current ? "default" : "outline"}
-                disabled={locked || !candidate.quarter || !candidate.recipient}
+                disabled={locked || Boolean(quarterIssue) || !quarter || !candidate.recipient || !candidate.research}
                 onClick={() => void generate()}
               >
                 {pending && <Spinner />}
@@ -361,19 +271,6 @@ export function MessageComposer({
                 </>
               )}
             </>
-          )}
-          {!candidate.quarter && (
-            <div className="uw-action-reason">
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() =>
-                  document.getElementById("uw-message-quarter")?.focus()
-                }
-              >
-                목표 분기 선택
-              </Button>
-            </div>
           )}
         </footer>
       )}

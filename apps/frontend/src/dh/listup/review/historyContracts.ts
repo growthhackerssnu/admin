@@ -210,7 +210,7 @@ export function generationReasons(
 export const historyBlockLabels: Record<string, string> = {
   not_owner: "본인 담당 작업만 수정할 수 있습니다.",
   already_sent: "이번 회차 발송을 마쳤습니다.",
-  round_closed: "종료된 수주 회차의 작업입니다.",
+  round_closed: "종료된 수주 분기의 작업입니다.",
   purpose_missing: "이번 연락 목적을 입력해주세요.",
   recipient_missing: "유효한 수신자를 저장해주세요.",
   evidence_missing: "메시지에 사용할 저장 근거가 없습니다.",

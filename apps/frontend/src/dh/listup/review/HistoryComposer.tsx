@@ -134,7 +134,7 @@ export function HistoryComposer({
       <div className="hw-drawer-scroll">
         <div className="hw-compose-meta">
           <span>
-            목표 분기 · {work.quarter ?? data.round?.quarter ?? "미설정"}
+            수주 분기 · {work.quarter ?? data.round?.quarter ?? "미설정"}
           </span>
           <WorkspaceStatus tone={sent ? "success" : "neutral"}>
             {sent ? "발송 완료" : "작성 중"}

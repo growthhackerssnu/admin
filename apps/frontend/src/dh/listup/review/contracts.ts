@@ -74,7 +74,19 @@ export interface Candidate {
   version: number;
   outreachId?: string | null;
   outreachVersion?: number | null;
+  outreachRound?: AcquisitionRound | null;
+  canEditMessage?: boolean;
+  canGenerateMessage?: boolean;
+  messageBlockReasons?: string[];
 }
+export interface TargetQuarter { id: string; year: number; quarter: number }
+export interface AcquisitionRound {
+  id: string;
+  targetQuarter: TargetQuarter;
+  startedAt: string;
+  endedAt: string | null;
+}
+export const quarterLabel = (value: TargetQuarter) => `${value.year}-Q${value.quarter}`;
 export interface CollectionRun {
   id: string;
   at: string;
@@ -96,6 +108,8 @@ export interface ReviewData {
   candidates: Candidate[];
   quarters: string[];
   runs: CollectionRun[];
+  currentRound?: AcquisitionRound | null;
+  roundError?: string;
 }
 export type CandidateCommand =
   | { type: "claim" }
@@ -117,6 +131,7 @@ export interface ReviewRepository {
   mode: "preview" | "live";
   load(): Promise<ReviewData>;
   loadCandidate?(id: string): Promise<Candidate>;
+  refreshRound?(): Promise<ReviewData>;
   execute(
     id: string,
     expectedVersion: number,
@@ -124,6 +139,11 @@ export interface ReviewRepository {
     operationKey: string,
   ): Promise<ReviewData>;
   addQuarter(quarter: string, operationKey: string): Promise<ReviewData>;
+}
+
+/** A multi-step action stopped; expose its saved preparation and refreshed round without reporting success. */
+export class ReviewActionError extends Error {
+  constructor(message: string, readonly data: ReviewData) { super(message); }
 }
 
 /** The write succeeded; only the subsequent read failed. Never repeat the write. */

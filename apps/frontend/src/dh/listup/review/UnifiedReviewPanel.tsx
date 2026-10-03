@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
 import {
   researchLabels, reviewLabels, safeUrl, validRecipient,
-  type Actor, type Candidate, type CandidateCommand, type Recipient,
+  type AcquisitionRound, type Actor, type Candidate, type CandidateCommand, type Recipient,
 } from "./contracts";
 import "@/design-system/globals.css";
 import "./unified-review.css";
@@ -69,7 +69,7 @@ function RailToggle() {
   return <WorkspaceIconButton icon="menu" label="주 메뉴 열기 또는 닫기" onClick={toggleSidebar} />;
 }
 
-function ContactWork({ candidate, actor, pending, change, onDirty, quarters, addQuarter }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void; quarters: string[]; addQuarter: (value: string) => Promise<boolean> }) {
+function ContactWork({ candidate, actor, pending, change, onDirty, currentRound, roundError, retryRound, canManageOps }: { candidate: Candidate; actor: Actor; pending: boolean; change: Change; onDirty: (dirty: boolean) => void; currentRound?: AcquisitionRound | null; roundError?: string; retryRound?: () => void; canManageOps?: boolean }) {
   const scrollRef = useAlignedScroll(".uw-center");
   const owned = candidate.owner?.id === actor.id;
   const [mode, setMode] = useState<"add" | "edit" | null>(null);
@@ -102,7 +102,7 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
     if (await change(candidate, { type: "decide", status, note })) setNote("");
   };
   const decided = ["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus);
-  const canAct = owned && candidate.researchStatus === "ready" && !pending && !messageDirty;
+  const canAct = owned && candidate.researchStatus === "ready" && !pending && !messageDirty && candidate.canEditMessage !== false;
   const messageMode = candidate.reviewStatus === "approved" || candidate.sent.length > 0;
   const contactControls = <div className={messageMode ? "uw-message-recipient" : undefined}>
             {(!decided || candidate.recipient) && <div className="uw-section-heading"><h2>{messageMode ? "수신자" : "연락할 관계자"}</h2>
@@ -138,8 +138,7 @@ function ContactWork({ candidate, actor, pending, change, onDirty, quarters, add
         <div className="uw-head-copy"><h1>{candidate.name}</h1><p>{candidate.summary}</p></div>
         {candidate.owner && !owned && <span className="uw-readonly">{candidate.owner.name} · 조회 전용</span>}
       </header>
-      {messageMode ? <MessageComposer candidate={candidate} actor={actor} quarters={quarters}
-        addQuarter={addQuarter} change={change} pending={pending || Boolean(mode)}
+      {messageMode ? <MessageComposer candidate={candidate} actor={actor} currentRound={currentRound} roundError={roundError} retryRound={retryRound} canManageOps={canManageOps} change={change} pending={pending || Boolean(mode)}
         onDirty={trackMessageDirty} recipientControls={contactControls}
         onReopen={owned && !candidate.sent.length ? () => void change(candidate, { type: "reopen" }) : undefined} /> : <>
       <div ref={scrollRef} className="uw-focus-scroll">
@@ -184,7 +183,7 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, quarters, addQuarter, onTabChange }: {
+export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, currentRound, roundError, retryRound, onTabChange }: {
   candidates: Candidate[];
   actor: Actor;
   canManageOps: boolean;
@@ -198,8 +197,9 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   change: Change;
   onDirty: (dirty: boolean) => void;
   onSelect: (id: string) => void;
-  quarters: string[];
-  addQuarter: (value: string) => Promise<boolean>;
+  currentRound?: AcquisitionRound | null;
+  roundError?: string;
+  retryRound?: () => void;
   onTabChange?: (tab: HistoryTab) => void | boolean | Promise<void | boolean>;
 }) {
   const queueScrollRef = useAlignedScroll();
@@ -262,7 +262,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
         {queueOpen && !compact && <div className="uw-fixed-queue">{queueContent}</div>}
       <ResizablePanelGroup orientation="horizontal" className="uw-panels">
         {<ResizablePanel defaultSize={compact || !detailsOpen ? "100%" : "70%"} minSize={compact ? "100%" : "55%"}>
-          <div aria-hidden={compact && (queueOpen || detailsOpen) ? true : undefined} {...(compact && (queueOpen || detailsOpen) ? { inert: "" } : {})} className={`uw-center ${!queueOpen && !onTabChange ? "uw-center-with-menu" : ""}`}>{!queueOpen && !onTabChange && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={`${focused.id}-${editorEpoch}`} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} quarters={quarters} addQuarter={addQuarter} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
+          <div aria-hidden={compact && (queueOpen || detailsOpen) ? true : undefined} {...(compact && (queueOpen || detailsOpen) ? { inert: "" } : {})} className={`uw-center ${!queueOpen && !onTabChange ? "uw-center-with-menu" : ""}`}>{!queueOpen && !onTabChange && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={`${focused.id}-${editorEpoch}`} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} currentRound={currentRound} roundError={roundError} retryRound={retryRound} canManageOps={canManageOps} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
             <div className="uw-pane-controls"><WorkspaceIconButton icon={queueOpen ? "leftClose" : "leftOpen"} label={queueOpen ? "목록 닫기" : "목록 열기"} onClick={() => { setQueueOpen(!queueOpen); if (compact) setDetailsOpen(false); }} />
               <WorkspaceIconButton icon={detailsOpen ? "rightClose" : "rightOpen"} label={detailsOpen ? "기업 정보 닫기" : "기업 정보 열기"} onClick={() => setDetailsOpen(!detailsOpen)} />
               </div>

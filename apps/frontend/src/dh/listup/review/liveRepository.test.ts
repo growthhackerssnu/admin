@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SavedReviewRefreshError } from "./contracts";
+import { SavedReviewRefreshError, ReviewActionError } from "./contracts";
 
 vi.hoisted(() => { vi.stubEnv("VITE_API_BASE_URL", "https://api.example.test"); });
 
@@ -56,6 +56,7 @@ describe("live recipient save and refresh", () => {
         } };
         return response(row);
       }
+      if (path.endsWith("/acquisition-rounds/current")) return response(null);
       if (path.endsWith("/me")) return response({ userId: "member-1", displayName: "담당자" });
       if (path.endsWith("/target-quarters")) return response([]);
       if (path.endsWith("/review-queue/summary")) return saved && failAfterSave === "summary" ? response(null, 500) : response({ canManage: false });
@@ -135,5 +136,131 @@ describe("live recipient save and refresh", () => {
     await repository.execute(row.id, 1, { type: "saveDraft", subject: "수정 제목", body: "수정 본문" }, "save-key");
     expect(draftBody).toEqual({ expectedVersion: 7, expectedRevision: 3, topic: "주제", subject: "수정 제목", body: "수정 본문", contextFingerprint: "saved-context" });
     expect(fetchMock.mock.calls.some(([url, options]) => options.method === "GET" && new URL(url).pathname.endsWith("/work-test"))).toBe(true);
+  });
+});
+
+
+describe("discovery generation in the fixed acquisition quarter", () => {
+  const quarter = { id: "quarter-1", year: 2027, quarter: 1 };
+  const initialRound = { id: "round-1", targetQuarter: quarter, startedAt: "2026-10-03T00:00:00Z", endedAt: null };
+  let round: typeof initialRound | null;
+  let work: Record<string, unknown> | null;
+  let prepareFailure: "round" | "lost" | "duplicate" | null;
+  let generationFailure: "network" | "lost" | "closed" | null;
+  let currentFailure: boolean;
+  const generations: { body: unknown; key: string }[] = [];
+  const preparations: { body: unknown; key: string }[] = [];
+  const workDto = () => ({ id: "work-1", version: 1, contextFingerprint: "context-1", currentTargetQuarter: quarter,
+    acquisitionRound: initialRound, recipient: row.selectedRecipient, owner: row.owner,
+    canEdit: true, canGenerate: true, blockReasons: [], sendStatus: "before_send", draft: null, latestSend: null });
+  const apiError = (code: string) => new Response(JSON.stringify({ error: { code, message: code } }), { status: 409 });
+  beforeEach(() => {
+    vi.stubEnv("VITE_API_BASE_URL", "https://api.example.test");
+    vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    row = { ...initialCandidate(), reviewStatus: "approved", selectedRecipient: { ...recipient, contactId: "person", endpointId: "endpoint" } };
+    round = initialRound; work = null; prepareFailure = null; generationFailure = null; currentFailure = false;
+    preparations.length = 0; generations.length = 0;
+    fetchMock.mockImplementation(async (url: string, options: RequestInit) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith("/acquisition-rounds/current")) return currentFailure ? response(null, 500) : response(round);
+      if (path.endsWith("/me")) return response({ userId: "member-1", displayName: "담당자" });
+      if (path.endsWith("/target-quarters")) return response([quarter]);
+      if (path.endsWith("/review-queue/summary")) return response({ canManage: false });
+      if (path.endsWith("/review-candidates")) return response([row]);
+      if (path.endsWith("/review-candidates/candidate-1")) return response(row);
+      if (path.endsWith("/outreaches") && options.method === "POST") {
+        preparations.push({ body: JSON.parse(options.body as string), key: (options.headers as Record<string,string>)["Idempotency-Key"] });
+        if (prepareFailure === "round") { round = { ...initialRound, id: "round-2" }; return apiError("ROUND_CHANGED"); }
+        if (prepareFailure === "duplicate") return apiError("OUTREACH_EXISTS");
+        work ??= workDto(); row.outreachId = "work-1";
+        if (prepareFailure === "lost") { prepareFailure = null; throw new Error("lost response after save"); }
+        return response(work);
+      }
+      if (path.endsWith("/draft-generation")) {
+        const request = { body: JSON.parse(options.body as string), key: (options.headers as Record<string,string>)["Idempotency-Key"] };
+        generations.push(request);
+        if (generationFailure === "closed") { work = { ...work!, canEdit: false, canGenerate: false, blockReasons: ["round_closed"] }; return apiError("ROUND_CLOSED"); }
+        if (generationFailure === "network") throw new Error("offline");
+        // Model the backend replay of an idempotent generation request.
+        work = { ...work!, version: 2, draft: { revision: 1, topic: "주제", subject: "제목", body: "본문", generationResearchId: "research-1", contextMatches: true } };
+        if (generationFailure === "lost") { generationFailure = null; throw new Error("lost generated response"); }
+        return response(work);
+      }
+      if (path.endsWith("/review-outreaches/work-1")) return response(work);
+      throw new Error(`Unexpected request: ${path}`);
+    });
+  });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  it("prepares with expectedRoundId and generates in one UI command", async () => {
+    const repository = await loadedRepository();
+    const data = await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
+    expect(preparations[0].body).toEqual({ expectedRevision: 1, expectedRoundId: "round-1" });
+    expect(generations[0].body).toEqual({ expectedVersion: 1 });
+    expect(data.candidates[0].draft?.subject).toBe("제목");
+    expect(data.candidates[0].quarter).toBe("2027-Q1");
+  });
+  it("keeps prepared work after a generation failure and retries generation only", async () => {
+    const repository = await loadedRepository(); generationFailure = "network";
+    const failure = await repository.execute(row.id, 1, { type: "generate" }, "generate-1").catch((error) => error);
+    expect(failure).toBeInstanceOf(ReviewActionError);
+    expect(failure.data.candidates[0].outreachId).toBe("work-1");
+    generationFailure = null;
+    await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
+    expect(preparations).toHaveLength(1);
+    expect(generations[0]).toEqual(generations[1]);
+  });
+  it("replays exactly the same preparation after its response is lost", async () => {
+    const repository = await loadedRepository(); prepareFailure = "lost";
+    await expect(repository.execute(row.id, 1, { type: "generate" }, "generate-1")).rejects.toBeInstanceOf(ReviewActionError);
+    await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
+    expect(preparations).toHaveLength(2);
+    expect(preparations[0]).toEqual(preparations[1]);
+  });
+  it("replays generation with its original version after a lost response", async () => {
+    const repository = await loadedRepository(); generationFailure = "lost";
+    await expect(repository.execute(row.id, 1, { type: "generate" }, "generate-1")).rejects.toBeInstanceOf(ReviewActionError);
+    await repository.loadCandidate(row.id, true);
+    await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
+    expect(preparations).toHaveLength(1);
+    expect(generations[0]).toEqual(generations[1]);
+  });
+  it("refreshes a changed round and requires a new user action rather than silently creating in it", async () => {
+    const repository = await loadedRepository(); prepareFailure = "round";
+    const failure = await repository.execute(row.id, 1, { type: "generate" }, "generate-1").catch((error) => error);
+    expect(failure.data.currentRound.id).toBe("round-2");
+    expect(preparations).toHaveLength(1);
+    expect(generations).toHaveLength(0);
+  });
+  it("resumes an existing owned work instead of creating a duplicate", async () => {
+    const repository = await loadedRepository(); prepareFailure = "duplicate";
+    work = workDto(); row.outreachId = "work-1";
+    const data = await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
+    expect(data.candidates[0].outreachId).toBe("work-1");
+    expect(generations).toHaveLength(1);
+  });
+  it("does not generate for a duplicate owned by another member", async () => {
+    const repository = await loadedRepository(); prepareFailure = "duplicate";
+    work = { ...workDto(), canEdit: false, canGenerate: false, blockReasons: ["not_owner"] }; row.outreachId = "work-1";
+    await expect(repository.execute(row.id, 1, { type: "generate" }, "generate-1")).rejects.toBeInstanceOf(ReviewActionError);
+    expect(generations).toHaveLength(0);
+  });
+  it("distinguishes no active round from a failed lookup while preserving candidate review", async () => {
+    round = null;
+    const repository = await loadedRepository();
+    expect((await repository.load()).roundError).toBeUndefined();
+    await expect(repository.execute(row.id, 1, { type: "generate" }, "generate-1")).rejects.toThrow("팀장 설정 필요");
+    currentFailure = true;
+    const data = await repository.refreshRound();
+    expect(data.candidates).toHaveLength(1);
+    expect(data.roundError).toContain("불러오지 못했습니다");
+    await expect(repository.execute(row.id, 1, { type: "generate" }, "generate-1")).rejects.toThrow("불러오지 못했습니다");
+    expect(preparations).toHaveLength(0);
+  });
+  it("refreshes read-only flags after a round closes during generation", async () => {
+    const repository = await loadedRepository(); generationFailure = "closed";
+    const failure = await repository.execute(row.id, 1, { type: "generate" }, "generate-1").catch((error) => error);
+    expect(failure.data.candidates[0].canEditMessage).toBe(false);
+    expect(failure.data.candidates[0].quarter).toBe("2027-Q1");
   });
 });
