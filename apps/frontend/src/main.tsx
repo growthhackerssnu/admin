@@ -9,13 +9,15 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
-import { installTokens, theme } from "@dhbot/ui-shell";
+import { adminTheme } from "./design-system/antd-theme";
 import { LoadingScreen } from "./lib/LoadingScreen";
 import { RequireApp } from "./portal/components/RequireApp";
 import "antd/dist/reset.css";
 import "@dhbot/ui-shell/src/app.css";
-
-installTokens();
+import "./design-system/globals.css";
+import "./lib/brand.css";
+import "./design-system/workspace.css";
+import "./design-system/layout.css";
 
 // /admin(회원 관리)은 hr 승인 큐와 같은 밝은 앱 화면이라 hr 레이아웃(브랜드 테마) 안에서 보인다.
 const AdminMembers = lazy(() =>
@@ -28,7 +30,7 @@ const AdminGhbotTokens = lazy(() =>
     default: m.AdminGhbotTokens,
   })),
 );
-// 로그인·index는 브랜드 테마(Pretendard 포함)와 함께 지연 로딩되는 portal 레이아웃 안에서 보인다.
+// 로그인·index는 공통 디자인 시스템와 함께 지연 로딩되는 portal 레이아웃 안에서 보인다.
 // /admin(회원 관리)은 아래 hr 레이아웃(밝은 앱 화면) 쪽이다.
 const PortalLayout = lazy(() => import("./portal/PortalLayout"));
 const Login = lazy(() =>
@@ -39,8 +41,8 @@ const Index = lazy(() =>
 );
 
 // 화면별 코드는 처음 들어갈 때만 불러온다. 한 번 불러오면 이후 이동은 새로고침 없다.
-const DhReviewWorkspace = lazy(() =>
-  import("./dh/listup/review/LiveReviewWorkspace"),
+const DhReviewWorkspace = lazy(
+  () => import("./dh/listup/review/LiveReviewWorkspace"),
 );
 // hr 화면 전용 겉옷(테마·폰트). hr 라우트 전체를 이 레이아웃 라우트로 감싼다.
 const HrLayout = lazy(() => import("./hr/HrLayout"));
@@ -60,7 +62,7 @@ const HrAdminQueue = lazy(() =>
 );
 const Nut = lazy(() => import("./nut"));
 
-// 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 어두운 네이비 화면이라 같은 색
+// 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 공통 배경 화면이라 같은 색
 // 바탕만 깔아서(CSS 파일이 아직 안 왔으므로 인라인) 흰/회색 스켈레톤이 번쩍이지 않게 한다.
 const AUTH_PATHS = ["/", "/login", "/index"];
 // 밝은 앱 화면(hr·회원 관리·dh·nut)의 주소 — 이 화면들은 파란 점 로딩 화면을 쓴다.
@@ -78,7 +80,13 @@ function RouteFallback() {
   const { pathname } = useLocation();
   if (AUTH_PATHS.includes(pathname)) {
     return (
-      <div style={{ position: "fixed", inset: 0, background: "#001136" }} />
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--ds-surface-canvas)",
+        }}
+      />
     );
   }
   // hr·회원 관리는 데이터 로딩 단계와 같은 로딩 화면(파란 점)을 이어서 보여준다.
@@ -98,7 +106,7 @@ function LegacyDhRedirect() {
 
 function Root() {
   return (
-    <ConfigProvider locale={koKR} theme={theme}>
+    <ConfigProvider locale={koKR} theme={adminTheme}>
       <AntApp>
         <BrowserRouter>
           <Suspense fallback={<RouteFallback />}>

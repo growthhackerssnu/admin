@@ -7,12 +7,12 @@
 
 .hr-nav-item {
   display: inline-block;
-  padding: var(--space-sm) 0 10px;
+  padding: var(--space-sm) 0 var(--ds-space-2);
   color: var(--color-muted);
   font-weight: 600;
   text-decoration: none;
   border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
+  margin-bottom: calc(-1 * var(--ds-space-1));
   transition: color 0.15s ease;
 }
 
@@ -23,8 +23,8 @@
 /* 현재 탭: 짙은 네이비 글씨 + 포인트색 밑줄 */
 .hr-nav-item-current {
   color: var(--color-text);
-  font-weight: 800;
-  border-bottom-color: var(--hr-accent, #7c96cf);
+  font-weight: 600;
+  border-bottom-color: var(--hr-accent, var(--ds-brand-700));
 }
 
 /* 탭이 화면보다 길어지면 옆으로 밀어서 본다 */

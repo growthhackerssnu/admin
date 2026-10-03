@@ -1,8 +1,8 @@
-# 대협봇 디자인 시스템 기초
+# GH 어드민 디자인 시스템
 
 ## 사용
 
-새 화면의 진입점에서 `@/design-system/globals.css`를 가져온다. 이 파일은 기존 Ant Design 화면에 자동 적용하지 않는다. 기본 컴포넌트는 `@/components/ui`에서 개별 파일을 가져온다. 컴포넌트를 추가할 때는 `apps/frontend`에서 `npx shadcn@latest add <component> --yes`를 실행한다.
+운영 앱은 `main.tsx`에서 `@/design-system/globals.css`를 한 번 가져온다. 모든 라우트와 Ant 팝업은 루트 `ConfigProvider`의 공통 테마를 사용한다. 화면별 테마를 새로 설치하지 않는다. 기본 컴포넌트는 `@/components/ui`에서 개별 파일을 가져온다. 컴포넌트를 추가할 때는 `apps/frontend`에서 `npx shadcn@latest add <component> --yes`를 실행한다.
 
 개발 서버에서 `/design-system.html`을 열면 색상, 글씨 위계, 설치한 컴포넌트를 확인할 수 있다. 이 페이지는 작업용 미리보기이며 기본 앱 경로에 연결하지 않았다.
 
@@ -109,7 +109,9 @@ MDC에서 전달받은 크기는 `--ds-type-*` 토큰과 `.ds-*` 클래스로 �
 
 | 위치 | 관리하는 내용 |
 |---|---|
-| `design-system/globals.css` | 색상·폰트·글자 크기·모서리의 기준 토큰. |
+| `design-system/tokens.ts` | 색상·폰트·글자 크기·간격·모서리의 원본 토큰. |
+| `design-system/tokens.css` | 생성된 CSS 토큰. 직접 수정하지 않는다. `npm run tokens -w apps/frontend`로 갱신한다. |
+| `design-system/antd-theme.ts` | Ant의 표·폼·모달을 같은 원본 토큰에 연결한다. |
 | `components/ui/button.tsx` | Button의 variant, 크기, 여백, 아이콘 배치, hover·focus·disabled·invalid 스타일. 기본 Button은 `--primary` 배경과 `--primary-foreground` 글씨를 사용한다. |
 | `components/ui/button.css` | 기존 전역 form reset이 단색 버튼의 글자색을 덮지 않도록 default·destructive·secondary 글자색을 보장한다. 색상 값은 토큰을 참조한다. |
 | `components/ui/brand-logo.tsx`·`brand-logo.css` | 원본 4종 선택, 실제 그림 영역의 비율·표시 너비, 투명 여백 보정, 대체 텍스트. |
@@ -161,3 +163,13 @@ shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로�
 각 화면의 배치 CSS는 정보 순서와 위치를 관리하고, 공통 컴포넌트의 variant와 토큰은 모양을 관리한다. 검수용 자료는 기존 preview repository이며 새 시안이나 업무 정책을 추가하지 않는다.
 
 `public/human-review-unified-workspace.html`은 이 토큰과 `unified-workspace.css`를 불러오는 정적 시안이다. 뉴트럴 표면을 중심으로 브랜드 컬러를 탐색·선택 상태에 쓰고, 승인 행동에 `--ds-action-approval`을 쓴다. 해당 HTML은 Vite 개발 서버에서 확인한다.
+
+
+## 전체 어드민 적용
+
+- 공통 `AppShell`은 그핵드인·관리자·NUT의 사이드바와 본문 영역을 관리한다. 대협은 기존 3칸 작업 공간을 유지하며 같은 `AppSidebar`를 사용한다. 메뉴는 `@dhbot/ui-shell`의 `reachableApps(role)`에서 가져오므로 권한과 메뉴 기준이 분리되지 않는다.
+- 기존 기본 `Button`·`Tag` 호출은 `AppButton`·`AppTag` 어댑터를 통해 공통 shadcn Button·상태 Badge로 표시한다. `htmlType`, `disabled`, `loading`, 이벤트 처리와 기존 검증은 화면에 남는다.
+- Ant `Form`, `Table`, `Select`, `InputNumber`, `Modal`, `Descriptions` 등 복잡한 컴포넌트는 유지하고 공통 Ant 테마로 표시한다. 라이브러리 전면 교체는 이번 적용 범위에 포함하지 않는다.
+- `brand.css`의 기존 변수명은 호환용 별칭이다. 별도 팔레트나 `installTokens()`를 설치하지 않는다. 새 코드는 역할 토큰을 직접 사용한다.
+- 일반 페이지는 본문 최대 1400px, 가로 여백 20px, 그룹 간격 24px을 사용한다. 데이터 표는 기존 가로 스크롤을 유지한다. 대협의 전체 높이·패널 리사이즈와 각 모듈의 기존 모바일 전환 기준은 유지한다.
+- 검수 및 작업 순서는 [전체 적용 기록](../../docs/design-system-rollout.md)을 따른다.

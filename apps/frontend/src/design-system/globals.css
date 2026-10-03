@@ -1,119 +1,13 @@
 @import "@fontsource-variable/open-sans/wght.css";
 @import "@fontsource-variable/noto-sans-kr/wght.css";
 @import "tailwindcss";
+@import "./tokens.css";
 @import "./typography.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/* This stylesheet is opt-in. Import it only from screens using the new system. */
-:root {
-  --ds-brand-0: #000205;
-  --ds-brand-100: #00152e;
-  --ds-brand-200: #012957;
-  --ds-brand-300: #01397c;
-  --ds-brand-400: #0155b8;
-  --ds-brand-500: #1671d9;
-  --ds-brand-600: #498fe0;
-  --ds-brand-700: #7dafe8;
-  --ds-brand-800: #b1cff1;
-  --ds-brand-900: #e5eff9;
-  /* Use role tokens in components; the numbered scale is palette data. */
-  --ds-brand-base: var(--ds-brand-300);
-  --ds-text-strong: var(--ds-brand-100);
-  --ds-action-primary: var(--ds-brand-base);
-  --ds-action-primary-hover: var(--ds-brand-200);
-  --ds-link: var(--ds-brand-400);
-  --ds-focus: var(--ds-link);
-  --ds-shadow: color-mix(in srgb, var(--ds-text-strong) 12%, transparent);
-  --ds-action-approval: var(--ds-action-primary);
-  --ds-action-reject: #c52a2a;
-  --ds-logo-blue: var(--ds-brand-base);
+/* App-wide baseline; imported once by main.tsx. */
 
-  --ds-gray-100: #f4f6fb;
-  --ds-gray-200: #e1e7f3;
-  --ds-gray-300: #d0d9ec;
-  --ds-gray-400: #b8c6de;
-  --ds-gray-500: #9fb2dc;
-  --ds-gray-600: #5f7193;
-  --ds-gray-700: #526380;
-  --ds-gray-800: #32415e;
-  --ds-gray-900: #172641;
-
-  --ds-surface-canvas: #f8fafe;
-  --ds-surface-details: #ffffff;
-  --ds-surface-selected: #eef3ff;
-  --ds-surface-selected-border: #c5d4f1;
-
-  --ds-success: #7eff38;
-  --ds-danger: #ff3838;
-  --ds-warning: #f8ff38;
-  --ds-info: #3877ff;
-
-  --ds-font-family: "Open Sans Variable", "Noto Sans KR Variable", sans-serif;
-  --ds-type-headline-1: 96px;
-  --ds-type-headline-2: 60px;
-  --ds-type-headline-3: 48px;
-  --ds-type-headline-4: 34px;
-  --ds-type-headline-5: 24px;
-  --ds-type-headline-6: 20px;
-  --ds-type-body-1: 16px;
-  --ds-type-body-2: 14px;
-  --ds-type-subtitle-1: 16px;
-  --ds-type-subtitle-2: 14px;
-  --ds-type-button: 14px;
-  --ds-type-overline: 10px;
-  --ds-type-caption: 12px;
-
-  /* Shared workspace layout, promoted from the inspected layout example. */
-  --ds-space-1: 4px;
-  --ds-space-2: 8px;
-  --ds-space-3: 12px;
-  --ds-space-4: 16px;
-  --ds-space-5: 20px;
-  --ds-space-6: 24px;
-  --ds-space-8: 32px;
-  --layout-label-gap: var(--ds-space-2);
-  --layout-control-gap: var(--ds-space-3);
-  --layout-field-gap: var(--ds-space-4);
-  --layout-inset: var(--ds-space-5);
-  --layout-group-gap: var(--ds-space-6);
-  --layout-section-gap: var(--ds-space-8);
-  --layout-header-height: 66px;
-  --layout-summary-max: 240px;
-  --layout-list-inset: var(--ds-space-2);
-  --layout-list-row-inset: var(--ds-space-3);
-  --layout-list-row-gap: var(--ds-space-1);
-
-  /* shadcn/ui semantic contract */
-  --background: #ffffff;
-  --foreground: var(--ds-gray-900);
-  --card: #ffffff;
-  --card-foreground: var(--ds-gray-900);
-  --popover: #ffffff;
-  --popover-foreground: var(--ds-gray-900);
-  --primary: var(--ds-action-primary);
-  --primary-foreground: #ffffff;
-  --secondary: var(--ds-gray-100);
-  --secondary-foreground: var(--ds-gray-900);
-  --muted: var(--ds-gray-100);
-  --muted-foreground: var(--ds-gray-700);
-  --accent: var(--ds-surface-selected);
-  --accent-foreground: var(--ds-text-strong);
-  --destructive: var(--ds-action-reject);
-  --destructive-foreground: #ffffff;
-  --border: var(--ds-gray-200);
-  --input: var(--ds-gray-300);
-  --ring: var(--ds-focus);
-  --radius: 0.5rem;
-  --sidebar: var(--ds-gray-200);
-  --sidebar-foreground: var(--ds-text-strong);
-  --sidebar-primary: var(--ds-action-primary);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--ds-surface-canvas);
-  --sidebar-accent-foreground: var(--ds-text-strong);
-  --sidebar-border: var(--ds-gray-300);
-  --sidebar-ring: var(--ds-focus);
-}
 
 @theme inline {
   --font-sans: var(--ds-font-family);

@@ -9,7 +9,11 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
-    "format": "prettier --write src vite.config.ts"
+    "format": "prettier --write src vite.config.ts",
+    "tokens": "node scripts/generate-design-tokens.mjs",
+    "tokens:check": "node scripts/generate-design-tokens.mjs --check",
+    "prebuild": "npm run tokens",
+    "predev": "npm run tokens"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

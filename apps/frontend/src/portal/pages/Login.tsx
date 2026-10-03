@@ -1,14 +1,7 @@
+import { AppButton as Button } from "@/components/ui/app-button";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Alert,
-  App as AntApp,
-  Button,
-  Form,
-  Input,
-  Segmented,
-  Typography,
-} from "antd";
+import { Alert, App as AntApp, Form, Input, Segmented, Typography } from "antd";
 import {
   ApiClientError,
   createSignupRequest,

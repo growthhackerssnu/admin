@@ -1,0 +1,127 @@
+/* Shared app chrome. Screen CSS owns content arrangement, never a second palette. */
+body {
+  font-family: var(--ds-font-family);
+  color: var(--ds-text-strong);
+  background: var(--ds-surface-canvas);
+}
+.app-shell-layout {
+  min-height: 100dvh;
+  align-items: stretch;
+}
+.app-shell-content {
+  flex: 1;
+  min-width: 0;
+  background: var(--ds-surface-canvas);
+}
+.app-shell-toolbar {
+  height: var(--layout-header-height);
+  min-height: var(--layout-header-height);
+  padding: 0 var(--layout-inset);
+  display: flex;
+  align-items: center;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+.app-shell-content > main {
+  width: 100%;
+  max-width: var(--layout-page-max);
+  margin: 0 auto;
+  padding: var(--layout-group-gap) var(--layout-inset);
+  min-width: 0;
+}
+.app-shell-content .section-gap {
+  margin-bottom: var(--layout-group-gap);
+}
+.app-shell-content .row {
+  gap: var(--layout-control-gap);
+}
+.app-shell-content .surface {
+  padding: var(--layout-inset);
+  border-radius: var(--radius);
+  border-color: var(--border);
+  background: var(--background);
+}
+.app-shell-content :is(h1, h2, h3, h4, .ant-typography) {
+  font-family: var(--ds-font-family);
+}
+.app-shell-layout .app-shell-content :is(h1, h3.ant-typography.hr-page-title) {
+  font-size: var(--ds-type-headline-5);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: normal;
+}
+.app-shell-layout .app-shell-content h2 {
+  font-size: var(--ds-type-headline-6);
+}
+.app-shell-layout .app-shell-content h3 {
+  font-size: var(--ds-type-headline-6);
+}
+.app-shell-layout .app-shell-content h4 {
+  font-size: var(--ds-type-subtitle-1);
+}
+.app-shell-content .filters {
+  gap: var(--layout-control-gap);
+}
+.app-shell-content p {
+  line-height: 1.6;
+}
+.dw-sidebar [data-slot="sidebar-inner"],
+[data-mobile="true"][data-slot="sidebar"] {
+  background: var(--sidebar);
+}
+.dw-sidebar [data-slot="sidebar-group-label"] {
+  color: var(--ds-gray-700);
+  font-size: var(--ds-type-caption);
+}
+.dw-sidebar [data-slot="sidebar-menu-button"],
+[data-mobile="true"][data-slot="sidebar"] [data-slot="sidebar-menu-button"] {
+  font-family: var(--ds-font-family);
+  color: var(--sidebar-foreground);
+  font-weight: 500;
+}
+.dw-sidebar
+  [data-slot="sidebar-menu-button"]:is(
+    :hover,
+    :focus-visible,
+    [data-active="true"]
+  ),
+[data-mobile="true"][data-slot="sidebar"]
+  [data-slot="sidebar-menu-button"]:is(
+    :hover,
+    :focus-visible,
+    [data-active="true"]
+  ) {
+  background: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+  box-shadow: none;
+}
+.app-shell-content :is(.hr-nav, .admin-nav) {
+  gap: var(--layout-group-gap);
+  margin-bottom: var(--layout-group-gap);
+}
+.app-shell-content :is(.hr-nav-item, .admin-nav-item) {
+  font-size: var(--ds-type-body-2);
+  font-weight: 500;
+}
+.app-shell-content :is(.hr-nav-item-current, .admin-nav-item-current) {
+  color: var(--ds-text-strong);
+  border-bottom-color: var(--ds-action-primary);
+  font-weight: 600;
+}
+.app-shell-content :is(.directory-toolbar, .filter-drawer-footer) {
+  gap: var(--layout-control-gap);
+}
+.app-shell-content .person-grid {
+  gap: var(--layout-field-gap);
+}
+.app-shell-content .directory-layout {
+  gap: var(--layout-group-gap);
+}
+@media (max-width: 599px) {
+  .app-shell-content > main {
+    padding-block: var(--layout-inset);
+  }
+  .app-shell-content :is(input, textarea, .ant-select-selection-search-input) {
+    font-size: var(--ds-type-body-1);
+  }
+}

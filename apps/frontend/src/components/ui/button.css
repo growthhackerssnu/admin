@@ -15,3 +15,16 @@
 .ds-button[data-variant="secondary"] {
   color: var(--secondary-foreground);
 }
+
+.ds-compat-button {
+  font-family: var(--ds-font-family);
+  font-size: var(--ds-type-button);
+}
+.ds-button.ds-danger-outline {
+  color: var(--ds-danger-foreground);
+  border-color: var(--border);
+}
+.ds-button.ds-danger-outline:hover:not(:disabled) {
+  background: var(--ds-gray-100);
+  color: var(--ds-danger-foreground);
+}

@@ -1,4 +1,5 @@
-import { Tag } from "antd";
+import { AppTag as Tag } from "@/components/ui/app-tag";
+
 import type { EditRequestStatus } from "../lib/api";
 
 const LABEL: Record<EditRequestStatus, string> = {
@@ -13,6 +14,10 @@ const COLOR: Record<EditRequestStatus, string> = {
   rejected: "red",
 };
 
-export function EditRequestStatusTag({ status }: { status: EditRequestStatus }) {
+export function EditRequestStatusTag({
+  status,
+}: {
+  status: EditRequestStatus;
+}) {
   return <Tag color={COLOR[status]}>{LABEL[status]}</Tag>;
 }

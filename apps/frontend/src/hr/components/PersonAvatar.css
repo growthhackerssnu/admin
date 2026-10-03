@@ -1,24 +1,24 @@
 .person-avatar {
   display: inline-block;
   flex: none;
-  border-radius: 6px;
+  border-radius: var(--radius);
   object-fit: cover;
-  background: #e9eef9;
+  background: var(--ds-gray-100);
 }
 
 .person-avatar-default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #9fb2dc;
+  color: var(--ds-gray-500);
 }
 
 /* 2026-10-01 UI 리프레시 — NUT 계열 톤 */
 .person-avatar {
-  border-radius: 12px;
-  background: #e9eef9;
+  border-radius: var(--radius);
+  background: var(--ds-gray-100);
 }
 .person-avatar-default {
-  background: #e3eaf8;
-  color: #9fb2dc;
+  background: var(--ds-gray-200);
+  color: var(--ds-gray-500);
 }

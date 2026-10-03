@@ -4,7 +4,6 @@ import { supabase } from "../../../lib/supabase";
 import ReviewWorkspace from "./ReviewWorkspace";
 import { LiveReviewRepository } from "./liveRepository";
 import { OperationsPage } from "./OperationsPage";
-import "./brand-theme.css";
 
 export default function LiveReviewWorkspace() {
   const [params] = useSearchParams();
