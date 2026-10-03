@@ -13,22 +13,22 @@ export const GET = withListupApiHandler<{ companyId: string }>(async (req, { mem
   const { searchParams } = new URL(req.url);
   const limit = parseLimit(searchParams);
   const cursor = parseCursor(searchParams);
-  const company = await prisma.company.findUnique({ where: { id: params.companyId }, select: { id: true } });
-  if (!company) throw new ApiError("NOT_FOUND", "기업을 찾지 못했습니다.");
-
-  const [rows, won] = await Promise.all([
+  // 기업 존재 확인도 다른 조회와 함께 보낸다. DB 왕복 한 번이 비싸서 순서대로 기다리지 않는다.
+  const [company, rows, won] = await Promise.all([
+    prisma.company.findUnique({ where: { id: params.companyId }, select: { id: true } }),
     prisma.pastProject.findMany({
-      where: { companyId: company.id },
+      where: { companyId: params.companyId },
       orderBy: projectOrderBy,
       take: takeWithLookahead(limit),
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     }),
     prisma.outreach.findMany({
-      where: { companyId: company.id, outcomeStatus: "won", sourcedProject: null },
+      where: { companyId: params.companyId, outcomeStatus: "won", sourcedProject: null },
       select: { id: true, version: true, acquisitionRound: { include: roundInclude } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     }),
   ]);
+  if (!company) throw new ApiError("NOT_FOUND", "기업을 찾지 못했습니다.");
   const hasMore = rows.length > limit;
   const projects = hasMore ? rows.slice(0, limit) : rows;
   const last = projects[projects.length - 1];

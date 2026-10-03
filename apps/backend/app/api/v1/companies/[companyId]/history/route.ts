@@ -4,7 +4,6 @@ import { buildCurrentWork } from "@/dh/lib/humanReview/currentWork";
 import { serializeOutcomeEvent } from "@/dh/lib/humanReview/outcome";
 import { ApiError } from "@/dh/lib/errors";
 import { decodeCursor, encodeCursor, parseLimit } from "@/dh/lib/pagination";
-import { getActiveRound } from "@/dh/lib/rounds";
 import { prisma } from "@/lib/prisma";
 
 type Actor = { id: string; displayName: string } | null;
@@ -22,25 +21,25 @@ export const GET = withListupApiHandler<{ companyId: string }>(async (req, { mem
   const cursor = cursorRaw === null ? null : decodeCursor(cursorRaw);
   const roundFilter = searchParams.get("acquisitionRoundId");
 
-  const company = await prisma.company.findUnique({
-    where: { id: params.companyId },
-    select: {
-      id: true,
-      name: true,
-      product: true,
-      contacts: {
-        orderBy: { createdAt: "asc" },
-        include: { endpoints: { where: { contactId: { not: null } }, orderBy: { createdAt: "asc" } } },
-      },
-    },
-  });
-  if (!company) throw new ApiError("NOT_FOUND", "기업을 찾을 수 없습니다.");
-
+  // DB 왕복 한 번이 비싸서(서버↔DB 약 0.6초) 서로 기다릴 필요 없는 조회는 한 번에 보낸다.
+  // 기업·이력·조사·현재 작업은 전부 params.companyId만 알면 되므로 한 묶음으로 조회한다.
   const outreachWhere = {
-    companyId: company.id,
+    companyId: params.companyId,
     ...(roundFilter ? { acquisitionRoundId: roundFilter } : {}),
   };
-  const [outreaches, research, activeRound] = await Promise.all([
+  const [company, outreaches, research, currentRow] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id: params.companyId },
+      select: {
+        id: true,
+        name: true,
+        product: true,
+        contacts: {
+          orderBy: { createdAt: "asc" },
+          include: { endpoints: { where: { contactId: { not: null } }, orderBy: { createdAt: "asc" } } },
+        },
+      },
+    }),
     prisma.outreach.findMany({
       where: outreachWhere,
       select: {
@@ -52,12 +51,20 @@ export const GET = withListupApiHandler<{ companyId: string }>(async (req, { mem
       },
     }),
     prisma.companyResearch.findFirst({
-      where: { companyId: company.id },
+      where: { companyId: params.companyId },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: { claims: { orderBy: { id: "asc" }, take: 6 } },
     }),
-    getActiveRound(prisma),
+    // 진행 중인 회차의 작업. 회차 id를 먼저 조회하지 않고 관계 조건으로 한 번에 찾는다.
+    prisma.outreach.findFirst({
+      where: { companyId: params.companyId, acquisitionRound: { endedAt: null } },
+      include: {
+        owner: { select: { id: true, displayName: true } },
+        acquisitionRound: { select: { endedAt: true } },
+      },
+    }),
   ]);
+  if (!company) throw new ApiError("NOT_FOUND", "기업을 찾을 수 없습니다.");
 
   const events = outreaches.flatMap((outreach) => {
     const base = { outreachId: outreach.id, acquisitionRoundId: outreach.acquisitionRoundId };
@@ -116,14 +123,6 @@ export const GET = withListupApiHandler<{ companyId: string }>(async (req, { mem
   const items = events.slice(start, start + limit);
   const hasMore = start + limit < events.length;
   const last = items[items.length - 1];
-
-  const currentRow = activeRound && await prisma.outreach.findFirst({
-    where: { companyId: company.id, acquisitionRoundId: activeRound.id },
-    include: {
-      owner: { select: { id: true, displayName: true } },
-      acquisitionRound: { select: { endedAt: true } },
-    },
-  });
 
   return {
     body: {
