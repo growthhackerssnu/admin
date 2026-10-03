@@ -17,7 +17,7 @@ const initialCandidate = () => ({
   researchStatus: "ready", reviewStatus: "unreviewed",
   owner: { id: "member-1", name: "담당자" },
   selectedRecipient: null as (typeof recipient & { contactId: string; endpointId: string }) | null,
-  outreachId: null, error: null,
+  outreachId: null as string | null, error: null,
   research: { id: "research-1", createdAt: "2026-10-02T00:00:00Z", claims: [], evidence: [], missingInformation: [] },
 });
 
@@ -81,9 +81,9 @@ describe("live recipient save and refresh", () => {
     expect(mutationBody).not.toHaveProperty("contactId");
   });
 
-  it.each(["summary", "detail"] as const)("preserves a successful save if the subsequent %s read fails, and retries reads only", async (failure) => {
+  it("preserves a successful save if the subsequent detail read fails, and retries reads only", async () => {
     const repository = await loadedRepository();
-    failAfterSave = failure;
+    failAfterSave = "detail";
     const error = await repository.execute(row.id, 1, { type: "contact", recipient, mode: "add" }, "operation-1").catch((failure: unknown) => failure);
     expect(error).toBeInstanceOf(SavedReviewRefreshError);
     const savedData = (error as SavedReviewRefreshError).data;
@@ -97,6 +97,15 @@ describe("live recipient save and refresh", () => {
     expect(fetchMock.mock.calls.filter(([, options]) => options.method === "PUT")).toHaveLength(1);
   });
 
+  it("refreshes only the affected candidate after saving, without reloading summary", async () => {
+    const repository = await loadedRepository();
+    fetchMock.mockClear();
+    failAfterSave = "summary";
+    const data = await repository.execute(row.id, 1, { type: "contact", recipient, mode: "add" }, "operation-1");
+    expect(data.candidates[0].version).toBe(2);
+    expect(fetchMock.mock.calls.some(([url]) => new URL(url).pathname.endsWith("/review-queue/summary"))).toBe(false);
+  });
+
   it("keeps a failed write distinct from a successful write with a failed refresh", async () => {
     const repository = await loadedRepository();
     failAfterSave = "write";
@@ -105,5 +114,26 @@ describe("live recipient save and refresh", () => {
     expect(error).not.toBeInstanceOf(SavedReviewRefreshError);
     expect(saved).toBe(false);
     expect((await repository.loadCandidate(row.id)).recipient).toBeNull();
+  });
+
+  it("includes the server context fingerprint when saving the discovery draft", async () => {
+    row.outreachId = "work-test";
+    row.selectedRecipient = { ...recipient, contactId: "person", endpointId: "endpoint" };
+    const original = fetchMock.getMockImplementation()!;
+    let draftBody: Record<string, unknown> | undefined;
+    fetchMock.mockImplementation(async (url: string, options: RequestInit) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith("/work-test/draft") && options.method === "PATCH") {
+        draftBody = JSON.parse(options.body as string);
+        return response({});
+      }
+      if (path.endsWith("/work-test")) return response({ id: "work-test", version: 7, contextFingerprint: "saved-context", currentTargetQuarter: { id: "quarter", year: 2026, quarter: 4 }, recipient: row.selectedRecipient, draft: { revision: 3, topic: "주제", subject: "제목", body: "본문", generationResearchId: "research-1", contextMatches: true }, latestSend: null });
+      return original(url, options);
+    });
+    const repository = await loadedRepository();
+    fetchMock.mockClear();
+    await repository.execute(row.id, 1, { type: "saveDraft", subject: "수정 제목", body: "수정 본문" }, "save-key");
+    expect(draftBody).toEqual({ expectedVersion: 7, expectedRevision: 3, topic: "주제", subject: "수정 제목", body: "수정 본문", contextFingerprint: "saved-context" });
+    expect(fetchMock.mock.calls.some(([url, options]) => options.method === "GET" && new URL(url).pathname.endsWith("/work-test"))).toBe(true);
   });
 });

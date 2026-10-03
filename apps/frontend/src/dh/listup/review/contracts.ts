@@ -33,6 +33,7 @@ export interface Decision {
   note: string;
 }
 export interface Draft {
+  contextFingerprint?: string;
   revision: number;
   approvedRevision: number | null;
   topic?: string;

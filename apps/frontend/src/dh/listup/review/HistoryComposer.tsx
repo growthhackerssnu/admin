@@ -59,7 +59,7 @@ export function HistoryComposer({
   const work = company.work!;
   const [form, setForm] = useState<ComposerForm>(
     () =>
-      forms[company.id] ?? {
+      forms[work.id] ?? {
         purpose: work.purpose,
         recipient: { ...(work.recipient ?? emptyRecipient) },
         subject: work.draft?.subject ?? "",
@@ -73,7 +73,11 @@ export function HistoryComposer({
   const sent = work.sent;
   const owned = work.owner.id === data.actor.id;
   const locked =
-    pending || !owned || Boolean(sent) || work.roundId !== data.round?.id;
+    pending ||
+    !owned ||
+    Boolean(sent) ||
+    work.roundId !== data.round?.id ||
+    work.canEdit === false;
   const purposeDirty = form.purpose !== work.purpose;
   const recipientDirty =
     JSON.stringify(form.recipient) !==
@@ -83,16 +87,17 @@ export function HistoryComposer({
     (form.subject !== work.draft?.subject || form.body !== work.draft?.body);
   const reasons = generationReasons(company, data.round, data.actor);
   const unsaved = purposeDirty || recipientDirty || draftDirty;
-  const ready = !locked && !unsaved && reasons.length === 0;
+  const ready =
+    !locked && !unsaved && reasons.length === 0 && work.canGenerate !== false;
   const patch = (value: Partial<ComposerForm>) =>
     setForm((previous) => {
       const next = { ...previous, ...value };
-      forms[company.id] = next;
+      forms[work.id] = next;
       return next;
     });
   useEffect(() => {
-    forms[company.id] = form;
-  }, [forms, company.id, form]);
+    forms[work.id] = form;
+  }, [forms, work.id, form]);
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
       if (unsaved && owned && !sent) event.preventDefault();
@@ -128,7 +133,9 @@ export function HistoryComposer({
       {dialog}
       <div className="hw-drawer-scroll">
         <div className="hw-compose-meta">
-          <span>목표 분기 · {data.round?.quarter ?? "미설정"}</span>
+          <span>
+            목표 분기 · {work.quarter ?? data.round?.quarter ?? "미설정"}
+          </span>
           <WorkspaceStatus tone={sent ? "success" : "neutral"}>
             {sent ? "발송 완료" : "작성 중"}
           </WorkspaceStatus>
@@ -313,6 +320,7 @@ export function HistoryComposer({
                         recipient: {
                           ...form.recipient,
                           name: form.recipient.name.trim(),
+                          title: form.recipient.title.trim(),
                           address: form.recipient.address.trim(),
                         },
                       });

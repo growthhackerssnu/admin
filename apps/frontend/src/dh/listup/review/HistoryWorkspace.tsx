@@ -26,10 +26,8 @@ import {
   type WorkspaceTone,
 } from "@/components/ui/workspace-status";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { DhWorkspaceNavigation } from "./DhWorkspaceNavigation";
 import { safeUrl } from "./contracts";
 import {
@@ -42,6 +40,8 @@ import {
   type HistoryCommand,
   type HistoryProject,
   type HistoryRepository,
+  type HistoryFilters as Filters,
+  SavedHistoryRefreshError,
 } from "./historyContracts";
 import { historyTabs, type HistoryTab } from "./historyNavigation";
 import { HistoryComposer, type ComposerForms } from "./HistoryComposer";
@@ -51,15 +51,6 @@ import {
 } from "./HistoryProjectForm";
 import "./history-workspace.css";
 
-interface Filters {
-  query: string;
-  outcome: string;
-  quarter: string;
-  owner: string;
-  work: string;
-  sort: string;
-  page: number;
-}
 const initialFilters = (): Filters => ({
   query: "",
   outcome: "all",
@@ -82,6 +73,7 @@ export interface HistoryMemory {
   filters: Record<HistoryKind, Filters>;
   scroll: Record<HistoryKind, { top: number; left: number }>;
   selected: Record<HistoryKind, string | null>;
+  cursors: Record<HistoryKind, (string | null)[]>;
 }
 export const createHistoryMemory = (): HistoryMemory => ({
   forms: {},
@@ -95,6 +87,7 @@ export const createHistoryMemory = (): HistoryMemory => ({
     "collaboration-history": { top: 0, left: 0 },
   },
   selected: { "contact-history": null, "collaboration-history": null },
+  cursors: { "contact-history": [null], "collaboration-history": [null] },
 });
 function Status({
   label,
@@ -106,6 +99,7 @@ function Status({
   return <WorkspaceStatus tone={tone}>{label}</WorkspaceStatus>;
 }
 function latestProject(company: HistoryCompany) {
+  if (company.list) return company.list.latestProject;
   return [...company.projects].sort(
     (a, b) =>
       (b.year ?? 0) * 4 +
@@ -113,10 +107,12 @@ function latestProject(company: HistoryCompany) {
       ((a.year ?? 0) * 4 + (a.quarter ?? 0)),
   )[0];
 }
-const quarterLabel = (q: string) => q.replace("-Q", "년 ") + "분기";
+const quarterLabel = (q: string) =>
+  /^\d{4}-Q[1-4]$/.test(q) ? q.replace("-Q", "년 ") + "분기" : q;
 const dateLabel = (date?: string) =>
   date ? new Date(date).toLocaleDateString("ko-KR") : "—";
 function previousSend(company: HistoryCompany) {
+  if (company.list) return company.list.previousContact;
   return company.sends.find((send) => send.id !== company.work?.sent?.id);
 }
 
@@ -141,6 +137,10 @@ export function HistoryWorkspace({
   const [loading, setLoading] = useState(repository.mode !== "unavailable");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [detail, setDetail] = useState<HistoryCompany>();
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [refreshFailure, setRefreshFailure] = useState(false);
   const [filters, setFilters] = useState(memory.filters[kind]);
   const [mode, setMode] = useState<"detail" | "compose" | "project">("detail");
   const [project, setProject] = useState<HistoryProject>();
@@ -149,38 +149,138 @@ export function HistoryWorkspace({
   const scroll = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
   const busy = useRef(false);
+  const requestNumber = useRef(0);
+  const savedCompany = useRef<string>();
+  const live = repository.mode === "live";
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+  const searchCompanies = useCallback(
+    (query: string) =>
+      repository.searchCompanies?.(query) ?? Promise.resolve([]),
+    [repository],
+  );
+  const fetchCompany = useCallback(
+    (id: string) =>
+      repository.loadCompany
+        ? repository.loadCompany(id)
+        : Promise.reject(new Error("기업 조회를 사용할 수 없습니다.")),
+    [repository],
+  );
   const load = useCallback(async () => {
     if (repository.mode === "unavailable") return;
+    const request = ++requestNumber.current;
     setLoading(true);
     setError("");
     try {
-      if (scenario === "error")
+      if (!live && scenario === "error")
         throw new Error("이력 자료를 불러오지 못했습니다.");
-      const result = await repository.load();
-      if (alive.current)
+      const current = filtersRef.current;
+      const result = await repository.load({
+        kind,
+        filters: current,
+        cursor: memory.cursors[kind][current.page - 1],
+      });
+      if (alive.current && request === requestNumber.current)
         setData(
-          scenario === "empty"
+          !live && scenario === "empty"
             ? { ...result, companies: [] }
-            : scenario === "no-round"
+            : !live && scenario === "no-round"
               ? { ...result, round: null }
               : result,
         );
+      return true;
     } catch (e) {
-      if (alive.current)
+      if (alive.current && request === requestNumber.current)
+        setData((previous) =>
+          previous ? { ...previous, companies: [], page: undefined } : previous,
+        );
+      if (alive.current && request === requestNumber.current)
         setError(
           e instanceof Error ? e.message : "자료를 불러오지 못했습니다.",
         );
+      return false;
     } finally {
-      if (alive.current) setLoading(false);
+      if (alive.current && request === requestNumber.current) setLoading(false);
     }
-  }, [repository, scenario]);
+  }, [repository, scenario, live, kind, memory]);
   useEffect(() => {
     alive.current = true;
-    void load();
     return () => {
       alive.current = false;
+      requestNumber.current++;
     };
-  }, [load]);
+  }, []);
+  useEffect(() => {
+    const timer = setTimeout(
+      () => void load(),
+      live && filters.query ? 300 : 0,
+    );
+    return () => {
+      clearTimeout(timer);
+      requestNumber.current++;
+    };
+  }, [load, live ? filters : null]);
+  const loadDetail = useCallback(async () => {
+    if (!selectedId || !repository.loadCompany) return;
+    setDetailLoading(true);
+    setDetailError("");
+    try {
+      const company = await repository.loadCompany(selectedId);
+      if (alive.current) {
+        setDetail(company);
+        setRefreshFailure(false);
+      }
+    } catch (e) {
+      if (alive.current)
+        setDetailError(
+          e instanceof Error ? e.message : "기업 이력을 불러오지 못했습니다.",
+        );
+    } finally {
+      if (alive.current) setDetailLoading(false);
+    }
+  }, [repository, selectedId]);
+  useEffect(() => {
+    if (!live || !selectedId || !repository.loadCompany) return;
+    let active = true;
+    setDetail(undefined);
+    setDetailLoading(true);
+    setDetailError("");
+    void repository
+      .loadCompany(selectedId)
+      .then((c) => {
+        if (active) setDetail(c);
+      })
+      .catch((e) => {
+        if (active)
+          setDetailError(
+            e instanceof Error ? e.message : "기업 이력을 불러오지 못했습니다.",
+          );
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [repository, selectedId, live]);
+  const retry = async () => {
+    if (!(await load())) return;
+    if (refreshFailure && savedCompany.current && repository.loadCompany) {
+      try {
+        const company = await repository.loadCompany(savedCompany.current);
+        if (alive.current) {
+          if (selectedId === company.id) setDetail(company);
+          setRefreshFailure(false);
+          setError("");
+        }
+      } catch (e) {
+        if (alive.current)
+          setError(
+            e instanceof Error ? e.message : "저장된 자료를 다시 조회해주세요.",
+          );
+      }
+    } else await loadDetail();
+  };
   useEffect(() => {
     const f = memory.filters[kind];
     setFilters(f);
@@ -196,6 +296,9 @@ export function HistoryWorkspace({
     }
   }, [kind, loading, memory]);
   const updateFilter = (patch: Partial<Filters>) => {
+    if (busy.current) return;
+    if (live) setLoading(true);
+    if (patch.page === undefined) memory.cursors[kind] = [null];
     const next = { ...filters, ...patch, page: patch.page ?? 1 };
     memory.filters[kind] = next;
     setFilters(next);
@@ -204,12 +307,15 @@ export function HistoryWorkspace({
     command: HistoryCommand,
     companyId = selectedId,
   ): Promise<boolean> => {
-    if (!companyId || !data || busy.current) return false;
+    if (!companyId || !data || busy.current || refreshFailure) return false;
     busy.current = true;
     setPending(true);
     setError("");
     try {
-      const company = data.companies.find((c) => c.id === companyId);
+      const company =
+        detail?.id === companyId
+          ? detail
+          : data.companies.find((c) => c.id === companyId);
       const next = await repository.execute(
         companyId,
         company?.work?.version ?? null,
@@ -217,11 +323,17 @@ export function HistoryWorkspace({
       );
       if (alive.current) {
         setData(next);
+        if (live && selectedId === companyId)
+          setDetail(repository.getCompany?.(companyId));
         const notice = savedNotices[command.type];
         if (notice) toast.success(notice);
       }
       return true;
     } catch (e) {
+      if (e instanceof SavedHistoryRefreshError && alive.current) {
+        savedCompany.current = e.companyId;
+        setRefreshFailure(true);
+      }
       if (alive.current)
         setError(
           e instanceof Error
@@ -236,15 +348,22 @@ export function HistoryWorkspace({
   };
   const collaboration = kind === "collaboration-history";
   const companies = data?.companies ?? [];
-  const selected = companies.find((c) => c.id === selectedId);
+  const selected = live
+    ? detail?.id === selectedId
+      ? detail
+      : companies.find((c) => c.id === selectedId)
+    : companies.find((c) => c.id === selectedId);
+  const actionPending = pending || refreshFailure;
   const start = async () => {
     if (await execute({ type: "start" })) setMode("compose");
   };
-  const all = companies.filter((c) =>
-    collaboration
-      ? collaborationCompany(c)
-      : c.sends.length > 0 && !collaborationCompany(c),
-  );
+  const all = live
+    ? companies
+    : companies.filter((c) =>
+        collaboration
+          ? collaborationCompany(c)
+          : c.sends.length > 0 && !collaborationCompany(c),
+      );
   const owners = [
     ...new Set(
       all
@@ -256,95 +375,110 @@ export function HistoryWorkspace({
         .filter(Boolean),
     ),
   ] as string[];
-  const quarters = [
-    ...new Set(
-      all.flatMap((c) =>
-        collaboration
-          ? [
-              ...c.projects
-                .filter((p) => p.year && p.quarter)
-                .map((p) => `${p.year}-Q${p.quarter}`),
-              ...(c.wonQuarter ? [c.wonQuarter] : []),
-            ]
-          : previousSend(c)
-            ? [previousSend(c)!.quarter]
-            : [],
+  const quarters =
+    data?.quarters ??
+    [
+      ...new Set(
+        all.flatMap((c) =>
+          collaboration
+            ? [
+                ...c.projects
+                  .filter((p) => p.year && p.quarter)
+                  .map((p) => `${p.year}-Q${p.quarter}`),
+                ...(c.wonQuarter ? [c.wonQuarter] : []),
+              ]
+            : previousSend(c)
+              ? [previousSend(c)!.quarter]
+              : [],
+        ),
       ),
-    ),
-  ]
-    .sort()
-    .reverse();
-  const filtered = all
-    .filter((c) => {
-      const previous = previousSend(c);
-      const p = latestProject(c);
-      const w = c.work;
-      if (
-        !`${c.name} ${c.description}`
-          .toLocaleLowerCase()
-          .includes(filters.query.toLocaleLowerCase())
-      )
-        return false;
-      if (
-        filters.outcome !== "all" &&
-        (collaboration
-          ? (p?.status ?? (c.projects.length ? "unknown" : "won_only"))
-          : (previous?.outcome ?? "unrecorded")) !== filters.outcome
-      )
-        return false;
-      if (
-        filters.owner !== "all" &&
-        (collaboration ? p?.ownerName : previous?.owner.name) !== filters.owner
-      )
-        return false;
-      if (
-        filters.quarter !== "all" &&
-        (collaboration
-          ? !c.projects.some(
-              (p) => `${p.year}-Q${p.quarter}` === filters.quarter,
-            ) && c.wonQuarter !== filters.quarter
-          : previous?.quarter !== filters.quarter)
-      )
-        return false;
-      if (filters.work === "none" && w) return false;
-      if (
-        filters.work === "mine" &&
-        (!w || w.owner.id !== data?.actor.id || w.sent)
-      )
-        return false;
-      if (
-        filters.work === "others" &&
-        (!w || w.owner.id === data?.actor.id || w.sent)
-      )
-        return false;
-      if (filters.work === "sent" && !w?.sent) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      if (filters.sort === "name") return a.name.localeCompare(b.name, "ko");
-      const value = (c: HistoryCompany) =>
-        collaboration
-          ? (latestProject(c)?.year ?? 0) * 4 +
-              (latestProject(c)?.quarter ?? 0) ||
-            Number(c.wonQuarter?.replace(/\D/g, "")) ||
-            0
-          : Date.parse(c.sends[0]?.at ?? "") || 0;
-      return (
-        (filters.sort === "oldest"
-          ? value(a) - value(b)
-          : value(b) - value(a)) || a.id.localeCompare(b.id)
-      );
-    });
+    ]
+      .sort()
+      .reverse();
+  const filtered = live
+    ? all
+    : all
+        .filter((c) => {
+          const previous = previousSend(c);
+          const p = latestProject(c);
+          const w = c.work;
+          if (
+            !`${c.name} ${c.description}`
+              .toLocaleLowerCase()
+              .includes(filters.query.toLocaleLowerCase())
+          )
+            return false;
+          if (
+            filters.outcome !== "all" &&
+            (collaboration
+              ? (p?.status ?? (c.projects.length ? "unknown" : "won_only"))
+              : (previous?.outcome ?? "unrecorded")) !== filters.outcome
+          )
+            return false;
+          if (
+            filters.owner !== "all" &&
+            (collaboration ? p?.ownerName : previous?.owner.name) !==
+              filters.owner
+          )
+            return false;
+          if (
+            filters.quarter !== "all" &&
+            (collaboration
+              ? !c.projects.some(
+                  (p) => `${p.year}-Q${p.quarter}` === filters.quarter,
+                ) && c.wonQuarter !== filters.quarter
+              : previous?.quarter !== filters.quarter)
+          )
+            return false;
+          if (filters.work === "none" && w) return false;
+          if (
+            filters.work === "mine" &&
+            (!w || w.owner.id !== data?.actor.id || w.sent)
+          )
+            return false;
+          if (
+            filters.work === "others" &&
+            (!w || w.owner.id === data?.actor.id || w.sent)
+          )
+            return false;
+          if (filters.work === "sent" && !w?.sent) return false;
+          return true;
+        })
+        .sort((a, b) => {
+          if (filters.sort === "name")
+            return a.name.localeCompare(b.name, "ko");
+          const value = (c: HistoryCompany) =>
+            collaboration
+              ? (latestProject(c)?.year ?? 0) * 4 +
+                  (latestProject(c)?.quarter ?? 0) ||
+                Number(c.wonQuarter?.replace(/\D/g, "")) ||
+                0
+              : Date.parse(c.sends[0]?.at ?? "") || 0;
+          return (
+            (filters.sort === "oldest"
+              ? value(a) - value(b)
+              : value(b) - value(a)) || a.id.localeCompare(b.id)
+          );
+        });
   const maxPage = Math.max(1, Math.ceil(filtered.length / 15));
-  const page = Math.min(filters.page, maxPage);
-  const rows = filtered.slice((page - 1) * 15, page * 15);
-  const open = Boolean((drawerOpen && selected) || addingProject);
+  const page = live ? filters.page : Math.min(filters.page, maxPage);
+  const rows = live ? filtered : filtered.slice((page - 1) * 15, page * 15);
+  const open = Boolean((drawerOpen && selectedId) || addingProject);
   return (
-    <SidebarProvider defaultOpen className="ds-workspace dw-section-workspace uw-shell hw-shell">
-      <DhWorkspaceNavigation value={kind} onChange={onTabChange} canManageOps={data?.canManage} />
+    <SidebarProvider
+      defaultOpen
+      className="ds-workspace dw-section-workspace uw-shell hw-shell"
+    >
+      <DhWorkspaceNavigation
+        value={kind}
+        onChange={onTabChange}
+        canManageOps={data?.canManage}
+      />
       <SidebarInset className="uw-inset hw-inset">
         <header className="hw-topbar">
-          <h1 className="ds-section-page-title">{historyTabs.find(tab => tab.value === kind)?.label}</h1>
+          <h1 className="ds-section-page-title">
+            {historyTabs.find((tab) => tab.value === kind)?.label}
+          </h1>
           {repository.mode === "mock" && (
             <WorkspaceStatus className="hw-mock-label">
               목업 데이터
@@ -425,35 +559,47 @@ export function HistoryWorkspace({
                   value={filters.owner}
                   options={[
                     { value: "all", label: "전체 담당" },
-                    ...owners.map((owner) => ({ value: owner, label: owner })),
+                    ...(live
+                      ? (data?.owners ?? []).map((owner) => ({
+                          value: owner.id,
+                          label: owner.name,
+                        }))
+                      : owners.map((owner) => ({
+                          value: owner,
+                          label: owner,
+                        }))),
                   ]}
                   onChange={(owner) => updateFilter({ owner })}
                 />
-                <ListFilter
-                  label="이번 작업 필터"
-                  value={filters.work}
-                  options={[
-                    { value: "all", label: "이번 작업 전체" },
-                    { value: "none", label: "작업 없음" },
-                    { value: "mine", label: "내 작성 중" },
-                    { value: "others", label: "다른 담당자" },
-                    { value: "sent", label: "발송 완료" },
-                  ]}
-                  onChange={(work) => updateFilter({ work })}
-                />
-                <ListFilter
-                  label="정렬"
-                  value={filters.sort}
-                  options={[
-                    {
-                      value: "recent",
-                      label: collaboration ? "최근 협업순" : "최근 연락순",
-                    },
-                    { value: "oldest", label: "오래된 순" },
-                    { value: "name", label: "기업명순" },
-                  ]}
-                  onChange={(sort) => updateFilter({ sort })}
-                />
+                {(!live || !collaboration) && (
+                  <ListFilter
+                    label="이번 작업 필터"
+                    value={filters.work}
+                    options={[
+                      { value: "all", label: "이번 작업 전체" },
+                      { value: "none", label: "작업 없음" },
+                      { value: "mine", label: "내 작성 중" },
+                      { value: "others", label: "다른 담당자" },
+                      { value: "sent", label: "발송 완료" },
+                    ]}
+                    onChange={(work) => updateFilter({ work })}
+                  />
+                )}
+                {(!live || !collaboration) && (
+                  <ListFilter
+                    label="정렬"
+                    value={filters.sort}
+                    options={[
+                      {
+                        value: "recent",
+                        label: collaboration ? "최근 협업순" : "최근 연락순",
+                      },
+                      { value: "oldest", label: "오래된 순" },
+                      { value: "name", label: "기업명순" },
+                    ]}
+                    onChange={(sort) => updateFilter({ sort })}
+                  />
+                )}
               </div>
               {collaboration && data?.canManage && (
                 <Button
@@ -471,13 +617,10 @@ export function HistoryWorkspace({
               )}
             </section>
             {error && !open && (
-              <WorkspaceError
-                message={error}
-                onRetry={!data ? () => void load() : undefined}
-              />
+              <WorkspaceError message={error} onRetry={() => void retry()} />
             )}
             <WorkspaceTable
-              caption={`${collaboration ? "협업 이력" : "연락 이력"} 기업별 목록`}
+              caption={`${collaboration ? "재수주" : "과거 컨택"} 기업별 목록`}
               columns={[
                 { key: "company", label: "기업" },
                 {
@@ -502,7 +645,7 @@ export function HistoryWorkspace({
                 { key: "work", label: "이번 작업" },
               ]}
               className="hw-table"
-              loading={loading || scenario === "loading"}
+              loading={loading || (!live && scenario === "loading")}
               empty={!rows.length}
               emptyTitle={
                 !data && error
@@ -518,6 +661,7 @@ export function HistoryWorkspace({
                     size="sm"
                     onClick={() => {
                       memory.filters[kind] = initialFilters();
+                      memory.cursors[kind] = [null];
                       setFilters(initialFilters());
                     }}
                   >
@@ -538,12 +682,19 @@ export function HistoryWorkspace({
               {rows.map((c) => {
                 const previous = previousSend(c);
                 const p = latestProject(c);
+                const work = c.list?.currentWork ?? c.work;
+                const workSent =
+                  work &&
+                  ("sent" in work
+                    ? Boolean(work.sent)
+                    : work.sendStatus === "sent");
                 return (
                   <TableRow
                     key={c.id}
                     data-state={selectedId === c.id ? "selected" : undefined}
                     data-clickable="true"
                     onClick={() => {
+                      if (pending) return;
                       setDrawerOpen(true);
                       setAddingProject(false);
                       setMode("detail");
@@ -556,6 +707,7 @@ export function HistoryWorkspace({
                         type="button"
                         aria-label={`${c.name} 이력 보기`}
                         onClick={() => {
+                          if (pending) return;
                           setDrawerOpen(true);
                           setAddingProject(false);
                           setMode("detail");
@@ -574,7 +726,7 @@ export function HistoryWorkspace({
                           {p?.title ?? "프로젝트 정보 미입력"}
                         </span>
                       ) : (
-                        dateLabel(c.sends[0]?.at)
+                        dateLabel(live ? previous?.at : c.sends[0]?.at)
                       )}
                     </TableCell>
                     <TableCell>
@@ -594,7 +746,7 @@ export function HistoryWorkspace({
                           label={
                             p?.status
                               ? projectLabels[p.status]
-                              : c.projects.length
+                              : (c.list?.projectCount ?? c.projects.length)
                                 ? "상태 미기록"
                                 : "프로젝트 미입력"
                           }
@@ -622,7 +774,9 @@ export function HistoryWorkspace({
                       )}
                     </TableCell>
                     {collaboration && (
-                      <TableCell>{c.projects.length}건</TableCell>
+                      <TableCell>
+                        {c.list?.projectCount ?? c.projects.length}건
+                      </TableCell>
                     )}
                     <TableCell>
                       {collaboration
@@ -630,20 +784,20 @@ export function HistoryWorkspace({
                         : (previous?.owner.name ?? "—")}
                     </TableCell>
                     <TableCell>
-                      {c.work ? (
+                      {work ? (
                         <div className="hw-work-cell">
                           <Status
                             label={
-                              c.work.sent
+                              workSent
                                 ? "발송 완료"
-                                : c.work.owner.id === data?.actor.id
+                                : work.owner.id === data?.actor.id
                                   ? "내 작성 중"
                                   : "다른 담당자 작성 중"
                             }
-                            tone={c.work.sent ? "success" : "neutral"}
+                            tone={workSent ? "success" : "neutral"}
                           />
                           <small className="ds-table-secondary">
-                            {c.work.owner.name}
+                            {work.owner.name}
                           </small>
                         </div>
                       ) : (
@@ -656,17 +810,23 @@ export function HistoryWorkspace({
             </WorkspaceTable>
             <DataTablePagination
               summary={
-                loading || scenario === "loading"
+                loading || (!live && scenario === "loading")
                   ? "불러오는 중"
                   : filtered.length
-                    ? `${(page - 1) * 15 + 1}–${Math.min(page * 15, filtered.length)} / ${filtered.length}`
+                    ? live
+                      ? `${(page - 1) * 15 + 1}–${(page - 1) * 15 + rows.length}`
+                      : `${(page - 1) * 15 + 1}–${Math.min(page * 15, filtered.length)} / ${filtered.length}`
                     : "0개"
               }
               canPrevious={page > 1}
-              canNext={page < maxPage}
-              pending={loading || scenario === "loading"}
+              canNext={live ? Boolean(data?.page?.hasMore) : page < maxPage}
+              pending={pending || loading || (!live && scenario === "loading")}
               onPrevious={() => updateFilter({ page: page - 1 })}
-              onNext={() => updateFilter({ page: page + 1 })}
+              onNext={() => {
+                if (live)
+                  memory.cursors[kind][page] = data?.page?.nextCursor ?? null;
+                updateFilter({ page: page + 1 });
+              }}
             />
           </div>
         )}
@@ -729,233 +889,271 @@ export function HistoryWorkspace({
               }}
             />
           </header>
-          {error && <WorkspaceError message={error} />}
-          {mode === "project" && data?.canManage && (
-            <HistoryProjectForm
-              key={project?.id ?? selected?.id ?? "new"}
-              companies={companies}
-              company={addingProject ? undefined : selected}
-              project={project}
-              memory={memory.projects}
-              pending={pending}
-              onCancel={() => {
-                if (addingProject) setAddingProject(false);
-                else setMode("detail");
-              }}
-              onSave={(id, project, newCompany) =>
-                execute({ type: "project", project, newCompany }, id)
-              }
+          {error && (
+            <WorkspaceError message={error} onRetry={() => void retry()} />
+          )}
+          {detailError && (
+            <WorkspaceError
+              message={detailError}
+              onRetry={() => void loadDetail()}
             />
           )}
-          {mode === "compose" && selected?.work && data && (
-            <HistoryComposer
-              key={selected.id}
-              company={selected}
-              data={data}
-              forms={memory.forms}
-              mock={repository.mode === "mock"}
-              pending={pending}
-              execute={execute}
-            />
+          {detailLoading && !addingProject && (
+            <div
+              className="hw-drawer-scroll"
+              role="status"
+              aria-label="기업 이력 불러오는 중"
+            >
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="mt-6 h-40 w-full" />
+            </div>
           )}
-          {mode === "detail" && selected && data && (
-            <>
-              <div className="hw-drawer-scroll">
-                <section className="hw-current">
-                  <h3>이번 작업</h3>
-                  {selected.work ? (
-                    <>
-                      <Status
-                        label={selected.work.sent ? "발송 완료" : "작성 중"}
-                        tone={selected.work.sent ? "success" : "neutral"}
-                      />
-                      <p>{selected.work.owner.name} 담당</p>
-                    </>
-                  ) : (
-                    <p className="hw-muted">아직 시작하지 않았습니다.</p>
-                  )}
-                </section>
-                {collaboration && (
-                  <section>
-                    <div className="hw-section-head">
-                      <h3>프로젝트 {selected.projects.length}건</h3>
-                      {data.canManage && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setProject(undefined);
-                            setMode("project");
-                          }}
-                        >
-                          <Plus size={15} />
-                          추가
-                        </Button>
-                      )}
-                    </div>
-                    {!selected.projects.length && (
-                      <div className="hw-project-missing">
-                        <Status label="프로젝트 정보 미입력" />
-                        <p>
-                          수주 완료 ·{" "}
-                          {selected.wonQuarter
-                            ? quarterLabel(selected.wonQuarter)
-                            : "분기 미기록"}
-                        </p>
-                      </div>
+          {mode === "project" &&
+            data?.canManage &&
+            !detailLoading &&
+            !detailError && (
+              <HistoryProjectForm
+                key={project?.id ?? selected?.id ?? "new"}
+                companies={companies}
+                company={addingProject ? undefined : selected}
+                project={project}
+                memory={memory.projects}
+                pending={actionPending}
+                members={live ? data.members : undefined}
+                searchCompanies={live ? searchCompanies : undefined}
+                loadCompany={live ? fetchCompany : undefined}
+                onCancel={() => {
+                  if (addingProject) setAddingProject(false);
+                  else setMode("detail");
+                }}
+                onSave={(id, project, newCompany) =>
+                  execute({ type: "project", project, newCompany }, id)
+                }
+              />
+            )}
+          {mode === "compose" &&
+            selected?.work &&
+            data &&
+            !detailLoading &&
+            !detailError && (
+              <HistoryComposer
+                key={selected.work.id}
+                company={selected}
+                data={data}
+                forms={memory.forms}
+                mock={repository.mode === "mock"}
+                pending={actionPending}
+                execute={execute}
+              />
+            )}
+          {mode === "detail" &&
+            selected &&
+            data &&
+            !detailLoading &&
+            !detailError && (
+              <>
+                <div className="hw-drawer-scroll">
+                  <section className="hw-current">
+                    <h3>이번 작업</h3>
+                    {selected.work ? (
+                      <>
+                        <Status
+                          label={selected.work.sent ? "발송 완료" : "작성 중"}
+                          tone={selected.work.sent ? "success" : "neutral"}
+                        />
+                        <p>{selected.work.owner.name} 담당</p>
+                      </>
+                    ) : (
+                      <p className="hw-muted">아직 시작하지 않았습니다.</p>
                     )}
-                    {[...selected.projects]
-                      .sort(
-                        (a, b) =>
-                          (b.year ?? 0) * 4 +
-                          (b.quarter ?? 0) -
-                          ((a.year ?? 0) * 4 + (a.quarter ?? 0)),
-                      )
-                      .map((p) => (
-                        <article className="hw-project" key={p.id}>
-                          <div className="hw-section-head">
-                            <strong>{p.title}</strong>
-                            {data.canManage && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setProject(p);
-                                  setMode("project");
-                                }}
-                              >
-                                수정
-                              </Button>
-                            )}
-                          </div>
-                          <p className="hw-muted">
-                            {p.year && p.quarter
-                              ? quarterLabel(`${p.year}-Q${p.quarter}`)
-                              : "분기 미기록"}{" "}
-                            ·{" "}
-                            {p.status ? projectLabels[p.status] : "상태 미기록"}
+                  </section>
+                  {collaboration && (
+                    <section>
+                      <div className="hw-section-head">
+                        <h3>프로젝트 {selected.projects.length}건</h3>
+                        {data.canManage && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setProject(undefined);
+                              setMode("project");
+                            }}
+                          >
+                            <Plus size={15} />
+                            추가
+                          </Button>
+                        )}
+                      </div>
+                      {!selected.projects.length && (
+                        <div className="hw-project-missing">
+                          <Status label="프로젝트 정보 미입력" />
+                          <p>
+                            수주 완료 ·{" "}
+                            {selected.wonQuarter
+                              ? quarterLabel(selected.wonQuarter)
+                              : "분기 미기록"}
                           </p>
-                          {p.summary && <p>{p.summary}</p>}
-                          {p.ownerName && (
-                            <p className="hw-muted">담당 · {p.ownerName}</p>
-                          )}
-                          {p.contactName && (
-                            <p className="hw-muted">관계자 · {p.contactName}</p>
-                          )}
-                          {safeUrl(p.resultUrl) && (
+                        </div>
+                      )}
+                      {[...selected.projects]
+                        .sort(
+                          (a, b) =>
+                            (b.year ?? 0) * 4 +
+                            (b.quarter ?? 0) -
+                            ((a.year ?? 0) * 4 + (a.quarter ?? 0)),
+                        )
+                        .map((p) => (
+                          <article className="hw-project" key={p.id}>
+                            <div className="hw-section-head">
+                              <strong>{p.title}</strong>
+                              {data.canManage && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setProject(p);
+                                    setMode("project");
+                                  }}
+                                >
+                                  수정
+                                </Button>
+                              )}
+                            </div>
+                            <p className="hw-muted">
+                              {p.year && p.quarter
+                                ? quarterLabel(`${p.year}-Q${p.quarter}`)
+                                : "분기 미기록"}{" "}
+                              ·{" "}
+                              {p.status
+                                ? projectLabels[p.status]
+                                : "상태 미기록"}
+                            </p>
+                            {p.summary && <p>{p.summary}</p>}
+                            {p.ownerName && (
+                              <p className="hw-muted">담당 · {p.ownerName}</p>
+                            )}
+                            {p.contactName && (
+                              <p className="hw-muted">
+                                관계자 · {p.contactName}
+                              </p>
+                            )}
+                            {safeUrl(p.resultUrl) && (
+                              <a
+                                href={safeUrl(p.resultUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                결과 자료
+                              </a>
+                            )}
+                          </article>
+                        ))}
+                    </section>
+                  )}
+                  <section>
+                    <h3>이전 연락 {selected.sends.length}건</h3>
+                    {!selected.sends.length && (
+                      <p className="hw-muted">발송 기록이 없습니다.</p>
+                    )}
+                    {selected.sends.map((s) => (
+                      <article className="hw-send" key={s.id}>
+                        <div className="hw-section-head">
+                          <strong>{quarterLabel(s.quarter)}</strong>
+                          <Status
+                            label={
+                              s.outcome
+                                ? outcomeLabels[s.outcome]
+                                : "결과 미기록"
+                            }
+                            tone={
+                              s.outcome === "won"
+                                ? "success"
+                                : s.outcome === "rejected"
+                                  ? "danger"
+                                  : "neutral"
+                            }
+                          />
+                        </div>
+                        <p className="hw-muted">
+                          {dateLabel(s.at)} · {s.owner.name}
+                        </p>
+                        <p>
+                          {s.recipient.name} ·{" "}
+                          {s.recipient.channel === "linkedin"
+                            ? "LinkedIn"
+                            : "이메일"}
+                        </p>
+                        {s.response ? (
+                          <p className="hw-response">{s.response}</p>
+                        ) : (
+                          <p className="hw-muted">답변 미기록</p>
+                        )}
+                        <WorkspaceDisclosure label="당시 메시지">
+                          <strong>{s.subject}</strong>
+                          <p className="hw-snapshot">{s.body}</p>
+                        </WorkspaceDisclosure>
+                      </article>
+                    ))}
+                  </section>
+                  <section>
+                    <h3>저장된 기업 정보</h3>
+                    <p>{selected.research ?? "저장된 조사 자료가 없습니다."}</p>
+                  </section>
+                  <section>
+                    <h3>관계자</h3>
+                    {selected.contacts.length ? (
+                      selected.contacts.map((r, i) => (
+                        <div
+                          className="hw-contact-summary"
+                          key={`${r.address}-${i}`}
+                        >
+                          <strong>{r.name}</strong>
+                          <span>
+                            {r.title} ·{" "}
+                            {r.channel === "linkedin" ? "LinkedIn" : "이메일"}
+                          </span>
+                          {r.channel === "linkedin" && safeUrl(r.address) ? (
                             <a
-                              href={safeUrl(p.resultUrl)}
+                              href={safeUrl(r.address)}
                               target="_blank"
                               rel="noreferrer"
                             >
-                              결과 자료
+                              프로필 열기
                             </a>
+                          ) : (
+                            <span>{r.address}</span>
                           )}
-                        </article>
-                      ))}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="hw-muted">저장된 관계자가 없습니다.</p>
+                    )}
                   </section>
-                )}
-                <section>
-                  <h3>이전 연락 {selected.sends.length}건</h3>
-                  {!selected.sends.length && (
-                    <p className="hw-muted">발송 기록이 없습니다.</p>
+                </div>
+                <footer className="hw-composer-footer">
+                  {!data.round && (
+                    <p className="hw-block-reason">
+                      현재 수주 회차가 설정되지 않았습니다.
+                    </p>
                   )}
-                  {selected.sends.map((s) => (
-                    <article className="hw-send" key={s.id}>
-                      <div className="hw-section-head">
-                        <strong>{quarterLabel(s.quarter)}</strong>
-                        <Status
-                          label={
-                            s.outcome ? outcomeLabels[s.outcome] : "결과 미기록"
-                          }
-                          tone={
-                            s.outcome === "won"
-                              ? "success"
-                              : s.outcome === "rejected"
-                                ? "danger"
-                                : "neutral"
-                          }
-                        />
-                      </div>
-                      <p className="hw-muted">
-                        {dateLabel(s.at)} · {s.owner.name}
-                      </p>
-                      <p>
-                        {s.recipient.name} ·{" "}
-                        {s.recipient.channel === "linkedin"
-                          ? "LinkedIn"
-                          : "이메일"}
-                      </p>
-                      {s.response ? (
-                        <p className="hw-response">{s.response}</p>
-                      ) : (
-                        <p className="hw-muted">답변 미기록</p>
-                      )}
-                      <WorkspaceDisclosure label="당시 메시지">
-                        <strong>{s.subject}</strong>
-                        <p className="hw-snapshot">{s.body}</p>
-                      </WorkspaceDisclosure>
-                    </article>
-                  ))}
-                </section>
-                <section>
-                  <h3>저장된 기업 정보</h3>
-                  <p>{selected.research ?? "저장된 조사 자료가 없습니다."}</p>
-                </section>
-                <section>
-                  <h3>관계자</h3>
-                  {selected.contacts.length ? (
-                    selected.contacts.map((r, i) => (
-                      <div
-                        className="hw-contact-summary"
-                        key={`${r.address}-${i}`}
-                      >
-                        <strong>{r.name}</strong>
-                        <span>
-                          {r.title} ·{" "}
-                          {r.channel === "linkedin" ? "LinkedIn" : "이메일"}
-                        </span>
-                        {r.channel === "linkedin" && safeUrl(r.address) ? (
-                          <a
-                            href={safeUrl(r.address)}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            프로필 열기
-                          </a>
-                        ) : (
-                          <span>{r.address}</span>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="hw-muted">저장된 관계자가 없습니다.</p>
-                  )}
-                </section>
-              </div>
-              <footer className="hw-composer-footer">
-                {!data.round && (
-                  <p className="hw-block-reason">
-                    현재 수주 회차가 설정되지 않았습니다.
-                  </p>
-                )}
-                <Button
-                  disabled={pending || (!selected.work && !data.round)}
-                  onClick={() =>
-                    selected.work ? setMode("compose") : void start()
-                  }
-                >
-                  {selected.work?.sent
-                    ? "발송 기록 보기"
-                    : selected.work
-                      ? selected.work.owner.id === data.actor.id
-                        ? "이어서 작성"
-                        : "작업 보기"
-                      : "메시지 작성"}
-                </Button>
-              </footer>
-            </>
-          )}
+                  <Button
+                    disabled={actionPending || (!selected.work && !data.round)}
+                    onClick={() =>
+                      selected.work ? setMode("compose") : void start()
+                    }
+                  >
+                    {selected.work?.sent
+                      ? "발송 기록 보기"
+                      : selected.work
+                        ? selected.work.owner.id === data.actor.id
+                          ? "이어서 작성"
+                          : "작업 보기"
+                        : "메시지 작성"}
+                  </Button>
+                </footer>
+              </>
+            )}
         </SheetContent>
       </Sheet>
       <Toaster
