@@ -247,14 +247,31 @@ export class LiveReviewRepository implements ReviewRepository {
       quarters: [...this.quarterIds.keys()],
       runs: [],
     };
+    // 목록을 보여준 다음, 아직 상세(연구 내용 등)를 안 받아본 후보들을 백그라운드로
+    // 미리 받아둔다 — 클릭했을 때 다시 기다리지 않도록 하는 캐시 예열이다.
+    void Promise.allSettled(
+      this.data.candidates
+        .filter((c) => this.details.get(c.id)?.version !== c.version)
+        .map((c) => this.loadCandidate(c.id)),
+    );
     return this.data;
   }
 
   async loadCandidate(id: string): Promise<Candidate> {
-    const row = (await this.api.request<CandidateDto>(`/review-candidates/${encodeURIComponent(id)}`)).data;
-    const outreach = row.outreachId
+    const known = this.data?.candidates.find((item) => item.id === id);
+    const cached = this.details.get(id);
+    if (cached && known && cached.version === known.version) return cached;
+    // outreachId는 보통 이미 로드된 목록에 있으므로, 알고 있다면 후보 상세를 기다리지 않고
+    // outreach 상세도 바로 병렬로 요청한다 (모를 때만 후보 상세 응답을 기다려 순차 조회).
+    const [row, knownOutreach] = await Promise.all([
+      this.api.request<CandidateDto>(`/review-candidates/${encodeURIComponent(id)}`).then((e) => e.data),
+      known?.outreachId
+        ? this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(known.outreachId)}`).then((e) => e.data)
+        : Promise.resolve(undefined),
+    ]);
+    const outreach = knownOutreach ?? (row.outreachId
       ? (await this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(row.outreachId)}`)).data
-      : undefined;
+      : undefined);
     const candidate = normalizeCandidate(row, outreach);
     this.details.set(id, candidate);
     if (this.data) this.data = {

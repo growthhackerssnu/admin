@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../../lib/supabase";
+import { useKeepWarm } from "../../../lib/useKeepWarm";
 import ReviewWorkspace from "./ReviewWorkspace";
 import { LiveReviewRepository } from "./liveRepository";
 import { OperationsPage } from "./OperationsPage";
@@ -22,6 +23,7 @@ export default function LiveReviewWorkspace() {
     }).catch(() => { if (active) setAuthenticated(false); });
     return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
+  useKeepWarm(authenticated === true);
   if (params.get("reviewPreview") === "1") return <ReviewWorkspace />;
   if (repository instanceof Error) return <main role="alert">{repository.message}</main>;
   if (authenticated === null) return <main role="status">로그인 확인 중…</main>;
