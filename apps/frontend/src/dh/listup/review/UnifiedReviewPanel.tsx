@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Plus, UserRound } from "lucide-react";
 import { WorkspaceStatus, type WorkspaceTone } from "@/components/ui/workspace-status";
 import { WorkspaceSidebar } from "@/components/ui/workspace-sidebar";
+import { DhWorkspaceNavigation } from "./DhWorkspaceNavigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAlignedScroll } from "@/design-system/use-aligned-scroll";
@@ -24,7 +25,7 @@ import {
 import "@/design-system/globals.css";
 import "./unified-review.css";
 import { MessageComposer } from "./MessageComposer";
-import { HistoryTabs, type HistoryTab } from "./HistoryTabs";
+import type { HistoryTab } from "./historyNavigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 
 type Change = (candidate: Candidate, command: CandidateCommand) => Promise<boolean>;
@@ -199,7 +200,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   onSelect: (id: string) => void;
   quarters: string[];
   addQuarter: (value: string) => Promise<boolean>;
-  onTabChange?: (tab: HistoryTab) => void;
+  onTabChange?: (tab: HistoryTab) => void | boolean | Promise<void | boolean>;
 }) {
   const queueScrollRef = useAlignedScroll();
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -235,10 +236,10 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   };
   const queueContent = (
           <aside className="uw-queue" aria-label="기업 목록">
-            <header className="uw-pane-head uw-queue-head"><RailToggle />{compact && <WorkspaceIconButton icon="close" label="목록 닫기" onClick={() => setQueueOpen(false)} />}</header>
-            <div className="uw-queue-tools"><div className="uw-filter-row"><div className="uw-filter-leading"><WorkspaceIconButton className="uw-search-toggle" icon={searchOpen ? "close" : "search"} label={searchOpen ? "검색 닫기" : "검색 열기"} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }} /><span>{visible.length}건</span></div><div className="uw-filter-actions">
+            <div className="uw-queue-tools"><div className="uw-filter-row"><div className="uw-filter-leading">{!onTabChange && <RailToggle />}<WorkspaceIconButton className="uw-search-toggle" icon={searchOpen ? "close" : "search"} label={searchOpen ? "검색 닫기" : "검색 열기"} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) setQuery(""); }} /><span>{visible.length}건</span></div><div className="uw-filter-actions">
               <ListFilter label="담당 필터" value={owner} options={[{ value: "mine", label: "내 담당" }, { value: "all", label: "전체 담당" }]} onChange={(value) => onOwnerChange(value as OwnerFilter)} />
               <ListFilter label="상태 필터" value={status} options={statusOptions} onChange={changeStatus} />
+              {compact && <WorkspaceIconButton icon="close" label="목록 닫기" onClick={() => setQueueOpen(false)} />}
             </div></div>
               {searchOpen && <InputGroup className="uw-search"><InputGroupAddon><Search size={15} /></InputGroupAddon><InputGroupInput autoFocus aria-label="기업명 또는 설명 검색" placeholder="기업명 또는 설명 검색" value={query} onChange={(e) => setQuery(e.target.value)} /></InputGroup>}</div>
             <div ref={queueScrollRef} className="uw-items">{visible.map((candidate) => <button className="uw-item" type="button" key={candidate.id} aria-current={focused?.id === candidate.id} onClick={() => { onSelect(candidate.id); if (compact) setQueueOpen(false); }}>
@@ -252,24 +253,24 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
                   : "조건에 맞는 기업이 없습니다."}</p>}</div>
           </aside>
   );
-  return <SidebarProvider defaultOpen className="ds-workspace uw-shell">
+  return <SidebarProvider defaultOpen data-queue-open={queueOpen} className={`ds-workspace uw-shell${onTabChange ? " dw-section-workspace" : ""}`}>
     {dialog}
-    <WorkspaceSidebar canManageOps={canManageOps} />
+    {onTabChange ? <DhWorkspaceNavigation value="review" onChange={onTabChange} canManageOps={canManageOps} /> : <WorkspaceSidebar canManageOps={canManageOps} />}
     <SidebarInset className="uw-inset">
-      {onTabChange && <header className="hw-topbar"><HistoryTabs value="review" onChange={onTabChange} /></header>}
       {error && <div className={`uw-error${reload ? " uw-refresh-notice" : ""}`} role={reload ? "status" : "alert"}><span>{error}</span>{reload && <Button variant="outline" size="sm" disabled={reloading} onClick={reload}>다시 불러오기</Button>}</div>}
+      <div className="uw-workspace-body">
+        {queueOpen && !compact && <div className="uw-fixed-queue">{queueContent}</div>}
       <ResizablePanelGroup orientation="horizontal" className="uw-panels">
-        {queueOpen && !compact && <><ResizablePanel defaultSize="24%" minSize="17%" maxSize="38%">
-          {queueContent}</ResizablePanel>{!compact && <ResizableHandle withHandle className="uw-handle" />}</>}
-        {<ResizablePanel defaultSize={compact ? "100%" : detailsOpen ? (queueOpen ? "52%" : "72%") : "100%"} minSize={compact ? "100%" : "34%"}>
-          <div aria-hidden={compact && (queueOpen || detailsOpen) ? true : undefined} {...(compact && (queueOpen || detailsOpen) ? { inert: "" } : {})} className={`uw-center ${!queueOpen ? "uw-center-with-menu" : ""}`}>{!queueOpen && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={`${focused.id}-${editorEpoch}`} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} quarters={quarters} addQuarter={addQuarter} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
+        {<ResizablePanel defaultSize={compact || !detailsOpen ? "100%" : "70%"} minSize={compact ? "100%" : "55%"}>
+          <div aria-hidden={compact && (queueOpen || detailsOpen) ? true : undefined} {...(compact && (queueOpen || detailsOpen) ? { inert: "" } : {})} className={`uw-center ${!queueOpen && !onTabChange ? "uw-center-with-menu" : ""}`}>{!queueOpen && !onTabChange && <div className="uw-center-menu"><RailToggle /></div>}{focused ? <ContactWork key={`${focused.id}-${editorEpoch}`} candidate={focused} actor={actor} pending={pending} change={change} onDirty={reportDirty} quarters={quarters} addQuarter={addQuarter} /> : <div className="uw-empty-main">기업을 선택하세요.</div>}
             <div className="uw-pane-controls"><WorkspaceIconButton icon={queueOpen ? "leftClose" : "leftOpen"} label={queueOpen ? "목록 닫기" : "목록 열기"} onClick={() => { setQueueOpen(!queueOpen); if (compact) setDetailsOpen(false); }} />
               <WorkspaceIconButton icon={detailsOpen ? "rightClose" : "rightOpen"} label={detailsOpen ? "기업 정보 닫기" : "기업 정보 열기"} onClick={() => setDetailsOpen(!detailsOpen)} />
               </div>
           </div>
         </ResizablePanel>}
-        {detailsOpen && !compact && <><ResizableHandle withHandle className="uw-handle" /><ResizablePanel defaultSize="24%" minSize="18%" maxSize="38%">{focused ? <Details candidate={focused} onClose={() => setDetailsOpen(false)} /> : <aside className="uw-details" />}</ResizablePanel></>}
+        {detailsOpen && !compact && <><ResizableHandle withHandle className="uw-handle" /><ResizablePanel defaultSize="30%" minSize="22%" maxSize="45%">{focused ? <Details candidate={focused} onClose={() => setDetailsOpen(false)} /> : <aside className="uw-details" />}</ResizablePanel></>}
       </ResizablePanelGroup>
+      </div>
       {compact && queueOpen && <div className="uw-mobile-queue">{queueContent}</div>}
       {compact && detailsOpen && !queueOpen && focused && <div className="uw-mobile-details"><Details candidate={focused} onClose={() => setDetailsOpen(false)} /></div>}
     </SidebarInset>

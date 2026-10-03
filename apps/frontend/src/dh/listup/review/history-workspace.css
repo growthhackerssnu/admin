@@ -9,33 +9,6 @@
   border-bottom: 1px solid var(--border);
   background: var(--background);
 }
-.hw-tabs {
-  display: flex;
-  gap: var(--ds-space-1);
-  height: 100%;
-  align-items: center;
-}
-.hw-tabs > button {
-  position: relative;
-  border-radius: 0;
-  height: 100%;
-  padding-inline: var(--layout-control-gap);
-  color: var(--ds-gray-700);
-  white-space: nowrap;
-  font-weight: 500;
-}
-.hw-tabs > button[aria-current="page"] {
-  color: var(--ds-text-strong);
-}
-.hw-tabs > button[aria-current="page"]::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: var(--layout-control-gap);
-  right: var(--layout-control-gap);
-  height: 2px;
-  background: var(--ds-brand-300);
-}
 .hw-top-meta {
   display: flex;
   flex-wrap: wrap;
@@ -87,7 +60,7 @@
 .hw-company-button {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-space-1);
+  gap: var(--layout-label-gap);
   max-width: 320px;
   width: 100%;
   border: 0;
@@ -99,15 +72,10 @@
   font: inherit;
 }
 .hw-company-button span {
-  color: var(--ds-gray-700);
-  font-size: var(--ds-type-caption);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.hw-company-button strong {
-  font-weight: 500;
 }
 .hw-project-title {
   display: block;
@@ -118,11 +86,11 @@
   display: flex;
   align-items: flex-start;
   flex-direction: column;
-  gap: var(--ds-space-1);
+  gap: var(--layout-label-gap);
 }
-.hw-work-cell small {
-  color: var(--ds-gray-700);
-  font-size: var(--ds-type-caption);
+.hw-table .hw-muted {
+  font-size: var(--ds-type-body-2);
+  font-weight: 400;
 }
 .hw-unavailable {
   display: grid;
@@ -168,7 +136,7 @@
   flex: 1;
 }
 .hw-drawer-head [data-slot="sheet-title"] {
-  font-size: var(--ds-type-headline-6);
+  font-size: var(--workspace-title-size, var(--ds-type-headline-6));
   font-weight: 600;
   line-height: 1.4;
   color: var(--ds-text-strong);
@@ -338,10 +306,6 @@
   .hw-topbar {
     padding-inline: var(--layout-control-gap);
     gap: var(--ds-space-1);
-  }
-  .hw-tabs > button {
-    padding-inline: var(--layout-label-gap);
-    font-size: var(--ds-type-caption);
   }
   .hw-top-meta {
     display: none;

@@ -126,6 +126,7 @@ export function DataPreview() {
                   type="button"
                   variant="ghost"
                   size="sm"
+                  className="ds-table-primary"
                   onClick={() => setSelected(company.id)}
                 >
                   {company.name}
