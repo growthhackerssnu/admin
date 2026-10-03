@@ -8,8 +8,8 @@
 
 | 파일 | 내용 |
 |---|---|
-| `index.tsx` | `/nut` 진입점. 세션이 없으면 `/login`으로 보내고, `GET /api/v1/ping`으로 회원(이름·role)을 받아 공유 `SidePane`과 사이드바 ACCESS 카드에 쓴다 |
-| `App.tsx` | 재무 화면 본체(예산·결산, 회계 시트) |
+| `index.tsx` | `/nut` 진입점. 세션이 없으면 `/login`으로 보내고, `GET /api/v1/ping`으로 회원 role을 받아 공유 `SidePane`을 붙인다. 테마·폰트는 그핵드인·관리자와 같은 `HrLayout`(main.tsx 레이아웃 라우트)이 입힌다 |
+| `App.tsx` | 재무 화면 본체(예산·결산, 회계 시트, 프로젝트·운영팀). 화면 머리와 전환 탭은 그핵드인과 같은 `hr-eyebrow`·`hr-page-title`·`hr-nav` 모양이다 |
 | `api.ts` | NUT API 클라이언트(`fetchMe`, `fetchOverview`, 변경 API) |
 | `types.ts` | `FinanceOverview` 등 응답 타입 |
-| `nut.css` | NUT 전용 스타일. 전역 선택자(`body` 등)는 쓰지 않는다 — 한 페이지에 다른 화면 CSS와 같이 로드되기 때문 |
+| `nut.css` | NUT 전용 스타일. 색은 `lib/brand.css`의 브랜드 변수를 따르며, 팝업까지 닿도록 `body.hr-theme-active`에만 색 변수를 둔다. 그 밖의 전역 선택자는 쓰지 않는다 — 한 페이지에 다른 화면 CSS와 같이 로드되기 때문 |

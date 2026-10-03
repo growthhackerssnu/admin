@@ -63,10 +63,15 @@ const Nut = lazy(() => import("./nut"));
 // 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 어두운 네이비 화면이라 같은 색
 // 바탕만 깔아서(CSS 파일이 아직 안 왔으므로 인라인) 흰/회색 스켈레톤이 번쩍이지 않게 한다.
 const AUTH_PATHS = ["/", "/login", "/index"];
-// 밝은 앱 화면(hr·회원 관리)의 주소 — 이 화면들은 파란 점 로딩 화면을 쓴다.
+// 밝은 앱 화면(hr·회원 관리·dh·nut)의 주소 — 이 화면들은 파란 점 로딩 화면을 쓴다.
 function isAppScreenPath(pathname: string) {
   return (
-    pathname === "/hr" || pathname.startsWith("/hr/") || pathname === "/admin"
+    pathname === "/hr" ||
+    pathname.startsWith("/hr/") ||
+    pathname === "/admin" ||
+    pathname === "/dh" ||
+    pathname === "/nut" ||
+    pathname.startsWith("/nut/")
   );
 }
 function RouteFallback() {
@@ -107,22 +112,6 @@ function Root() {
 
               {/* dh·nut은 role이 맞지 않으면(예: alumni) 화면 대신 안내를 보여준다.
                   /admin은 AdminMembers가 자체 가드를 갖고 있다. */}
-              <Route
-                path="/dh"
-                element={
-                  <RequireApp app="dh">
-                    <DhReviewWorkspace />
-                  </RequireApp>
-                }
-              />
-              <Route
-                path="/dh/listup"
-                element={
-                  <RequireApp app="dh">
-                    <LegacyDhRedirect />
-                  </RequireApp>
-                }
-              />
 
               <Route element={<HrLayout />}>
                 <Route path="/hr" element={<HrDirectory />} />
@@ -134,16 +123,32 @@ function Root() {
                 <Route path="/hr/admin" element={<HrAdminQueue />} />
                 <Route path="/admin" element={<AdminMembers />} />
                 <Route path="/admin/ghbot" element={<AdminGhbotTokens />} />
+                {/* 대협·NUT도 그핵드인·관리자와 같은 밝은 앱 화면(테마·폰트)으로 보인다. */}
+                <Route
+                  path="/dh"
+                  element={
+                    <RequireApp app="dh">
+                      <DhReviewWorkspace />
+                    </RequireApp>
+                  }
+                />
+                <Route
+                  path="/dh/listup"
+                  element={
+                    <RequireApp app="dh">
+                      <LegacyDhRedirect />
+                    </RequireApp>
+                  }
+                />
+                <Route
+                  path="/nut/*"
+                  element={
+                    <RequireApp app="nut">
+                      <Nut />
+                    </RequireApp>
+                  }
+                />
               </Route>
-
-              <Route
-                path="/nut/*"
-                element={
-                  <RequireApp app="nut">
-                    <Nut />
-                  </RequireApp>
-                }
-              />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

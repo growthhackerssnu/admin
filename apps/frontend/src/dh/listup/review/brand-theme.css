@@ -1,0 +1,43 @@
+/* 대협 화면을 그핵드인·관리자와 같은 브랜드(lib/brand.css·brand.ts)로 맞춘다.
+   main.tsx에서 /dh를 HrLayout 안에 두므로 body.hr-theme-active일 때만 적용된다.
+   :root에서 파생된 shadcn 토큰(--primary 등)은 :root에서 값이 정해지므로 여기서 다시 지정한다.
+   body에 두어야 Select·Dropdown·Sheet처럼 body 밑에 그려지는 팝업에도 적용된다. */
+body.hr-theme-active {
+  --ds-font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+  --ds-text-strong: #001136;
+  --ds-action-primary: #152f69;
+  --ds-action-primary-hover: #001136;
+  --ds-action-approval: #152f69;
+  --ds-link: #3e5c9c;
+  --ds-focus: #3e5c9c;
+  --ds-shadow: color-mix(in srgb, #001136 12%, transparent);
+  --ds-gray-700: #5b6a8c;
+  --ds-gray-900: #001136;
+  --ds-surface-canvas: #f4f6fb;
+
+  --foreground: #001136;
+  --card-foreground: #001136;
+  --popover-foreground: #001136;
+  --primary: #152f69;
+  --secondary-foreground: #001136;
+  --muted-foreground: #5b6a8c;
+  --accent-foreground: #001136;
+  --ring: #3e5c9c;
+  --radius: 10px;
+
+  /* 공용 SidePane(hr/theme.css의 .side-pane)과 같은 짙은 네이비 사이드바 */
+  --sidebar: #001136;
+  --sidebar-foreground: #aebbdb;
+  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #7c96cf;
+}
+body.hr-theme-active .ds-workspace { --radius: 10px; }
+body.hr-theme-active :is(.dw-sidebar,[data-mobile="true"][data-slot="sidebar"]) { --ds-logo-blue: #ffffff; }
+body.hr-theme-active :is(.dw-sidebar,[data-mobile="true"][data-slot="sidebar"]) [data-slot="sidebar-group-label"] { color: #7c8bb0; }
+body.hr-theme-active :is(.dw-sidebar,[data-mobile="true"][data-slot="sidebar"]) [data-slot="sidebar-menu-button"] { font-weight: 500; }
+body.hr-theme-active :is(.dw-sidebar,[data-mobile="true"][data-slot="sidebar"]) [data-slot="sidebar-menu-button"]:is(:hover,:focus-visible) { background: var(--sidebar-accent); color: #fff; }
+body.hr-theme-active :is(.dw-sidebar,[data-mobile="true"][data-slot="sidebar"]) [data-slot="sidebar-menu-button"][data-active="true"] { background: var(--sidebar-accent); color: #fff; font-weight: 700; box-shadow: inset 3px 0 #7c96cf; }
+/* 축소 사이드바의 두 줄형 로고(PNG)는 흰색으로 */
+body.hr-theme-active :is(.dw-sidebar,[data-mobile="true"][data-slot="sidebar"]) .ds-brand-logo[data-variant="signature-blue"] > img { filter: brightness(0) invert(1); }

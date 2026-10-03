@@ -1,7 +1,6 @@
 import {
   Alert,
   App as AntApp,
-  Avatar,
   Button,
   Card,
   Empty,
@@ -19,29 +18,29 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import {
-  BankOutlined,
   DownOutlined,
   EditOutlined,
-  FolderOpenOutlined,
   HolderOutlined,
-  MenuFoldOutlined,
-  MenuOutlined,
-  MenuUnfoldOutlined,
   PlusOutlined,
   ProjectOutlined,
-  ReloadOutlined,
   SettingOutlined,
   TeamOutlined,
   UpOutlined,
 } from "@ant-design/icons";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import { signOut } from "../lib/supabase";
 import {
   createBudgetNode,
   createLedgerEntry,
   createParameter,
   deleteParameter,
   fetchOverview,
-  type NutMember,
   reorderBudgetNodes,
   updateBudgetNode,
   updateLedgerEntry,
@@ -122,28 +121,58 @@ function shiftMonths(date: string, months: number) {
   return value.toISOString().slice(0, 10);
 }
 
+// 그핵드인·관리자 화면과 같은 머리(eyebrow·제목·설명·로그아웃)와, 그 아래 화면 전환 탭.
+const NutNavContext = createContext<{ view: View; onView: (view: View) => void; term: string }>({
+  view: "budget",
+  onView: () => undefined,
+  term: "",
+});
+
 function PageTitle({
-  eyebrow,
   title,
   description,
   action,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description?: string;
   action?: ReactNode;
 }) {
+  const { view, onView, term } = useContext(NutNavContext);
   return (
-    <div className="finance-page-title">
-      <div>
-        <span className="finance-eyebrow">{eyebrow}</span>
-        <Typography.Title level={1}>{title}</Typography.Title>
-        {description && (
-          <Typography.Paragraph>{description}</Typography.Paragraph>
-        )}
+    <>
+      <div className="row section-gap">
+        <div>
+          <div className="hr-eyebrow">NUT FINANCE{term && " · " + term}</div>
+          <Typography.Title level={3} className="hr-page-title">
+            {title}
+          </Typography.Title>
+          {description && (
+            <Typography.Text type="secondary">{description}</Typography.Text>
+          )}
+        </div>
+        <Space wrap>
+          {action}
+          <Button onClick={() => void signOut()}>로그아웃</Button>
+        </Space>
       </div>
-      {action}
-    </div>
+      <nav className="hr-nav" aria-label="NUT 메뉴">
+        {NUT_VIEWS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={
+              "hr-nav-item finance-nav-item" +
+              (view === item.id ? " hr-nav-item-current" : "")
+            }
+            aria-current={view === item.id ? "page" : undefined}
+            onClick={() => onView(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+    </>
   );
 }
 
@@ -499,7 +528,7 @@ function BudgetSheetPreview({ data }: { data: FinanceOverview }) {
             <span className="finance-eyebrow">진행안 ↔ 결산안</span>
             <h2>예산·실제 지출 비교</h2>
           </div>
-          <Tag color="green">DB / Excel import</Tag>
+          <Tag>DB / Excel import</Tag>
         </div>
         <div className="budget-sheet-scroll">
           <table className="budget-sheet">
@@ -1294,61 +1323,17 @@ function LedgerView({
   );
 }
 
-function AppNav({
-  view,
-  onView,
-}: {
-  view: View;
-  onView: (view: View) => void;
-}) {
-  const items: Array<{
-    id: View;
-    label: string;
-    icon: ReactNode;
-    number: string;
-  }> = [
-    {
-      id: "budget",
-      label: "예산·결산",
-      icon: <FolderOpenOutlined />,
-      number: "01",
-    },
-    { id: "ledger", label: "회계 시트", icon: <BankOutlined />, number: "02" },
-    {
-      id: "accounting",
-      label: "프로젝트·운영팀",
-      icon: <ProjectOutlined />,
-      number: "03",
-    },
-  ];
-  return (
-    <nav className="finance-nav" aria-label="NUT 메뉴">
-      {items.map((item) => (
-        <button
-          className={
-            "finance-nav__item" +
-            (view === item.id ? " finance-nav__item--active" : "")
-          }
-          key={item.id}
-          type="button"
-          onClick={() => onView(item.id)}
-        >
-          <span className="finance-nav__number">{item.number}</span>
-          {item.icon}
-          <span>{item.label}</span>
-        </button>
-      ))}
-    </nav>
-  );
-}
+const NUT_VIEWS: Array<{ id: View; label: string }> = [
+  { id: "budget", label: "예산·결산" },
+  { id: "ledger", label: "회계 시트" },
+  { id: "accounting", label: "프로젝트·운영팀" },
+];
 
-export default function App({ member }: { member?: NutMember }) {
+export default function App() {
   const [data, setData] = useState<FinanceOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("budget");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [bucketModalOpen, setBucketModalOpen] = useState(false);
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<BudgetNode | null>(null);
@@ -1508,120 +1493,18 @@ export default function App({ member }: { member?: NutMember }) {
       ).map((value) => ({ value, label: value }))
     : [];
 
+  const term = data
+    ? data.period.label +
+      " (" +
+      shortDate(data.period.start) +
+      " – " +
+      shortDate(data.period.end) +
+      ")"
+    : "";
+
   return (
-    <div
-      className={
-        "finance-app" +
-        (sidebarCollapsed ? " finance-app--sidebar-collapsed" : "") +
-        (mobileNavOpen ? " finance-app--mobile-nav-open" : "")
-      }
-    >
-      <aside className="finance-sidebar">
-        <div className="finance-brand">
-          <span>N</span>
-          <strong>NUT</strong>
-          <small>INTERNAL OPERATIONS</small>
-        </div>
-        <div className="finance-sidebar__label">WORKSPACE</div>
-        <AppNav
-          view={view}
-          onView={(nextView) => {
-            setView(nextView);
-            setMobileNavOpen(false);
-          }}
-        />
-        <div className="finance-sidebar__bottom">
-          <div className="finance-sidebar__label">ACCESS</div>
-          <div className="finance-access">
-            <Avatar size={34}>{member?.displayName.slice(0, 1) ?? "·"}</Avatar>
-            <div>
-              <strong>{member?.displayName ?? "—"}</strong>
-              <span>{member ? member.role : "admin / acting only"}</span>
-            </div>
-          </div>
-          <div className="finance-sidebar__term">
-            <span>Secretary term</span>
-            <b>
-              {data
-                ? shortDate(data.period.start) +
-                  " – " +
-                  shortDate(data.period.end)
-                : "—"}
-            </b>
-          </div>
-          <Button
-            className="finance-sidebar__collapse"
-            type="text"
-            icon={
-              sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
-            }
-            onClick={() => setSidebarCollapsed((value) => !value)}
-            aria-label={sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기"}
-          >
-            {sidebarCollapsed ? "" : "사이드바 접기"}
-          </Button>
-        </div>
-      </aside>
-      {mobileNavOpen && (
-        <button
-          className="finance-mobile-overlay"
-          type="button"
-          onClick={() => setMobileNavOpen(false)}
-          aria-label="메뉴 닫기"
-        />
-      )}
-      <main className="finance-main">
-        <header className="finance-header">
-          <div className="finance-header__heading">
-            <Button
-              className="finance-mobile-nav-toggle"
-              type="text"
-              icon={<MenuOutlined />}
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="메뉴 열기"
-            />
-            <div>
-              <span className="finance-header__context">
-                admin.ghsnu.com / nut
-              </span>
-              <h2>NUT Finance</h2>
-            </div>
-          </div>
-          <div className="finance-header__controls">
-            <Select
-              size="small"
-              value={data?.period.id}
-              options={
-                data
-                  ? [{ value: data.period.id, label: data.period.label }]
-                  : []
-              }
-            />
-            <Select
-              size="small"
-              value={data?.fiscalYear.label}
-              options={
-                data
-                  ? [
-                      {
-                        value: data.fiscalYear.label,
-                        label: data.fiscalYear.label,
-                      },
-                    ]
-                  : []
-              }
-            />
-            <Button
-              type="text"
-              icon={<ReloadOutlined />}
-              onClick={() => void load()}
-              aria-label="새로고침"
-            />
-            <Button className="finance-header__avatar" shape="circle">
-              주
-            </Button>
-          </div>
-        </header>
+    <NutNavContext.Provider value={{ view, onView: setView, term }}>
+      <div className="finance-app">
         {error && (
           <Alert
             className="finance-alert finance-alert--top"
@@ -1701,7 +1584,7 @@ export default function App({ member }: { member?: NutMember }) {
             <Empty description="NUT 데이터를 불러오지 못했습니다." />
           </div>
         )}
-      </main>
+      </div>
       <Modal
         title={editingNode ? "Bucket 수정" : "Bucket 생성"}
         open={bucketModalOpen}
@@ -1879,6 +1762,6 @@ export default function App({ member }: { member?: NutMember }) {
           </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </NutNavContext.Provider>
   );
 }
