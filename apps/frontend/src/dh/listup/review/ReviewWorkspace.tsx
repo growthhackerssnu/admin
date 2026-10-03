@@ -10,6 +10,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -26,17 +27,31 @@ import {
 import { CandidateReview, SourceLink, type Change } from "./CandidateReview";
 import { previewRepository } from "./previewRepository";
 import { UnifiedReviewLoading, UnifiedReviewPanel } from "./UnifiedReviewPanel";
+import { HistoryWorkspace, createHistoryMemory } from "./HistoryWorkspace";
+import { PreviewHistoryRepository, unavailableHistoryRepository } from "./historyRepository";
+import type { HistoryTab } from "./HistoryTabs";
+import "./history-workspace.css";
 import "./review.css";
 
 export default function ReviewWorkspace({
   repository = previewRepository,
+  historyMode = "unavailable",
 }: {
   repository?: ReviewRepository;
+  historyMode?: "mock" | "unavailable";
 }) {
   const [params, setParams] = useSearchParams();
   const { confirm, dialog } = useConfirmation();
   const [data, setData] = useState<ReviewData>();
   const actor = data?.actor ?? currentActor;
+  const historyMemory = useRef(createHistoryMemory());
+  const historyRole = params.get("historyRole");
+  const historyRepository = useMemo(() => repository.mode === "preview"
+    ? new PreviewHistoryRepository(actor, historyRole !== "member")
+    : historyMode === "mock"
+      ? new PreviewHistoryRepository(actor, data?.canManageOps === true, "mock")
+      : unavailableHistoryRepository,
+    [repository.mode, historyMode, actor.id, actor.name, data?.canManageOps, historyRole]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -290,11 +305,18 @@ export default function ReviewWorkspace({
     selected ?? (params.get("candidate") === "none" ? undefined : rows[0]);
   const openMessage = (id: string) =>
     navigate({ message: null, candidate: id, view: "review", owner: candidates.find(item => item.id === id)?.owner?.id === actor.id ? params.get("owner") : "all" });
+  const changeTab = (view: HistoryTab) => { void navigate({ view, message: null, historyCompany: view === "review" ? null : historyMemory.current.selected[view] }); };
+  if (tab === "contact-history" || tab === "collaboration-history") {
+    return <>{dialog}<HistoryWorkspace kind={tab} repository={historyRepository} memory={historyMemory.current}
+      selectedId={params.get("historyCompany")} onTabChange={changeTab}
+      scenario={repository.mode === "preview" ? params.get("historyScenario") ?? "" : ""}
+      onSelect={id => { historyMemory.current.selected[tab] = id; const next = new URLSearchParams(params); if (id) next.set("historyCompany", id); else next.delete("historyCompany"); setParams(next, { replace: true }); }} /></>;
+  }
   // Old message links open the same three-pane workspace, never a separate page.
   if (tab === "review" || tab === "messages" || params.has("message")) {
     if (loading) return <UnifiedReviewLoading />;
     if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><Button variant="outline" onClick={() => void load()}>다시 불러오기</Button></main>;
-    return <>{dialog}<UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true}
+    return <>{dialog}<UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true} onTabChange={changeTab}
       owner={params.get("owner") === "all" || (message && message.owner?.id !== actor.id) ? "all" : "mine"}
       onOwnerChange={(owner) => navigate({ owner, candidate: null, message: null })}
       selectedId={detailId}

@@ -173,6 +173,41 @@ shadcn 컴포넌트는 일반 DOM과 CSS를 사용하므로 외부 스타일로�
 `public/human-review-unified-workspace.html`은 이 토큰과 `unified-workspace.css`를 불러오는 정적 시안이다. 뉴트럴 표면을 중심으로 브랜드 컬러를 탐색·선택 상태에 쓰고, 승인 행동에 `--ds-action-approval`을 쓴다. 해당 HTML은 Vite 개발 서버에서 확인한다.
 
 
+## 연락·협업 이력 화면 적용 (2026-10-03)
+
+신규 발굴·연락 이력·협업 이력의 공통 탭 헤더를 추가한다. 신규 발굴은 기존 3칸과 가운데 메시지 작성을 유지한다. 이력 화면은 기업별 테이블과 우측 Sheet이며, 메시지 작성은 같은 Sheet가 480px에서 860px로 확장된다. 700px 이하에서는 전체 너비를 쓴다. 공통 탭과 Sheet 헤더는 `--layout-header-height` 66px로 정렬한다. 이력 화면을 오가는 탭 헤더 추가는 기존의 별도 상단 바 없는 신규 발굴 구조에서 변경된 항목이다.
+
+Field·Input·Textarea·ListFilter·InputGroup·Button·WorkspaceStatus·Skeleton·Sidebar를 그대로 사용한다. 제목·본문 편집은 `MessageDraftEditor`를 공유하며 권한과 저장 동작은 부모 화면에 남긴다. Sheet의 `showOverlay=false`는 이력 화면에서만 사용해 표를 뒤에 남긴다. 다른 Sheet의 기본 overlay는 유지한다.
+
+이력 표는 최소 960px, 기업 설명은 최대 2줄·320px, 프로젝트 제목은 최대 240px이다. 좁은 화면에서도 표의 열을 삭제하지 않고 가로 스크롤하며, drawer 본문과 고정 footer를 분리한다. 간격·색·글자 역할은 기존 공통 토큰을 사용한다. 수신자 입력 중의 primary는 저장, 입력을 닫은 뒤에는 생성/초안 저장/발송 완료로 상태에 맞춰 바뀐다.
+
+자세한 상태·범위·검수 증거는 [이력 화면 구현 기록](../../../../docs/admin/listup/history-frontend.md)에 있다. 사용자 요청에 따라 운영의 두 이력 탭은 임시 목업으로 표시하며, 신규 발굴은 기존 실데이터를 사용한다. 목업 여부는 헤더와 상세 패널에 표시한다. 목업 쓰기는 사용자별 브라우저 저장소에만 반영하며 실제 AI·발송·DB 저장을 호출하지 않는다. 이후 실제 이력 API adapter를 연결해 교체한다.
+
+### 표·선택·피드백 공통 컴포넌트
+
+공식 shadcn CLI의 Radix 컴포넌트 `Table`, `Pagination`, `Command`, `Popover`, `Collapsible`, `Alert`, `Sonner`를 추가했다. Command의 의존 컴포넌트 Dialog도 함께 설치했다. 기존 Button은 덮어쓰지 않았다. 추가 런타임 의존성은 `cmdk`, `sonner`이며, 앱은 기존 밝은 테마를 사용한다.
+
+| 공통 컴포넌트 | 시스템에서 관리하는 범위 | 화면에 남기는 범위 |
+|---|---|---|
+| `WorkspaceTable` | shadcn Table의 머리글·행·셀·접근 가능한 caption, 로딩 Skeleton, 빈 결과 Empty, 하나의 가로/세로 스크롤 영역, 고정 머리글 | 열 구성·조회·필터·정렬·선택·권한·행 동작 |
+| `DataTablePagination` | shadcn Pagination과 실제 Button으로 이전/다음·disabled·결과 범위 표시 | 페이지/커서 값, 이동 가능 여부, 조회 호출 |
+| `WorkspaceCombobox` | Command + Popover의 검색·키보드 선택·선택 표시·닫힘·빈 검색 결과 | 옵션 데이터와 선택값, 신규 기업 등록 등 선택 후 동작 |
+| `WorkspaceDisclosure` | Collapsible의 기본 닫힘, 펼침 버튼과 상태 아이콘 | 당시 저장된 문안·자료 |
+| `WorkspaceError` | Alert의 오류 메시지와 선택적인 재시도 행동 | 오류 원인, 입력 유지, 재시도 호출 |
+| `Toaster` | Sonner의 밝은 표면·공통 폰트·작은 semantic 아이콘 | 성공한 저장·복사 후에만 알림 호출 |
+
+공통 규칙은 `components/ui/workspace-data.css`에 있다. 사용자에게 받은 [shadcn Data Table 예제](https://ui.shadcn.com/docs/components/base/data-table)를 기준으로 흰 머리글, 얇은 neutral 테두리, 작은 모서리, 셀 8px 여백, 40px 머리글 높이, 본문·머리글 14px을 사용한다. 행 높이는 내용에 따라 늘어나며 표 자체를 남은 화면 높이까지 늘리지 않는다. 표 선택은 `--ds-surface-selected`, hover는 `--ds-surface-canvas`, 선은 `--ds-gray-200`이다. 상태색은 기존 WorkspaceStatus에 맡긴다. 이전/다음 footer는 표 바깥에 두고 위 여백 16px, 결과 범위는 왼쪽·outline 버튼은 오른쪽에 둔다. 선택 버튼과 팝오버는 너비를 맞추고, 팝오버는 흰색·윤곽선 없이 기존 얕은 그림자를 사용한다.
+
+이력 화면은 검색·필터 → 표 → 페이지 이동 순서로 배치한다. 바깥 여백 24px(700px 이하 12px), 검색창 최대 384px, 표 위 도구 간격 16px이다. 검색창은 항상 표시하고 필터를 오른쪽에 둔다. 공간이 부족하면 도구를 다음 줄에 배치한다. 예제에서 가져온 것은 배치와 표 표현이며, 기존 열·필터·단일 기업 선택 및 상세 작업을 유지한다. 예제의 다중 선택·열 숨김·행 메뉴는 이력 업무에 필요한 동작이 정의되지 않아 도입하지 않는다. 이러한 간격·폭은 공식 수치로 인용하는 것이 아닌 우리 제품의 적용값이다.
+
+Table에 `containerProps`를 추가해 ref·스크롤 기록·키보드 접근을 전달한다. **표 바깥에 별도 overflow wrapper를 중첩하지 않는다.** 머리글과 본문은 같은 스크롤 영역을 사용한다. 표 영역은 Tab으로 접근한 뒤 방향키/PageDown으로 스크롤할 수 있다. 버튼·Collapsible/Popover trigger는 Radix 합성으로 data-slot이 달라질 수 있으므로 공통 recipe 클래스에 스타일을 적용한다.
+
+빈 결과 안내와 초기화 행동은 전체 표 너비가 아닌 현재 보이는 표 영역에 맞춘다. 공통 스크롤 컨테이너의 `container-type: inline-size`와 `100cqw`를 사용하고 좌우 20px을 유지한다. 가로 스크롤 후에도 안내가 화면 밖으로 사라지지 않도록 sticky 위치를 사용한다.
+
+이력 표의 960px 최소 너비와 기업 설명 최대 320px/2줄·프로젝트 제목 240px은 기존 화면 규칙이다. 페이지당 15개는 부모 화면의 현재 값이며 공통 Table에 저장하지 않는다. TanStack Data Table은 조합 가이드이므로 이번에는 추가하지 않았다. 서버 커서와 총 개수는 후속 API adapter가 전달한다.
+
+`/design-system.html#data-components`에서 **운영과 동일한 React 공통 컴포넌트**의 정상·로딩·빈 결과·오류와 페이지 이동, 검색 선택, 접힌 메시지, 알림을 확인한다. 갤러리 자료는 예시이며 저장하지 않는다.
+
 ## 전체 어드민 적용
 
 - 공통 `AppShell`은 그핵드인·관리자·NUT의 사이드바와 본문 영역을 관리한다. 대협은 기존 3칸 작업 공간을 유지하며 같은 `AppSidebar`를 사용한다. 메뉴는 `@dhbot/ui-shell`의 `reachableApps(role)`에서 가져오므로 권한과 메뉴 기준이 분리되지 않는다.

@@ -22,6 +22,8 @@ import "./preview.css";
 import { LayoutDraft } from "./layout-draft";
 import { BrandPreview } from "./brand-preview";
 import { PaletteDraft } from "./palette-draft";
+import { DataPreview } from "./data-preview";
+import { Toaster } from "@/components/ui/sonner";
 
 const brand = ["0", "100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-brand-${step}`]);
 const neutrals = ["100", "200", "300", "400", "500", "600", "700", "800", "900"].map(step => [step, `--ds-gray-${step}`]);
@@ -48,7 +50,7 @@ function App() {
   return <SidebarProvider className="ds-preview-layout">
     <WorkspaceSidebar />
     <SidebarInset className="ds-preview-inset">
-      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 규칙</a><a href="#palette-draft">색상 초안</a></nav></div>
+      <div className="ds-preview-toolbar"><SidebarTrigger aria-label="사이드 네비게이션 열기 또는 닫기" /><span>디자인 시스템</span><nav className="ds-preview-section-links"><a href="#brand-assets">로고</a><a href="#layout-draft">레이아웃 규칙</a><a href="#palette-draft">색상 초안</a><a href="#data-components">표·피드백</a></nav></div>
       <div className="ds-preview">
     <header className="ds-preview-header">
       <div><p className="ds-overline">Growth Hackers / DH BOT</p><h1 className="ds-headline-4">디자인 시스템</h1><p className="ds-body-1">색상, 글씨 위계, shadcn/ui 기본 컴포넌트의 시작점</p></div>
@@ -85,11 +87,14 @@ function App() {
       <div className="ds-demo ds-resizable-demo"><h3 className="ds-subtitle-2">세 칸 크기 조절 · Resizable</h3><ResizablePanelGroup orientation="horizontal" className="h-28 rounded-md border"><ResizablePanel defaultSize="24%" minSize="17%" className="ds-panel-list grid place-items-center">목록</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="52%" minSize="34%" className="grid place-items-center">현재 작업</ResizablePanel><ResizableHandle withHandle /><ResizablePanel defaultSize="24%" minSize="18%" className="grid place-items-center">기업 정보</ResizablePanel></ResizablePanelGroup></div>
     </section>
     <Separator />
+    <DataPreview />
+    <Separator />
     <LayoutDraft />
     <Separator />
     <PaletteDraft />
       </div>
     </SidebarInset>
+    <Toaster className="ds-workspace ds-toaster" position="bottom-right" />
   </SidebarProvider>;
 }
 
