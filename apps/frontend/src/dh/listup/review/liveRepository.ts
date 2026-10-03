@@ -355,9 +355,8 @@ export class LiveReviewRepository implements ReviewRepository {
         throw new Error("현재 업무 흐름에서 지원하지 않는 행동입니다.");
     }
     try {
-      const data = await this.load();
       await this.loadCandidate(id);
-      return this.data ?? data;
+      return this.data!;
     } catch {
       throw new SavedReviewRefreshError(this.data!);
     }
