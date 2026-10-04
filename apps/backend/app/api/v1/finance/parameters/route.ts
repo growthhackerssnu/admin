@@ -1,9 +1,9 @@
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { ApiError, successBody } from "@/nut/lib/errors";
+import { ApiError } from "@/nut/lib/errors";
+import { overviewBody, periodFrom } from "@/nut/lib/respond";
 import {
   createBudgetParameter,
   deleteBudgetParameter,
-  ParameterInUseError,
   updateBudgetParameter,
 } from "@/nut/lib/financeRepository";
 
@@ -28,24 +28,25 @@ function numberValue(value: unknown) {
   return Math.round(value);
 }
 
-export const POST = withApiHandler(async (req, { requestId }) => {
+export const POST = withApiHandler(async (req, { member, requestId }) => {
   const body = (await req.json().catch(() => null)) as Record<
     string,
     unknown
   > | null;
   if (!body) throw new ApiError("BAD_REQUEST", "JSON body is required.");
-  const result = await createBudgetParameter({
+  const periodId = await createBudgetParameter(await periodFrom(body.periodId), {
     id: idValue(body.id),
     label: textValue(body.label, "label"),
     value: numberValue(body.value),
     unit: textValue(body.unit, "unit"),
     description: textValue(body.description, "description"),
   });
-  return { body: successBody(result.overview, requestId), status: 201 };
+  return { body: await overviewBody(periodId, member, requestId), status: 201 };
 });
 
-export const PATCH = withApiHandler(async (req, { requestId }) => {
+export const PATCH = withApiHandler(async (req, { member, requestId }) => {
   const body = (await req.json().catch(() => null)) as {
+    periodId?: unknown;
     id?: unknown;
     value?: unknown;
     label?: unknown;
@@ -66,20 +67,14 @@ export const PATCH = withApiHandler(async (req, { requestId }) => {
   };
   if (Object.keys(input).length === 0)
     throw new ApiError("BAD_REQUEST", "변경할 값을 입력하세요.");
-  const result = await updateBudgetParameter(body.id, input);
-  return { body: successBody(result.overview, requestId) };
+  const periodId = await updateBudgetParameter(await periodFrom(body.periodId), body.id, input);
+  return { body: await overviewBody(periodId, member, requestId) };
 });
 
-export const DELETE = withApiHandler(async (req, { requestId }) => {
-  const body = (await req.json().catch(() => null)) as { id?: unknown } | null;
+export const DELETE = withApiHandler(async (req, { member, requestId }) => {
+  const body = (await req.json().catch(() => null)) as { periodId?: unknown; id?: unknown } | null;
   if (!body || typeof body.id !== "string" || !body.id.trim())
     throw new ApiError("BAD_REQUEST", "id is required.");
-  try {
-    const result = await deleteBudgetParameter(body.id.trim());
-    return { body: successBody(result.overview, requestId) };
-  } catch (error) {
-    if (error instanceof ParameterInUseError)
-      throw new ApiError("BAD_REQUEST", error.message);
-    throw error;
-  }
+  const periodId = await deleteBudgetParameter(await periodFrom(body.periodId), body.id.trim());
+  return { body: await overviewBody(periodId, member, requestId) };
 });

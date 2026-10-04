@@ -1,7 +1,7 @@
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { successBody } from "@/nut/lib/errors";
-import { getFinanceOverview } from "@/nut/lib/financeRepository";
+import { overviewBody, periodFrom } from "@/nut/lib/respond";
 
-export const GET = withApiHandler(async (_req, { requestId }) => ({
-  body: successBody(await getFinanceOverview(), requestId),
+// ?period=2026-2h. 없으면 오늘이 속한 반기.
+export const GET = withApiHandler(async (req, { member, requestId }) => ({
+  body: await overviewBody(await periodFrom(req.nextUrl.searchParams.get("period")), member, requestId),
 }));

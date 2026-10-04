@@ -4,7 +4,6 @@ import { AppShell, useAppRole } from "@/components/ui/app-shell";
 import { useSession } from "../lib/useSession";
 import App from "./App";
 import { fetchMe, type NutMember } from "./api";
-import "../hr/components/HrNav.css";
 import "./nut.css";
 
 // /nut — 세션이 없으면 로그인으로 보내고, 회원 role을 받아 화면 전환 패널을 붙인다.

@@ -10,20 +10,6 @@ export type ClaimStatus = "review" | "approved" | "paid" | "rejected";
 export type BucketKind = "income" | "expense" | "tax";
 export type BucketLevel = "major" | "middle" | "minor";
 
-export interface BudgetBucket {
-  id: string;
-  name: string;
-  parentId: string | null;
-  kind: BucketKind;
-  taxClass: TaxClass;
-  budget: number;
-  spent: number;
-  actual: number;
-  remaining: number;
-  variance: number;
-  description?: string;
-}
-
 export interface BudgetNode {
   id: string;
   name: string;
@@ -99,8 +85,9 @@ export interface LedgerEntry {
   amount: number;
   claimant?: string;
   note?: string;
-  source: "Excel import" | "Slack" | "Manual";
+  source: string;
   taxClass: TaxClass;
+  claimId?: string;
 }
 
 export interface AccountingDetail {
@@ -135,8 +122,22 @@ export interface Claim {
   claimant: string;
   bucket: string;
   status: ClaimStatus;
-  source: "Slack";
+  source: string;
   prepaid: boolean;
+  mine: boolean;
+  bankAccount?: string;
+  note?: string;
+  rejectReason?: string;
+  reviewedAt?: string;
+  paidAt?: string;
+  ledgerEntryId?: string;
+}
+
+export interface PeriodSummary {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
 }
 
 export interface TaxSummary {
@@ -152,6 +153,8 @@ export interface TaxSummary {
 }
 
 export interface FinanceOverview {
+  periods: PeriodSummary[];
+  viewer: { canManageClaims: boolean };
   period: {
     id: string;
     label: string;
@@ -170,7 +173,6 @@ export interface FinanceOverview {
   actual: { income: number; expense: number; net: number };
   variance: { income: number; expense: number; net: number };
   remaining: { income: number; expense: number; net: number };
-  buckets: BudgetBucket[];
   budgetTree: BudgetNode[];
   parameters: BudgetParameter[];
   budgetLines: BudgetLine[];
@@ -181,11 +183,4 @@ export interface FinanceOverview {
   accountingSummaries: AccountingSummary[];
   claims: Claim[];
   tax: TaxSummary;
-  reconciliation: {
-    status: "review" | "matched";
-    difference: number;
-    cashDifference: number;
-    ledgerDifference: number;
-    note: string;
-  };
 }

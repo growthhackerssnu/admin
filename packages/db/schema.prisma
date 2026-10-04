@@ -1621,6 +1621,7 @@ model NutFinanceBucket {
 
 model NutBudgetNode {
   id         String         @id
+  periodId   String         @map("period_id")
   name       String
   parentId   String?        @map("parent_id")
   level      NutBucketLevel
@@ -1635,18 +1636,21 @@ model NutBudgetNode {
   note       String?
   active     Boolean        @default(true)
 
-  @@index([parentId, sortOrder])
+  @@index([periodId, parentId, sortOrder])
   @@map("budget_nodes")
   @@schema("nut")
 }
 
+// id는 산출식의 변수명이라 반기마다 같은 이름(cohort-19 등)을 다시 쓴다 → (반기, id) 복합키.
 model NutBudgetParameter {
-  id          String   @id
+  periodId    String   @map("period_id")
+  id          String
   label       String
   value       Int
   unit        String
   description String
 
+  @@id([periodId, id])
   @@map("budget_parameters")
   @@schema("nut")
 }
@@ -1682,6 +1686,7 @@ model NutMonthlyFlow {
 
 model NutLedgerEntry {
   id            String       @id
+  periodId      String       @map("period_id")
   transactionDate DateTime   @map("transaction_date") @db.Date
   month         Int
   type          NutLedgerType
@@ -1696,7 +1701,7 @@ model NutLedgerEntry {
   source        String
   taxClass      NutTaxClass  @map("tax_class")
 
-  @@index([transactionDate])
+  @@index([periodId, transactionDate])
   @@index([bucket])
   @@map("ledger_entries")
   @@schema("nut")
@@ -1704,6 +1709,7 @@ model NutLedgerEntry {
 
 model NutAccountingDetail {
   id        String                 @id
+  periodId  String                 @map("period_id")
   scope     NutAccountingScope
   owner     String
   category  NutAccountingCategory
@@ -1713,13 +1719,14 @@ model NutAccountingDetail {
   balance   BigInt
   claimant  String?
 
-  @@index([scope, owner, date])
+  @@index([periodId, scope, owner, date])
   @@map("accounting_details")
   @@schema("nut")
 }
 
 model NutAccountingSummary {
   id             String             @id
+  periodId       String             @map("period_id")
   scope          NutAccountingScope
   name           String
   supportBudget  BigInt             @map("support_budget")
@@ -1729,23 +1736,35 @@ model NutAccountingSummary {
   entryCount     Int                @map("entry_count")
   note           String?
 
-  @@index([scope, name])
+  @@unique([periodId, scope, name])
   @@map("accounting_summaries")
   @@schema("nut")
 }
 
+// 청구서. 회원이 NUT 화면이나 Slack으로 올리고, 총무가 승인·반려·지급한다.
+// 지급하면 같은 트랜잭션에서 회계(ledger_entries)에 지출로 기록하고 ledgerEntryId로 잇는다.
 model NutClaim {
-  id        String         @id
-  date      DateTime       @db.Date
-  detail    String
-  amount    BigInt
-  claimant  String
-  bucket    String
-  status    NutClaimStatus
-  source    String
-  prepaid   Boolean        @default(false)
+  id                 String         @id
+  periodId           String         @map("period_id")
+  date               DateTime       @db.Date
+  detail             String
+  amount             BigInt
+  claimant           String
+  bucket             String
+  status             NutClaimStatus
+  source             String
+  prepaid            Boolean        @default(false)
+  memberId           String?        @map("member_id")
+  bankAccount        String?        @map("bank_account")
+  note               String?
+  rejectReason       String?        @map("reject_reason")
+  reviewedByMemberId String?        @map("reviewed_by_member_id")
+  reviewedAt         DateTime?      @map("reviewed_at")
+  paidAt             DateTime?      @map("paid_at")
+  ledgerEntryId      String?        @unique @map("ledger_entry_id")
+  createdAt          DateTime       @default(now()) @map("created_at")
 
-  @@index([status, date])
+  @@index([periodId, status, date])
   @@map("claims")
   @@schema("nut")
 }

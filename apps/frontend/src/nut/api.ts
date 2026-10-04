@@ -1,4 +1,4 @@
-import type { FinanceOverview } from "./types";
+import type { FinanceOverview, TaxClass } from "./types";
 import { supabase } from "../lib/supabase";
 
 const baseUrl = (
@@ -45,92 +45,133 @@ export function fetchMe() {
   return request<{ member: NutMember }>("/api/v1/ping").then((d) => d.member);
 }
 
-export function fetchOverview() {
-  return request<FinanceOverview>("/api/v1/finance/overview");
+export function fetchOverview(periodId?: string) {
+  const query = periodId ? `?period=${encodeURIComponent(periodId)}` : "";
+  return request<FinanceOverview>(`/api/v1/finance/overview${query}`);
 }
 
-function mutate(
-  path: string,
-  method: "POST" | "PATCH" | "DELETE",
-  body: unknown,
-) {
-  return request<FinanceOverview>(path, {
+// 모든 쓰기 API는 바뀐 반기의 전체 화면 데이터를 돌려준다.
+function send(path: string, method: "POST" | "PATCH" | "DELETE", body: unknown) {
+  return request<FinanceOverview>(`/api/v1/finance/${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
-export function createBudgetNode(body: {
-  name: string;
-  parentId: string | null;
-  level: string;
-  kind: string;
-  taxClass: string;
-  budget: number;
-  formula?: string | null;
-  formulaExpression?: string | null;
-  note?: string | null;
-}) {
-  return mutate("/api/v1/finance/budget-nodes", "POST", body);
-}
-
-export function updateBudgetNode(body: {
-  id: string;
-  name?: string;
-  budget?: number;
-  formula?: string | null;
-  formulaExpression?: string | null;
-  note?: string | null;
-  order?: number;
-}) {
-  return mutate("/api/v1/finance/budget-nodes", "PATCH", {
-    ...body,
-    sortOrder: body.order,
-  });
-}
-
-export function updateParameter(id: string, value: number) {
-  return mutate("/api/v1/finance/parameters", "PATCH", { id, value });
-}
-
-export function createParameter(body: {
-  id: string;
-  label: string;
-  value: number;
-  unit: string;
-  description: string;
-}) {
-  return mutate("/api/v1/finance/parameters", "POST", body);
-}
-
-export function deleteParameter(id: string) {
-  return mutate("/api/v1/finance/parameters", "DELETE", { id });
-}
-
-export function reorderBudgetNodes(ids: string[]) {
-  return mutate("/api/v1/finance/budget-nodes", "PATCH", { ids });
-}
-
-export function createLedgerEntry(body: {
+export type LedgerInput = {
   date: string;
   type: "income" | "expense";
   bucket: string;
   detail: string;
   amount: number;
-  claimant?: string;
-  note?: string;
-  source?: string;
-  taxClass: string;
-}) {
-  return mutate("/api/v1/finance/ledger", "POST", body);
-}
-
-export function updateLedgerEntry(body: {
-  id: string;
   claimant?: string | null;
   note?: string | null;
-  detail?: string;
+  taxClass: TaxClass;
+};
+
+export const ledgerApi = {
+  create: (periodId: string, input: LedgerInput) =>
+    send("ledger", "POST", { periodId, ...input }),
+  update: (id: string, input: Partial<LedgerInput>) =>
+    send("ledger", "PATCH", { id, ...input }),
+  remove: (id: string) => send("ledger", "DELETE", { id }),
+};
+
+export type ClaimInput = {
+  date: string;
+  detail: string;
+  amount: number;
+  bucket: string;
+  bankAccount?: string;
+  prepaid: boolean;
+  note?: string;
+};
+
+export const claimApi = {
+  create: (periodId: string, input: ClaimInput) =>
+    send("claims", "POST", { periodId, ...input }),
+  approve: (id: string, bucket?: string) =>
+    send("claims", "PATCH", { id, type: "approve", bucket }),
+  reject: (id: string, reason: string) =>
+    send("claims", "PATCH", { id, type: "reject", reason }),
+  reopen: (id: string) => send("claims", "PATCH", { id, type: "reopen" }),
+  pay: (id: string, date: string, bucket?: string) =>
+    send("claims", "PATCH", { id, type: "pay", date, bucket }),
+  cancel: (id: string) => send("claims", "DELETE", { id }),
+};
+
+export type TeamInput = {
+  id?: string;
+  scope: "project" | "team";
+  name: string;
+  supportBudget: number;
+  technicalBudget: number;
+  note?: string | null;
+};
+
+export type TeamEntryInput = {
+  scope: "project" | "team";
+  owner: string;
+  category: "support" | "technical";
+  date: string;
+  detail: string;
+  amount: number;
+  claimant?: string | null;
+};
+
+export const accountingApi = {
+  saveTeam: (periodId: string, input: TeamInput) =>
+    send("accounting", input.id ? "PATCH" : "POST", {
+      kind: "team",
+      periodId,
+      ...input,
+    }),
+  removeTeam: (id: string) => send("accounting", "DELETE", { kind: "team", id }),
+  addEntry: (periodId: string, input: TeamEntryInput) =>
+    send("accounting", "POST", { kind: "entry", periodId, ...input }),
+  updateEntry: (id: string, input: Partial<TeamEntryInput>) =>
+    send("accounting", "PATCH", { kind: "entry", id, ...input }),
+  removeEntry: (id: string) =>
+    send("accounting", "DELETE", { kind: "entry", id }),
+};
+
+export type BudgetNodeInput = {
+  name: string;
+  parentId: string | null;
+  level: "major" | "middle" | "minor";
+  kind: "income" | "expense" | "tax";
+  taxClass: TaxClass;
+  budget: number;
+  formulaExpression?: string | null;
+  note?: string | null;
+};
+
+export const budgetApi = {
+  createNode: (periodId: string, input: BudgetNodeInput) =>
+    send("budget-nodes", "POST", { periodId, ...input }),
+  updateNode: (
+    id: string,
+    input: Partial<Pick<BudgetNodeInput, "name" | "budget" | "formulaExpression" | "note">>,
+  ) => send("budget-nodes", "PATCH", { id, ...input }),
+  removeNode: (id: string) => send("budget-nodes", "DELETE", { id }),
+  reorder: (ids: string[]) => send("budget-nodes", "PATCH", { ids }),
+  updateParameter: (periodId: string, id: string, value: number) =>
+    send("parameters", "PATCH", { periodId, id, value }),
+  createParameter: (
+    periodId: string,
+    input: { id: string; label: string; value: number; unit: string; description: string },
+  ) => send("parameters", "POST", { periodId, ...input }),
+  removeParameter: (periodId: string, id: string) =>
+    send("parameters", "DELETE", { periodId, id }),
+};
+
+export function createPeriod(input: {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  copyFromId: string;
 }) {
-  return mutate("/api/v1/finance/ledger", "PATCH", body);
+  return send("periods", "POST", input);
 }

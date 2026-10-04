@@ -1,32 +1,32 @@
+import { z } from "zod";
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { ApiError, successBody } from "@/nut/lib/errors";
-import { createLedgerEntry, updateLedgerEntry } from "@/nut/lib/financeRepository";
+import { createLedgerEntry, deleteLedgerEntry, updateLedgerEntry } from "@/nut/lib/financeRepository";
+import { dateString, overviewBody, parseBody, periodFrom } from "@/nut/lib/respond";
 
-const taxClasses = new Set(["non_taxable_gain", "taxable_gain", "tax_deductible_expense", "non_tax_deductible_expense", "tax"]);
-
-function requiredString(value: unknown, field: string) {
-  if (typeof value !== "string" || !value.trim()) throw new ApiError("BAD_REQUEST", `${field} is required.`);
-  return value.trim();
-}
-
-export const POST = withApiHandler(async (req, { requestId }) => {
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) throw new ApiError("BAD_REQUEST", "JSON body is required.");
-  const date = requiredString(body.date, "date");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ApiError("BAD_REQUEST", "date must be YYYY-MM-DD.");
-  const type = requiredString(body.type, "type");
-  if (type !== "income" && type !== "expense") throw new ApiError("BAD_REQUEST", "type must be income or expense.");
-  const taxClass = requiredString(body.taxClass, "taxClass");
-  if (!taxClasses.has(taxClass)) throw new ApiError("BAD_REQUEST", "taxClass is invalid.");
-  if (typeof body.amount !== "number" || !Number.isFinite(body.amount) || body.amount < 0) throw new ApiError("BAD_REQUEST", "amount must be a non-negative number.");
-  const result = await createLedgerEntry({ date, type, bucket: requiredString(body.bucket, "bucket"), detail: requiredString(body.detail, "detail"), amount: Math.round(body.amount), claimant: typeof body.claimant === "string" ? body.claimant.trim() : null, note: typeof body.note === "string" ? body.note.trim() : null, source: typeof body.source === "string" && body.source.trim() ? body.source.trim() : "Manual", taxClass: taxClass as Parameters<typeof createLedgerEntry>[0]["taxClass"] });
-  return { body: successBody(result.overview, requestId), status: 201 };
+const taxClass = z.enum(["non_taxable_gain", "taxable_gain", "tax_deductible_expense", "non_tax_deductible_expense", "tax"]);
+const entry = z.object({
+  date: dateString,
+  type: z.enum(["income", "expense"]),
+  bucket: z.string().trim().min(1, "항목을 고르세요."),
+  detail: z.string().trim().min(1, "내용을 입력하세요."),
+  amount: z.number().finite().nonnegative("금액은 0 이상이어야 합니다."),
+  claimant: z.string().trim().nullish(),
+  note: z.string().trim().nullish(),
+  taxClass,
 });
 
-export const PATCH = withApiHandler(async (req, { requestId }) => {
-  const body = await req.json().catch(() => null) as Record<string, unknown> | null;
-  if (!body) throw new ApiError("BAD_REQUEST", "JSON body is required.");
-  const id = requiredString(body.id, "id");
-  const result = await updateLedgerEntry(id, { claimant: typeof body.claimant === "string" ? body.claimant.trim() : null, note: typeof body.note === "string" ? body.note : null, detail: typeof body.detail === "string" && body.detail.trim() ? body.detail.trim() : undefined });
-  return { body: successBody(result.overview, requestId) };
+export const POST = withApiHandler(async (req, { member, requestId }) => {
+  const body = await parseBody(req, entry.extend({ periodId: z.string().optional() }));
+  const periodId = await createLedgerEntry(await periodFrom(body.periodId), { ...body, source: "Manual" });
+  return { body: await overviewBody(periodId, member, requestId), status: 201 };
+});
+
+export const PATCH = withApiHandler(async (req, { member, requestId }) => {
+  const { id, ...input } = await parseBody(req, entry.partial().extend({ id: z.string().min(1) }));
+  return { body: await overviewBody(await updateLedgerEntry(id, input), member, requestId) };
+});
+
+export const DELETE = withApiHandler(async (req, { member, requestId }) => {
+  const { id } = await parseBody(req, z.object({ id: z.string().min(1) }));
+  return { body: await overviewBody(await deleteLedgerEntry(id), member, requestId) };
 });

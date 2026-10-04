@@ -1,11 +1,11 @@
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { ApiError, successBody } from "@/nut/lib/errors";
+import { ApiError } from "@/nut/lib/errors";
 import {
   createBudgetNode,
-  getFinanceOverview,
   reorderBudgetNodes,
   updateBudgetNode,
 } from "@/nut/lib/financeRepository";
+import { overviewBody, periodFrom } from "@/nut/lib/respond";
 
 const levels = new Set(["major", "middle", "minor"]);
 const kinds = new Set(["income", "expense", "tax"]);
@@ -92,19 +92,20 @@ function nodeInput(body: Record<string, unknown>, partial = false) {
   return input;
 }
 
-export const POST = withApiHandler(async (req, { requestId }) => {
+export const POST = withApiHandler(async (req, { member, requestId }) => {
   const body = (await req.json().catch(() => null)) as Record<
     string,
     unknown
   > | null;
   if (!body) throw new ApiError("BAD_REQUEST", "JSON body is required.");
-  const result = await createBudgetNode(
-    nodeInput(body) as Parameters<typeof createBudgetNode>[0],
+  const periodId = await createBudgetNode(
+    await periodFrom(body.periodId),
+    nodeInput(body) as Parameters<typeof createBudgetNode>[1],
   );
-  return { body: successBody(result.overview, requestId), status: 201 };
+  return { body: await overviewBody(periodId, member, requestId), status: 201 };
 });
 
-export const PATCH = withApiHandler(async (req, { requestId }) => {
+export const PATCH = withApiHandler(async (req, { member, requestId }) => {
   const body = (await req.json().catch(() => null)) as Record<
     string,
     unknown
@@ -116,24 +117,24 @@ export const PATCH = withApiHandler(async (req, { requestId }) => {
       body.ids.some((id) => typeof id !== "string" || !id.trim())
     )
       throw new ApiError("BAD_REQUEST", "ids must contain bucket ids.");
-    const result = await reorderBudgetNodes(body.ids as string[]);
-    return { body: successBody(result.overview, requestId) };
+    const periodId = await reorderBudgetNodes(body.ids as string[]);
+    return { body: await overviewBody(periodId, member, requestId) };
   }
   const id = stringValue(body.id, "id");
-  const result = await updateBudgetNode(
+  const periodId = await updateBudgetNode(
     id,
     nodeInput(body, true) as Parameters<typeof updateBudgetNode>[1],
   );
-  return { body: successBody(result.overview, requestId) };
+  return { body: await overviewBody(periodId, member, requestId) };
 });
 
-export const DELETE = withApiHandler(async (req, { requestId }) => {
+export const DELETE = withApiHandler(async (req, { member, requestId }) => {
   const body = (await req.json().catch(() => null)) as Record<
     string,
     unknown
   > | null;
   if (!body) throw new ApiError("BAD_REQUEST", "JSON body is required.");
   const id = stringValue(body.id, "id");
-  const result = await updateBudgetNode(id, { active: false });
-  return { body: successBody(result.overview, requestId) };
+  const periodId = await updateBudgetNode(id, { active: false });
+  return { body: await overviewBody(periodId, member, requestId) };
 });
