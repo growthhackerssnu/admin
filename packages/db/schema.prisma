@@ -248,6 +248,21 @@ model GhbotAccessToken {
   @@schema("ghbot")
 }
 
+// ghbot MCP 서버의 OAuth 상태(동적 등록 클라이언트, 인가 코드, 액세스·리프레시
+// 토큰). ghbot이 컨테이너 디스크의 SQLite에 두던 것을 옮겼다 — 인스턴스가 내려가도
+// claude.ai 연결이 유지되게. 키는 "client:<id>" 또는 "<종류>:<sha256(비밀값)>"이라
+// 원문 토큰은 저장하지 않는다. ghbot은 내부 API(oauth-store)로만 접근한다.
+model GhbotOauthEntry {
+  key       String    @id
+  data      Json
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("oauth_entries")
+  @@schema("ghbot")
+}
+
 // 노션 People DB(액팅+알럼나이 전체)에서 가져온 "신뢰 이메일" 원장
 // (apps/backend(portal)의 npm run people:import로 동기화). 딱 하나만 한다: 가입 신청 시 기수+이름으로
 // 이 테이블을 찾아 knownEmail로 OTP를 보내서 "진짜 명단에 있는 사람"인지
