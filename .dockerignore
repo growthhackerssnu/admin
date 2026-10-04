@@ -1,0 +1,12 @@
+**/node_modules
+**/.next
+**/src/generated
+**/.env
+**/.env.*
+!**/.env.example
+.git
+apps/frontend
+prototypes
+docs
+*.xlsx
+*.md
