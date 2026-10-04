@@ -4,7 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { normalizeCohort, normalizeName } from "@/portal/lib/normalize";
 import { generateOtp, hashOtp, maskEmail, OTP_RESEND_COOLDOWN_MS, OTP_TTL_MS } from "@/portal/lib/otp";
 import { sendOtpEmail } from "@/portal/lib/resend";
+import { syncPeopleDirectory } from "@/portal/lib/peopleDirectorySync";
 import { signupRequestSchema } from "@/portal/lib/validation/auth";
+
+const DIRECTORY_SYNC_COOLDOWN_MS = 60_000;
+let lastDirectorySyncAt = 0;
 
 // POST /api/auth/signup-requests
 // 기수+이름+원하는 구글 이메일 -> people_directory에서 대조 -> 매칭되면 그
@@ -21,9 +25,22 @@ export const POST = withPublicApiHandler(async (req, { requestId }) => {
   }
   const { cohort, name, desiredEmail } = parsed.data;
 
-  const matches = await prisma.peopleDirectory.findMany({
-    where: { cohortNormalized: normalizeCohort(cohort), nameNormalized: normalizeName(name) },
-  });
+  const where = { cohortNormalized: normalizeCohort(cohort), nameNormalized: normalizeName(name) };
+  let matches = await prisma.peopleDirectory.findMany({ where });
+
+  // 명단에 없으면 노션이 더 최신일 수 있다(새 기수 추가 직후 등). 노션에서
+  // 동기화한 뒤 한 번 더 찾는다. 공개 엔드포인트라 오타마다 노션을 긁지 않게
+  // 인스턴스당 1분에 한 번만.
+  // ponytail: in-memory throttle, 인스턴스가 여러 개면 인스턴스마다 따로 센다.
+  if (matches.length === 0 && Date.now() - lastDirectorySyncAt > DIRECTORY_SYNC_COOLDOWN_MS) {
+    lastDirectorySyncAt = Date.now();
+    try {
+      await syncPeopleDirectory();
+      matches = await prisma.peopleDirectory.findMany({ where });
+    } catch (error) {
+      console.error(`[${requestId}] people_directory sync failed`, error);
+    }
+  }
 
   if (matches.length === 0) {
     throw new ApiError(
