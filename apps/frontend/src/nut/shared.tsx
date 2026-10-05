@@ -8,7 +8,9 @@ export function money(value: number) {
 // 수입은 +, 지출은 −를 붙인다. 거래 내역처럼 방향이 중요한 곳에서만 쓴다.
 export function signed(value: number) {
   if (value === 0) return "0원";
-  return (value > 0 ? "+" : "−") + Math.abs(value).toLocaleString("ko-KR") + "원";
+  return (
+    (value > 0 ? "+" : "−") + Math.abs(value).toLocaleString("ko-KR") + "원"
+  );
 }
 
 export function dateLabel(value: string) {
@@ -39,12 +41,18 @@ export function defaultDate(period: { start: string; end: string }) {
 }
 
 export function taxClassFor(kind: "income" | "expense" | "tax"): TaxClass {
-  return kind === "income" ? "taxable_gain" : kind === "tax" ? "tax" : "tax_deductible_expense";
+  return kind === "income"
+    ? "taxable_gain"
+    : kind === "tax"
+      ? "tax"
+      : "tax_deductible_expense";
 }
 
 // 거래·청구서에서 고를 수 있는 항목: 지출은 예산의 가장 아래 항목, 수입은 수입 계획 줄.
 export function expenseCategories(data: FinanceOverview) {
-  const parents = new Set(data.budgetTree.map((node) => node.parentId).filter(Boolean));
+  const parents = new Set(
+    data.budgetTree.map((node) => node.parentId).filter(Boolean),
+  );
   return data.budgetTree.filter(
     (node) => node.kind === "expense" && !parents.has(node.id),
   );
@@ -52,14 +60,18 @@ export function expenseCategories(data: FinanceOverview) {
 
 export function incomeCategories(data: FinanceOverview) {
   const names = new Set<string>(data.incomeLines.map((line) => line.name));
-  data.ledger.filter((entry) => entry.type === "income").forEach((entry) => names.add(entry.bucket));
+  data.ledger
+    .filter((entry) => entry.type === "income")
+    .forEach((entry) => names.add(entry.bucket));
   return [...names];
 }
 
 // 항목이 속한 대분류 이름. 목록에서 "어디에 쓴 돈인지"를 한눈에 보여주는 데 쓴다.
 export function majorOf(data: FinanceOverview, name: string) {
   const byId = new Map(data.budgetTree.map((node) => [node.id, node]));
-  let node: BudgetNode | undefined = data.budgetTree.find((item) => item.name === name);
+  let node: BudgetNode | undefined = data.budgetTree.find(
+    (item) => item.name === name,
+  );
   while (node?.parentId) node = byId.get(node.parentId);
   return node && node.name !== name ? node.name : undefined;
 }
@@ -67,7 +79,10 @@ export function majorOf(data: FinanceOverview, name: string) {
 type NutContextValue = {
   data: FinanceOverview;
   // 저장 요청을 보내고, 성공하면 화면 데이터를 바꾸고 안내를 띄운다. 실패하면 false.
-  run: (action: () => Promise<FinanceOverview>, success: string) => Promise<boolean>;
+  run: (
+    action: () => Promise<FinanceOverview>,
+    success: string,
+  ) => Promise<boolean>;
   isPastPeriod: boolean;
 };
 
@@ -79,7 +94,15 @@ export function useNut() {
   return value;
 }
 
-export function Meter({ used, total, label }: { used: number; total: number; label: string }) {
+export function Meter({
+  used,
+  total,
+  label,
+}: {
+  used: number;
+  total: number;
+  label: string;
+}) {
   const ratio = total > 0 ? used / total : used > 0 ? 1.01 : 0;
   const state = ratio > 1 ? "over" : ratio >= 0.85 ? "near" : "ok";
   return (

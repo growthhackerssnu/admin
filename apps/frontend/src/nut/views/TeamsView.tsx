@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { accountingApi } from "../api";
 import { defaultDate, Meter, money, shortDate, useNut } from "../shared";
+import { EntryShell } from "./LedgerView";
 import type { AccountingDetail, AccountingSummary } from "../types";
 
 type Scope = "project" | "team";
@@ -13,9 +14,17 @@ export default function TeamsView() {
   const { data } = useNut();
   const [scope, setScope] = useState<Scope>("project");
   const [adding, setAdding] = useState(false);
-  const teams = data.accountingSummaries.filter((summary) => summary.scope === scope);
-  const budget = teams.reduce((sum, team) => sum + team.supportBudget + team.technicalBudget, 0);
-  const spent = teams.reduce((sum, team) => sum + team.supportSpent + team.technicalSpent, 0);
+  const teams = data.accountingSummaries.filter(
+    (summary) => summary.scope === scope,
+  );
+  const budget = teams.reduce(
+    (sum, team) => sum + team.supportBudget + team.technicalBudget,
+    0,
+  );
+  const spent = teams.reduce(
+    (sum, team) => sum + team.supportSpent + team.technicalSpent,
+    0,
+  );
 
   return (
     <div className="nut-teams">
@@ -32,15 +41,22 @@ export default function TeamsView() {
           }}
         />
         <p className="nut-summary-line">
-          지원비 {money(budget)} 중 {money(spent)} 사용 · 남음 <b>{money(budget - spent)}</b>
+          지원비 {money(budget)} 중 {money(spent)} 사용 · 남음{" "}
+          <b>{money(budget - spent)}</b>
         </p>
         <span className="nut-spacer" />
-        <Button onClick={() => setAdding(true)}>{scope === "project" ? "프로젝트 팀 추가" : "운영팀 추가"}</Button>
+        {data.viewer.canEdit && (
+          <Button onClick={() => setAdding(true)}>
+            {scope === "project" ? "프로젝트 팀 추가" : "운영팀 추가"}
+          </Button>
+        )}
       </div>
       {adding && <TeamForm scope={scope} onDone={() => setAdding(false)} />}
       {teams.length === 0 && !adding ? (
         <p className="nut-empty">
-          {scope === "project" ? "이 반기에 등록된 프로젝트 팀이 없습니다." : "이 반기에 등록된 운영팀이 없습니다."} 오른쪽 위에서 추가하세요.
+          {scope === "project"
+            ? "이 반기에 등록된 프로젝트 팀이 없습니다."
+            : "이 반기에 등록된 운영팀이 없습니다."}
         </p>
       ) : (
         <div className="nut-team-list">
@@ -48,7 +64,10 @@ export default function TeamsView() {
             <TeamSection
               key={team.id}
               team={team}
-              entries={data.accountingDetails.filter((detail) => detail.scope === team.scope && detail.owner === team.name)}
+              entries={data.accountingDetails.filter(
+                (detail) =>
+                  detail.scope === team.scope && detail.owner === team.name,
+              )}
             />
           ))}
         </div>
@@ -57,11 +76,21 @@ export default function TeamsView() {
   );
 }
 
-function TeamSection({ team, entries }: { team: AccountingSummary; entries: AccountingDetail[] }) {
+function TeamSection({
+  team,
+  entries,
+}: {
+  team: AccountingSummary;
+  entries: AccountingDetail[];
+}) {
+  const { data } = useNut();
+  const canEdit = data.viewer.canEdit;
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const categories = (["support", "technical"] as const).filter((category) =>
-    category === "support" ? team.supportBudget > 0 || team.supportSpent > 0 : team.technicalBudget > 0 || team.technicalSpent > 0,
+    category === "support"
+      ? team.supportBudget > 0 || team.supportSpent > 0
+      : team.technicalBudget > 0 || team.technicalSpent > 0,
   );
 
   return (
@@ -77,25 +106,49 @@ function TeamSection({ team, entries }: { team: AccountingSummary; entries: Acco
           <strong>{team.name}</strong>
           <span className="nut-team__count">내역 {team.entryCount}건</span>
         </button>
-        <Button type="text" size="small" onClick={() => setEditing((value) => !value)}>
-          예산 수정
-        </Button>
+        {canEdit && (
+          <Button
+            type="text"
+            size="small"
+            onClick={() => setEditing((value) => !value)}
+          >
+            예산 수정
+          </Button>
+        )}
       </header>
-      {editing && <TeamForm scope={team.scope} team={team} onDone={() => setEditing(false)} />}
+      {editing && (
+        <TeamForm
+          scope={team.scope}
+          team={team}
+          onDone={() => setEditing(false)}
+        />
+      )}
       <div className="nut-team__meters">
-        {categories.length === 0 && <p className="nut-hint">아직 지원비 예산이 없습니다. '예산 수정'에서 정하세요.</p>}
+        {categories.length === 0 && (
+          <p className="nut-hint">아직 지원비 예산이 없습니다.</p>
+        )}
         {categories.map((category) => {
-          const budget = category === "support" ? team.supportBudget : team.technicalBudget;
-          const used = category === "support" ? team.supportSpent : team.technicalSpent;
+          const budget =
+            category === "support" ? team.supportBudget : team.technicalBudget;
+          const used =
+            category === "support" ? team.supportSpent : team.technicalSpent;
           return (
             <div key={category} className="nut-team__meter">
               <div className="nut-budget-row__top">
                 <span>{categoryName[category]}</span>
-                <span className={budget - used < 0 ? "nut-negative" : undefined}>
-                  {budget - used < 0 ? `${money(used - budget)} 초과` : `${money(budget - used)} 남음`}
+                <span
+                  className={budget - used < 0 ? "nut-negative" : undefined}
+                >
+                  {budget - used < 0
+                    ? `${money(used - budget)} 초과`
+                    : `${money(budget - used)} 남음`}
                 </span>
               </div>
-              <Meter used={used} total={budget} label={`${team.name} ${categoryName[category]}`} />
+              <Meter
+                used={used}
+                total={budget}
+                label={`${team.name} ${categoryName[category]}`}
+              />
               <span className="nut-budget-row__sub">
                 {money(used)} / {money(budget)}
               </span>
@@ -105,7 +158,7 @@ function TeamSection({ team, entries }: { team: AccountingSummary; entries: Acco
       </div>
       {open && (
         <div className="nut-team__body">
-          <EntryForm team={team} />
+          {canEdit && <EntryForm team={team} />}
           {entries.length === 0 ? (
             <p className="nut-empty">아직 쓴 내역이 없습니다.</p>
           ) : (
@@ -125,7 +178,9 @@ function EntryForm({ team }: { team: AccountingSummary }) {
   const { data, run } = useNut();
   const empty = {
     date: defaultDate(data.period),
-    category: (team.supportBudget > 0 || team.technicalBudget === 0 ? "support" : "technical") as "support" | "technical",
+    category: (team.supportBudget > 0 || team.technicalBudget === 0
+      ? "support"
+      : "technical") as "support" | "technical",
     detail: "",
     amount: null as number | null,
     claimant: "",
@@ -140,10 +195,17 @@ function EntryForm({ team }: { team: AccountingSummary }) {
         event.preventDefault();
         if (!ready) return;
         const ok = await run(
-          () => accountingApi.addEntry(data.period.id, { ...value, amount: value.amount!, scope: team.scope, owner: team.name }),
+          () =>
+            accountingApi.addEntry(data.period.id, {
+              ...value,
+              amount: value.amount!,
+              scope: team.scope,
+              owner: team.name,
+            }),
           `${team.name} ${money(value.amount!)} 사용을 기록했습니다.`,
         );
-        if (ok) setValue({ ...empty, date: value.date, category: value.category });
+        if (ok)
+          setValue({ ...empty, date: value.date, category: value.category });
       }}
     >
       <Input
@@ -176,7 +238,9 @@ function EntryForm({ team }: { team: AccountingSummary }) {
         min={0}
         addonAfter="원"
         value={value.amount}
-        formatter={(amount) => (amount ? Number(amount).toLocaleString("ko-KR") : "")}
+        formatter={(amount) =>
+          amount ? Number(amount).toLocaleString("ko-KR") : ""
+        }
         parser={(amount) => Number((amount ?? "").replace(/[^\d]/g, ""))}
         onChange={(amount) => setValue({ ...value, amount })}
       />
@@ -185,7 +249,9 @@ function EntryForm({ team }: { team: AccountingSummary }) {
         className="nut-quick-add__claimant"
         placeholder="쓴 사람 (선택)"
         value={value.claimant}
-        onChange={(event) => setValue({ ...value, claimant: event.target.value })}
+        onChange={(event) =>
+          setValue({ ...value, claimant: event.target.value })
+        }
       />
       <Button type="primary" htmlType="submit" disabled={!ready}>
         기록
@@ -195,9 +261,14 @@ function EntryForm({ team }: { team: AccountingSummary }) {
 }
 
 function EntryRow({ entry }: { entry: AccountingDetail }) {
-  const { run } = useNut();
+  const { data, run } = useNut();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState({ date: entry.date, detail: entry.detail, amount: entry.amount, claimant: entry.claimant ?? "" });
+  const [value, setValue] = useState({
+    date: entry.date,
+    detail: entry.detail,
+    amount: entry.amount,
+    claimant: entry.claimant ?? "",
+  });
 
   if (editing)
     return (
@@ -205,11 +276,22 @@ function EntryRow({ entry }: { entry: AccountingDetail }) {
         <div className="nut-entry-editor__fields">
           <label>
             날짜
-            <Input type="date" value={value.date} onChange={(event) => setValue({ ...value, date: event.target.value })} />
+            <Input
+              type="date"
+              value={value.date}
+              onChange={(event) =>
+                setValue({ ...value, date: event.target.value })
+              }
+            />
           </label>
           <label className="nut-entry-editor__wide">
             내용
-            <Input value={value.detail} onChange={(event) => setValue({ ...value, detail: event.target.value })} />
+            <Input
+              value={value.detail}
+              onChange={(event) =>
+                setValue({ ...value, detail: event.target.value })
+              }
+            />
           </label>
           <label>
             금액
@@ -217,14 +299,21 @@ function EntryRow({ entry }: { entry: AccountingDetail }) {
               min={0}
               addonAfter="원"
               value={value.amount}
-              formatter={(amount) => (amount ? Number(amount).toLocaleString("ko-KR") : "")}
+              formatter={(amount) =>
+                amount ? Number(amount).toLocaleString("ko-KR") : ""
+              }
               parser={(amount) => Number((amount ?? "").replace(/[^\d]/g, ""))}
               onChange={(amount) => setValue({ ...value, amount: amount ?? 0 })}
             />
           </label>
           <label>
             쓴 사람
-            <Input value={value.claimant} onChange={(event) => setValue({ ...value, claimant: event.target.value })} />
+            <Input
+              value={value.claimant}
+              onChange={(event) =>
+                setValue({ ...value, claimant: event.target.value })
+              }
+            />
           </label>
         </div>
         <div className="nut-entry-editor__actions">
@@ -233,7 +322,12 @@ function EntryRow({ entry }: { entry: AccountingDetail }) {
             okText="지우기"
             cancelText="그대로 두기"
             okButtonProps={{ danger: true }}
-            onConfirm={() => void run(() => accountingApi.removeEntry(entry.id), "내역을 지웠습니다.")}
+            onConfirm={() =>
+              void run(
+                () => accountingApi.removeEntry(entry.id),
+                "내역을 지웠습니다.",
+              )
+            }
           >
             <Button type="text" danger>
               지우기
@@ -245,7 +339,13 @@ function EntryRow({ entry }: { entry: AccountingDetail }) {
             type="primary"
             disabled={!value.detail.trim()}
             onClick={async () => {
-              if (await run(() => accountingApi.updateEntry(entry.id, value), "내역을 고쳤습니다.")) setEditing(false);
+              if (
+                await run(
+                  () => accountingApi.updateEntry(entry.id, value),
+                  "내역을 고쳤습니다.",
+                )
+              )
+                setEditing(false);
             }}
           >
             저장
@@ -256,7 +356,11 @@ function EntryRow({ entry }: { entry: AccountingDetail }) {
 
   return (
     <li>
-      <button type="button" className="nut-entry" onClick={() => setEditing(true)} aria-label={`${entry.detail} 수정`}>
+      <EntryShell
+        canEdit={data.viewer.canEdit}
+        onEdit={() => setEditing(true)}
+        label={`${entry.detail} 수정`}
+      >
         <span className="nut-entry__main">
           <strong>{entry.detail}</strong>
           <span>
@@ -265,15 +369,27 @@ function EntryRow({ entry }: { entry: AccountingDetail }) {
           </span>
         </span>
         <span className="nut-entry__end">
-          <span className="nut-amount nut-amount--expense">−{entry.amount.toLocaleString("ko-KR")}원</span>
-          <span className="nut-entry__balance">남음 {money(entry.balance)}</span>
+          <span className="nut-amount nut-amount--expense">
+            −{entry.amount.toLocaleString("ko-KR")}원
+          </span>
+          <span className="nut-entry__balance">
+            남음 {money(entry.balance)}
+          </span>
         </span>
-      </button>
+      </EntryShell>
     </li>
   );
 }
 
-function TeamForm({ scope, team, onDone }: { scope: Scope; team?: AccountingSummary; onDone: () => void }) {
+function TeamForm({
+  scope,
+  team,
+  onDone,
+}: {
+  scope: Scope;
+  team?: AccountingSummary;
+  onDone: () => void;
+}) {
   const { data, run } = useNut();
   const [value, setValue] = useState({
     name: team?.name ?? "",
@@ -286,15 +402,27 @@ function TeamForm({ scope, team, onDone }: { scope: Scope; team?: AccountingSumm
       onSubmit={async (event) => {
         event.preventDefault();
         const ok = await run(
-          () => accountingApi.saveTeam(data.period.id, { id: team?.id, scope, ...value, name: value.name.trim() }),
-          team ? `${value.name} 예산을 고쳤습니다.` : `${value.name}을 추가했습니다.`,
+          () =>
+            accountingApi.saveTeam(data.period.id, {
+              id: team?.id,
+              scope,
+              ...value,
+              name: value.name.trim(),
+            }),
+          team
+            ? `${value.name} 예산을 고쳤습니다.`
+            : `${value.name}을 추가했습니다.`,
         );
         if (ok) onDone();
       }}
     >
       <label>
         {scope === "project" ? "프로젝트 팀 이름" : "운영팀 이름"}
-        <Input autoFocus value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} />
+        <Input
+          autoFocus
+          value={value.name}
+          onChange={(event) => setValue({ ...value, name: event.target.value })}
+        />
       </label>
       <label>
         팀지원비 예산
@@ -302,9 +430,13 @@ function TeamForm({ scope, team, onDone }: { scope: Scope; team?: AccountingSumm
           min={0}
           addonAfter="원"
           value={value.supportBudget}
-          formatter={(amount) => (amount ? Number(amount).toLocaleString("ko-KR") : "")}
+          formatter={(amount) =>
+            amount ? Number(amount).toLocaleString("ko-KR") : ""
+          }
           parser={(amount) => Number((amount ?? "").replace(/[^\d]/g, ""))}
-          onChange={(amount) => setValue({ ...value, supportBudget: amount ?? 0 })}
+          onChange={(amount) =>
+            setValue({ ...value, supportBudget: amount ?? 0 })
+          }
         />
       </label>
       <label>
@@ -313,9 +445,13 @@ function TeamForm({ scope, team, onDone }: { scope: Scope; team?: AccountingSumm
           min={0}
           addonAfter="원"
           value={value.technicalBudget}
-          formatter={(amount) => (amount ? Number(amount).toLocaleString("ko-KR") : "")}
+          formatter={(amount) =>
+            amount ? Number(amount).toLocaleString("ko-KR") : ""
+          }
           parser={(amount) => Number((amount ?? "").replace(/[^\d]/g, ""))}
-          onChange={(amount) => setValue({ ...value, technicalBudget: amount ?? 0 })}
+          onChange={(amount) =>
+            setValue({ ...value, technicalBudget: amount ?? 0 })
+          }
         />
       </label>
       <div className="nut-form-actions">
@@ -326,7 +462,13 @@ function TeamForm({ scope, team, onDone }: { scope: Scope; team?: AccountingSumm
             cancelText="그대로 두기"
             okButtonProps={{ danger: true }}
             onConfirm={async () => {
-              if (await run(() => accountingApi.removeTeam(team.id), `${team.name}을 지웠습니다.`)) onDone();
+              if (
+                await run(
+                  () => accountingApi.removeTeam(team.id),
+                  `${team.name}을 지웠습니다.`,
+                )
+              )
+                onDone();
             }}
           >
             <Button type="text" danger>

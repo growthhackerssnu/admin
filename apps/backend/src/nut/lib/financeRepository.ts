@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
-// 화면을 보는 사람. 청구서 계좌번호는 처리 권한자와 본인에게만 보인다.
-export type FinanceViewer = { memberId: string; canManageClaims: boolean };
+// 화면을 보는 사람. 청구서 계좌번호는 수정 권한자(총무·admin)와 본인에게만 보인다.
+export type FinanceViewer = { memberId: string; canEdit: boolean };
 
 // 요청한 반기가 없으면 오늘이 속한 반기, 그것도 없으면 가장 최근 반기.
 export async function resolvePeriodId(requested?: string | null, db: DbClient = prisma) {
@@ -485,7 +485,7 @@ export async function getFinanceOverview(
       start: dateOnly(item.periodStart),
       end: dateOnly(item.periodEnd),
     })),
-    viewer: { canManageClaims: viewer.canManageClaims },
+    viewer: { canEdit: viewer.canEdit },
     period: {
       id: period.id,
       label: period.label,
@@ -542,7 +542,7 @@ export async function getFinanceOverview(
     ledger,
     ...accountingView(accountingSummaries, accountingDetails),
     claims: claims.map((claim) => {
-      const canSeeAccount = viewer.canManageClaims || claim.memberId === viewer.memberId;
+      const canSeeAccount = viewer.canEdit || claim.memberId === viewer.memberId;
       return {
         id: claim.id,
         date: dateOnly(claim.date),
@@ -951,15 +951,6 @@ export async function actOnClaim(
     }
     return claim.periodId;
   });
-}
-
-// 본인 청구서는 검토 중일 때만 취소(삭제)할 수 있다.
-export async function cancelOwnClaim(id: string, memberId: string) {
-  const claim = await prisma.nutClaim.findUniqueOrThrow({ where: { id } });
-  if (claim.memberId !== memberId) throw new ClaimStateError("본인이 올린 청구서만 취소할 수 있습니다.");
-  if (claim.status !== "review") throw new ClaimStateError("검토 중인 청구서만 취소할 수 있습니다.");
-  await prisma.nutClaim.delete({ where: { id } });
-  return claim.periodId;
 }
 
 // ---------- 프로젝트·운영팀 지원비 ----------

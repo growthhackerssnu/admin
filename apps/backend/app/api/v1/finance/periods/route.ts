@@ -1,12 +1,10 @@
 import { z } from "zod";
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { ApiError } from "@/nut/lib/errors";
 import { createPeriod } from "@/nut/lib/financeRepository";
-import { canManageClaims, dateString, overviewBody, parseBody } from "@/nut/lib/respond";
+import { dateString, overviewBody, parseBody } from "@/nut/lib/respond";
 
-// 새 반기 시작. 이전 반기의 예산 구조·변수·운영팀을 복사한다. 총무·회장단만.
+// 새 반기 시작. 이전 반기의 예산 구조·변수·운영팀을 복사한다. 총무·admin만(apiHandler).
 export const POST = withApiHandler(async (req, { member, requestId }) => {
-  if (!canManageClaims(member)) throw new ApiError("FORBIDDEN", "새 반기는 총무·회장단만 만들 수 있습니다.");
   const body = await parseBody(
     req,
     z

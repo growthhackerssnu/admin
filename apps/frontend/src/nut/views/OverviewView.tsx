@@ -4,11 +4,17 @@ import { Meter, money, shortDate, signed, useNut } from "../shared";
 type Tab = "ledger" | "claims" | "budget" | "teams";
 
 // 요약: "지금 얼마 있고, 처리할 게 뭐고, 예산은 어디가 빠듯한가"를 한 화면에.
-export default function OverviewView({ onOpen }: { onOpen: (tab: Tab) => void }) {
+export default function OverviewView({
+  onOpen,
+}: {
+  onOpen: (tab: Tab) => void;
+}) {
   const { data } = useNut();
-  const manage = data.viewer.canManageClaims;
+  const manage = data.viewer.canEdit;
   const pending = data.claims.filter((claim) =>
-    manage ? claim.status === "review" || claim.status === "approved" : claim.mine && claim.status !== "paid",
+    manage
+      ? claim.status === "review" || claim.status === "approved"
+      : claim.mine && claim.status !== "paid",
   );
   const majors = data.budgetTree
     .filter((node) => node.parentId === null && node.kind === "expense")
@@ -48,12 +54,14 @@ export default function OverviewView({ onOpen }: { onOpen: (tab: Tab) => void })
           <header className="nut-panel__head">
             <h2 id="todo-title">{manage ? "처리할 청구서" : "내 청구서"}</h2>
             <Button type="link" onClick={() => onOpen("claims")}>
-              {manage ? "청구서로 가기" : "청구하기"}
+              청구서로 가기
             </Button>
           </header>
           {pending.length === 0 ? (
             <p className="nut-empty">
-              {manage ? "처리할 청구서가 없습니다." : "진행 중인 청구서가 없습니다. 학회 돈으로 먼저 결제했다면 청구하세요."}
+              {manage
+                ? "처리할 청구서가 없습니다."
+                : "진행 중인 청구서가 없습니다. 청구는 Slack 청구서 워크플로로 올립니다."}
             </p>
           ) : (
             <ul className="nut-list">
@@ -62,12 +70,15 @@ export default function OverviewView({ onOpen }: { onOpen: (tab: Tab) => void })
                   <div>
                     <strong>{claim.detail}</strong>
                     <span>
-                      {claim.claimant} · {shortDate(claim.date)} · {claim.bucket}
+                      {claim.claimant} · {shortDate(claim.date)} ·{" "}
+                      {claim.bucket}
                     </span>
                   </div>
                   <div className="nut-list__end">
                     <span className="nut-amount">{money(claim.amount)}</span>
-                    <span className={"nut-status nut-status--" + claim.status}>{statusLabel[claim.status]}</span>
+                    <span className={"nut-status nut-status--" + claim.status}>
+                      {statusLabel[claim.status]}
+                    </span>
                   </div>
                 </li>
               ))}
@@ -92,11 +103,19 @@ export default function OverviewView({ onOpen }: { onOpen: (tab: Tab) => void })
               <li key={node.id} className="nut-budget-row">
                 <div className="nut-budget-row__top">
                   <strong>{node.name}</strong>
-                  <span className={node.remaining < 0 ? "nut-negative" : undefined}>
-                    {node.remaining < 0 ? `${money(-node.remaining)} 초과` : `${money(node.remaining)} 남음`}
+                  <span
+                    className={node.remaining < 0 ? "nut-negative" : undefined}
+                  >
+                    {node.remaining < 0
+                      ? `${money(-node.remaining)} 초과`
+                      : `${money(node.remaining)} 남음`}
                   </span>
                 </div>
-                <Meter used={node.actual} total={node.budget} label={`${node.name} 예산 사용`} />
+                <Meter
+                  used={node.actual}
+                  total={node.budget}
+                  label={`${node.name} 예산 사용`}
+                />
                 <span className="nut-budget-row__sub">
                   {money(node.actual)} / {money(node.budget)}
                 </span>
@@ -127,7 +146,9 @@ export default function OverviewView({ onOpen }: { onOpen: (tab: Tab) => void })
                   </span>
                 </div>
                 <span className={"nut-amount nut-amount--" + entry.type}>
-                  {signed(entry.type === "income" ? entry.amount : -entry.amount)}
+                  {signed(
+                    entry.type === "income" ? entry.amount : -entry.amount,
+                  )}
                 </span>
               </li>
             ))}

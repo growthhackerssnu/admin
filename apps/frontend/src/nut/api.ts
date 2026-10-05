@@ -51,7 +51,11 @@ export function fetchOverview(periodId?: string) {
 }
 
 // 모든 쓰기 API는 바뀐 반기의 전체 화면 데이터를 돌려준다.
-function send(path: string, method: "POST" | "PATCH" | "DELETE", body: unknown) {
+function send(
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body: unknown,
+) {
   return request<FinanceOverview>(`/api/v1/finance/${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -78,19 +82,7 @@ export const ledgerApi = {
   remove: (id: string) => send("ledger", "DELETE", { id }),
 };
 
-export type ClaimInput = {
-  date: string;
-  detail: string;
-  amount: number;
-  bucket: string;
-  bankAccount?: string;
-  prepaid: boolean;
-  note?: string;
-};
-
 export const claimApi = {
-  create: (periodId: string, input: ClaimInput) =>
-    send("claims", "POST", { periodId, ...input }),
   approve: (id: string, bucket?: string) =>
     send("claims", "PATCH", { id, type: "approve", bucket }),
   reject: (id: string, reason: string) =>
@@ -98,7 +90,6 @@ export const claimApi = {
   reopen: (id: string) => send("claims", "PATCH", { id, type: "reopen" }),
   pay: (id: string, date: string, bucket?: string) =>
     send("claims", "PATCH", { id, type: "pay", date, bucket }),
-  cancel: (id: string) => send("claims", "DELETE", { id }),
 };
 
 export type TeamInput = {
@@ -127,7 +118,8 @@ export const accountingApi = {
       periodId,
       ...input,
     }),
-  removeTeam: (id: string) => send("accounting", "DELETE", { kind: "team", id }),
+  removeTeam: (id: string) =>
+    send("accounting", "DELETE", { kind: "team", id }),
   addEntry: (periodId: string, input: TeamEntryInput) =>
     send("accounting", "POST", { kind: "entry", periodId, ...input }),
   updateEntry: (id: string, input: Partial<TeamEntryInput>) =>
@@ -152,7 +144,9 @@ export const budgetApi = {
     send("budget-nodes", "POST", { periodId, ...input }),
   updateNode: (
     id: string,
-    input: Partial<Pick<BudgetNodeInput, "name" | "budget" | "formulaExpression" | "note">>,
+    input: Partial<
+      Pick<BudgetNodeInput, "name" | "budget" | "formulaExpression" | "note">
+    >,
   ) => send("budget-nodes", "PATCH", { id, ...input }),
   removeNode: (id: string) => send("budget-nodes", "DELETE", { id }),
   reorder: (ids: string[]) => send("budget-nodes", "PATCH", { ids }),
@@ -160,7 +154,13 @@ export const budgetApi = {
     send("parameters", "PATCH", { periodId, id, value }),
   createParameter: (
     periodId: string,
-    input: { id: string; label: string; value: number; unit: string; description: string },
+    input: {
+      id: string;
+      label: string;
+      value: number;
+      unit: string;
+      description: string;
+    },
   ) => send("parameters", "POST", { periodId, ...input }),
   removeParameter: (periodId: string, id: string) =>
     send("parameters", "DELETE", { periodId, id }),

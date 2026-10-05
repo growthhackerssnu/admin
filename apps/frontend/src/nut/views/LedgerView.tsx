@@ -14,16 +14,29 @@ import {
 } from "../shared";
 import type { LedgerEntry } from "../types";
 
-type Draft = Omit<LedgerInput, "taxClass" | "amount"> & { amount: number | null };
+type Draft = Omit<LedgerInput, "taxClass" | "amount"> & {
+  amount: number | null;
+};
 
 function emptyDraft(date: string): Draft {
-  return { date, type: "expense", bucket: "", detail: "", amount: null, claimant: "", note: "" };
+  return {
+    date,
+    type: "expense",
+    bucket: "",
+    detail: "",
+    amount: null,
+    claimant: "",
+    note: "",
+  };
 }
 
 // 거래 내역: 가계부처럼 날짜별로 묶어서 보여주고, 맨 위에서 바로 기록한다.
 export default function LedgerView() {
   const { data, run } = useNut();
-  const [draft, setDraft] = useState<Draft>(() => emptyDraft(defaultDate(data.period)));
+  const canEdit = data.viewer.canEdit;
+  const [draft, setDraft] = useState<Draft>(() =>
+    emptyDraft(defaultDate(data.period)),
+  );
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -31,9 +44,17 @@ export default function LedgerView() {
   const [month, setMonth] = useState<number | null>(null);
   const [type, setType] = useState<"all" | "income" | "expense">("all");
 
-  const expenseOptions = expenseCategories(data).map((node) => ({ value: node.name, label: node.name }));
-  const incomeOptions = incomeCategories(data).map((name) => ({ value: name, label: name }));
-  const months = [...new Set(data.ledger.map((entry) => entry.month))].sort((a, b) => a - b);
+  const expenseOptions = expenseCategories(data).map((node) => ({
+    value: node.name,
+    label: node.name,
+  }));
+  const incomeOptions = incomeCategories(data).map((name) => ({
+    value: name,
+    label: name,
+  }));
+  const months = [...new Set(data.ledger.map((entry) => entry.month))].sort(
+    (a, b) => a - b,
+  );
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -43,24 +64,36 @@ export default function LedgerView() {
         (!category || entry.bucket === category) &&
         (!month || entry.month === month) &&
         (!term ||
-          [entry.detail, entry.bucket, entry.claimant, entry.note].some((value) =>
-            value?.toLowerCase().includes(term),
+          [entry.detail, entry.bucket, entry.claimant, entry.note].some(
+            (value) => value?.toLowerCase().includes(term),
           )),
     );
   }, [data.ledger, query, category, month, type]);
 
   const groups = useMemo(() => {
     const byDate = new Map<string, LedgerEntry[]>();
-    [...filtered].reverse().forEach((entry) => byDate.set(entry.date, [...(byDate.get(entry.date) ?? []), entry]));
+    [...filtered]
+      .reverse()
+      .forEach((entry) =>
+        byDate.set(entry.date, [...(byDate.get(entry.date) ?? []), entry]),
+      );
     return [...byDate];
   }, [filtered]);
 
   const totals = filtered.reduce(
-    (sum, entry) => ({ income: sum.income + entry.income, expense: sum.expense + entry.expense }),
+    (sum, entry) => ({
+      income: sum.income + entry.income,
+      expense: sum.expense + entry.expense,
+    }),
     { income: 0, expense: 0 },
   );
   const filtering = Boolean(query || category || month || type !== "all");
-  const canSave = draft.bucket && draft.detail.trim() && draft.amount && draft.amount > 0 && draft.date;
+  const canSave =
+    draft.bucket &&
+    draft.detail.trim() &&
+    draft.amount &&
+    draft.amount > 0 &&
+    draft.date;
 
   async function add() {
     if (!canSave) return;
@@ -75,75 +108,99 @@ export default function LedgerView() {
       `${draft.detail} ${money(draft.amount!)}을 기록했습니다.`,
     );
     setSaving(false);
-    if (ok) setDraft({ ...emptyDraft(draft.date), type: draft.type, bucket: draft.bucket });
+    if (ok)
+      setDraft({
+        ...emptyDraft(draft.date),
+        type: draft.type,
+        bucket: draft.bucket,
+      });
   }
 
   return (
     <div className="nut-ledger">
-      <form
-        className="nut-quick-add"
-        aria-label="거래 기록"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void add();
-        }}
-      >
-        <Segmented
-          value={draft.type}
-          options={[
-            { value: "expense", label: "지출" },
-            { value: "income", label: "수입" },
-          ]}
-          onChange={(value) => setDraft({ ...draft, type: value as Draft["type"], bucket: "" })}
-        />
-        <Input
-          type="date"
-          aria-label="날짜"
-          className="nut-quick-add__date"
-          value={draft.date}
-          min={data.period.start}
-          max={data.period.end}
-          onChange={(event) => setDraft({ ...draft, date: event.target.value })}
-        />
-        <Select
-          showSearch
-          aria-label="항목"
-          className="nut-quick-add__category"
-          placeholder={draft.type === "expense" ? "어느 예산에서?" : "어떤 수입?"}
-          value={draft.bucket || undefined}
-          options={draft.type === "expense" ? expenseOptions : incomeOptions}
-          onChange={(value) => setDraft({ ...draft, bucket: value })}
-        />
-        <Input
-          aria-label="내용"
-          className="nut-quick-add__detail"
-          placeholder="내용 (예: 9월 MT 숙소 예약금)"
-          value={draft.detail}
-          onChange={(event) => setDraft({ ...draft, detail: event.target.value })}
-        />
-        <InputNumber
-          aria-label="금액"
-          className="nut-quick-add__amount"
-          placeholder="금액"
-          min={0}
-          step={1000}
-          value={draft.amount}
-          formatter={(value) => (value ? Number(value).toLocaleString("ko-KR") : "")}
-          parser={(value) => Number((value ?? "").replace(/[^\d]/g, ""))}
-          addonAfter="원"
-          onChange={(value) => setDraft({ ...draft, amount: value })}
-        />
-        <Input
-          aria-label="청구인"
-          className="nut-quick-add__claimant"
-          placeholder="청구인 (선택)"
-          value={draft.claimant ?? ""}
-          onChange={(event) => setDraft({ ...draft, claimant: event.target.value })}
-        />
-        <Button type="primary" htmlType="submit" disabled={!canSave} loading={saving}>
-          기록
-        </Button>
-      </form>
+      {canEdit && (
+        <form
+          className="nut-quick-add"
+          aria-label="거래 기록"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void add();
+          }}
+        >
+          <Segmented
+            value={draft.type}
+            options={[
+              { value: "expense", label: "지출" },
+              { value: "income", label: "수입" },
+            ]}
+            onChange={(value) =>
+              setDraft({ ...draft, type: value as Draft["type"], bucket: "" })
+            }
+          />
+          <Input
+            type="date"
+            aria-label="날짜"
+            className="nut-quick-add__date"
+            value={draft.date}
+            min={data.period.start}
+            max={data.period.end}
+            onChange={(event) =>
+              setDraft({ ...draft, date: event.target.value })
+            }
+          />
+          <Select
+            showSearch
+            aria-label="항목"
+            className="nut-quick-add__category"
+            placeholder={
+              draft.type === "expense" ? "어느 예산에서?" : "어떤 수입?"
+            }
+            value={draft.bucket || undefined}
+            options={draft.type === "expense" ? expenseOptions : incomeOptions}
+            onChange={(value) => setDraft({ ...draft, bucket: value })}
+          />
+          <Input
+            aria-label="내용"
+            className="nut-quick-add__detail"
+            placeholder="내용 (예: 9월 MT 숙소 예약금)"
+            value={draft.detail}
+            onChange={(event) =>
+              setDraft({ ...draft, detail: event.target.value })
+            }
+          />
+          <InputNumber
+            aria-label="금액"
+            className="nut-quick-add__amount"
+            placeholder="금액"
+            min={0}
+            step={1000}
+            value={draft.amount}
+            formatter={(value) =>
+              value ? Number(value).toLocaleString("ko-KR") : ""
+            }
+            parser={(value) => Number((value ?? "").replace(/[^\d]/g, ""))}
+            addonAfter="원"
+            onChange={(value) => setDraft({ ...draft, amount: value })}
+          />
+          <Input
+            aria-label="청구인"
+            className="nut-quick-add__claimant"
+            placeholder="청구인 (선택)"
+            value={draft.claimant ?? ""}
+            onChange={(event) =>
+              setDraft({ ...draft, claimant: event.target.value })
+            }
+          />
+          <Button
+            type="primary"
+            htmlType="submit"
+            disabled={!canSave}
+            loading={saving}
+          >
+            기록
+          </Button>
+        </form>
+      )}
 
       <div className="nut-toolbar">
         <Input.Search
@@ -176,14 +233,19 @@ export default function LedgerView() {
           className="nut-toolbar__select nut-toolbar__select--wide"
           placeholder="모든 항목"
           value={category ?? undefined}
-          options={[...new Set(data.ledger.map((entry) => entry.bucket))].map((value) => ({ value, label: value }))}
+          options={[...new Set(data.ledger.map((entry) => entry.bucket))].map(
+            (value) => ({ value, label: value }),
+          )}
           onChange={(value) => setCategory(value ?? null)}
         />
       </div>
 
       <p className="nut-summary-line" aria-live="polite">
-        {filtering ? `찾은 거래 ${filtered.length}건` : `이번 반기 거래 ${filtered.length}건`} · 수입{" "}
-        <b>{money(totals.income)}</b> · 지출 <b>{money(totals.expense)}</b>
+        {filtering
+          ? `찾은 거래 ${filtered.length}건`
+          : `이번 반기 거래 ${filtered.length}건`}{" "}
+        · 수입 <b>{money(totals.income)}</b> · 지출{" "}
+        <b>{money(totals.expense)}</b>
         {filtering && (
           <Button
             type="link"
@@ -200,11 +262,18 @@ export default function LedgerView() {
       </p>
 
       {groups.length === 0 ? (
-        <p className="nut-empty">{filtering ? "조건에 맞는 거래가 없습니다." : "이 반기에는 아직 거래가 없습니다. 위에서 첫 거래를 기록하세요."}</p>
+        <p className="nut-empty">
+          {filtering
+            ? "조건에 맞는 거래가 없습니다."
+            : "이 반기에는 아직 거래가 없습니다."}
+        </p>
       ) : (
         <div className="nut-days">
           {groups.map(([date, entries]) => {
-            const net = entries.reduce((sum, entry) => sum + entry.income - entry.expense, 0);
+            const net = entries.reduce(
+              (sum, entry) => sum + entry.income - entry.expense,
+              0,
+            );
             return (
               <section key={date} className="nut-day">
                 <header className="nut-day__head">
@@ -214,14 +283,17 @@ export default function LedgerView() {
                 <ul className="nut-list">
                   {entries.map((entry) =>
                     editing === entry.id ? (
-                      <LedgerEditor key={entry.id} entry={entry} onDone={() => setEditing(null)} />
+                      <LedgerEditor
+                        key={entry.id}
+                        entry={entry}
+                        onDone={() => setEditing(null)}
+                      />
                     ) : (
                       <li key={entry.id}>
-                        <button
-                          type="button"
-                          className="nut-entry"
-                          onClick={() => setEditing(entry.id)}
-                          aria-label={`${entry.detail} 수정`}
+                        <EntryShell
+                          canEdit={canEdit}
+                          onEdit={() => setEditing(entry.id)}
+                          label={`${entry.detail} 수정`}
                         >
                           <span className="nut-entry__main">
                             <strong>{entry.detail}</strong>
@@ -233,12 +305,20 @@ export default function LedgerView() {
                             </span>
                           </span>
                           <span className="nut-entry__end">
-                            <span className={"nut-amount nut-amount--" + entry.type}>
-                              {signed(entry.type === "income" ? entry.amount : -entry.amount)}
+                            <span
+                              className={"nut-amount nut-amount--" + entry.type}
+                            >
+                              {signed(
+                                entry.type === "income"
+                                  ? entry.amount
+                                  : -entry.amount,
+                              )}
                             </span>
-                            <span className="nut-entry__balance">잔액 {money(entry.balance)}</span>
+                            <span className="nut-entry__balance">
+                              잔액 {money(entry.balance)}
+                            </span>
                           </span>
-                        </button>
+                        </EntryShell>
                       </li>
                     ),
                   )}
@@ -252,7 +332,39 @@ export default function LedgerView() {
   );
 }
 
-function LedgerEditor({ entry, onDone }: { entry: LedgerEntry; onDone: () => void }) {
+// 고칠 수 있으면 눌러서 여는 버튼, 아니면 그냥 줄.
+export function EntryShell({
+  canEdit,
+  onEdit,
+  label,
+  children,
+}: {
+  canEdit: boolean;
+  onEdit: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return canEdit ? (
+    <button
+      type="button"
+      className="nut-entry"
+      onClick={onEdit}
+      aria-label={label}
+    >
+      {children}
+    </button>
+  ) : (
+    <div className="nut-entry nut-entry--static">{children}</div>
+  );
+}
+
+function LedgerEditor({
+  entry,
+  onDone,
+}: {
+  entry: LedgerEntry;
+  onDone: () => void;
+}) {
   const { data, run } = useNut();
   const [value, setValue] = useState({
     date: entry.date,
@@ -264,7 +376,10 @@ function LedgerEditor({ entry, onDone }: { entry: LedgerEntry; onDone: () => voi
   });
   const options =
     entry.type === "expense"
-      ? expenseCategories(data).map((node) => ({ value: node.name, label: node.name }))
+      ? expenseCategories(data).map((node) => ({
+          value: node.name,
+          label: node.name,
+        }))
       : incomeCategories(data).map((name) => ({ value: name, label: name }));
 
   return (
@@ -272,15 +387,31 @@ function LedgerEditor({ entry, onDone }: { entry: LedgerEntry; onDone: () => voi
       <div className="nut-entry-editor__fields">
         <label>
           날짜
-          <Input type="date" value={value.date} onChange={(event) => setValue({ ...value, date: event.target.value })} />
+          <Input
+            type="date"
+            value={value.date}
+            onChange={(event) =>
+              setValue({ ...value, date: event.target.value })
+            }
+          />
         </label>
         <label>
           항목
-          <Select showSearch value={value.bucket} options={options} onChange={(bucket) => setValue({ ...value, bucket })} />
+          <Select
+            showSearch
+            value={value.bucket}
+            options={options}
+            onChange={(bucket) => setValue({ ...value, bucket })}
+          />
         </label>
         <label className="nut-entry-editor__wide">
           내용
-          <Input value={value.detail} onChange={(event) => setValue({ ...value, detail: event.target.value })} />
+          <Input
+            value={value.detail}
+            onChange={(event) =>
+              setValue({ ...value, detail: event.target.value })
+            }
+          />
         </label>
         <label>
           금액
@@ -288,29 +419,48 @@ function LedgerEditor({ entry, onDone }: { entry: LedgerEntry; onDone: () => voi
             min={0}
             value={value.amount}
             addonAfter="원"
-            formatter={(amount) => (amount ? Number(amount).toLocaleString("ko-KR") : "")}
+            formatter={(amount) =>
+              amount ? Number(amount).toLocaleString("ko-KR") : ""
+            }
             parser={(amount) => Number((amount ?? "").replace(/[^\d]/g, ""))}
             onChange={(amount) => setValue({ ...value, amount: amount ?? 0 })}
           />
         </label>
         <label>
           청구인
-          <Input value={value.claimant} onChange={(event) => setValue({ ...value, claimant: event.target.value })} />
+          <Input
+            value={value.claimant}
+            onChange={(event) =>
+              setValue({ ...value, claimant: event.target.value })
+            }
+          />
         </label>
         <label className="nut-entry-editor__wide">
           메모
-          <Input value={value.note} onChange={(event) => setValue({ ...value, note: event.target.value })} />
+          <Input
+            value={value.note}
+            onChange={(event) =>
+              setValue({ ...value, note: event.target.value })
+            }
+          />
         </label>
       </div>
       <div className="nut-entry-editor__actions">
         <Popconfirm
           title="이 거래를 지울까요?"
-          description={entry.claimId ? "청구서로 지급한 거래입니다. 지우면 청구서는 '승인'으로 돌아갑니다." : "지운 거래는 되돌릴 수 없습니다."}
+          description={
+            entry.claimId
+              ? "청구서로 지급한 거래입니다. 지우면 청구서는 '승인'으로 돌아갑니다."
+              : "지운 거래는 되돌릴 수 없습니다."
+          }
           okText="지우기"
           cancelText="그대로 두기"
           okButtonProps={{ danger: true }}
           onConfirm={async () => {
-            if (await run(() => ledgerApi.remove(entry.id), "거래를 지웠습니다.")) onDone();
+            if (
+              await run(() => ledgerApi.remove(entry.id), "거래를 지웠습니다.")
+            )
+              onDone();
           }}
         >
           <Button type="text" danger>
@@ -323,7 +473,13 @@ function LedgerEditor({ entry, onDone }: { entry: LedgerEntry; onDone: () => voi
           type="primary"
           disabled={!value.detail.trim() || !value.bucket}
           onClick={async () => {
-            if (await run(() => ledgerApi.update(entry.id, value), "거래를 고쳤습니다.")) onDone();
+            if (
+              await run(
+                () => ledgerApi.update(entry.id, value),
+                "거래를 고쳤습니다.",
+              )
+            )
+              onDone();
           }}
         >
           저장

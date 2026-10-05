@@ -13,11 +13,14 @@ import TeamsView from "./views/TeamsView";
 
 type View = "overview" | "ledger" | "claims" | "budget" | "teams";
 
-// 총무·회장단은 요약에서, 그 외 회원은 청구서에서 시작한다(회원이 NUT에서 하는 일은 대개 청구).
-function initialView(data: FinanceOverview): View {
-  const saved = new URLSearchParams(window.location.search).get("tab") as View | null;
-  if (saved && ["overview", "ledger", "claims", "budget", "teams"].includes(saved)) return saved;
-  return data.viewer.canManageClaims ? "overview" : "claims";
+function initialView(): View {
+  const saved = new URLSearchParams(window.location.search).get(
+    "tab",
+  ) as View | null;
+  return saved &&
+    ["overview", "ledger", "claims", "budget", "teams"].includes(saved)
+    ? saved
+    : "overview";
 }
 
 export default function App() {
@@ -31,14 +34,20 @@ export default function App() {
     try {
       const next = await fetchOverview(periodId);
       setData(next);
-      setView((current) => current ?? initialView(next));
+      setView((current) => current ?? initialView());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "NUT 데이터를 불러오지 못했습니다.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "NUT 데이터를 불러오지 못했습니다.",
+      );
     }
   }, []);
 
   useEffect(() => {
-    void load(new URLSearchParams(window.location.search).get("period") ?? undefined);
+    void load(
+      new URLSearchParams(window.location.search).get("period") ?? undefined,
+    );
   }, [load]);
 
   // 탭·반기를 주소에 남겨서 새로고침하거나 링크를 공유해도 같은 화면이 열리게 한다.
@@ -47,7 +56,11 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     params.set("tab", view);
     params.set("period", data.period.id);
-    window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}?${params}`,
+    );
   }, [data, view]);
 
   const run = useCallback(
@@ -57,7 +70,11 @@ export default function App() {
         message.success(success);
         return true;
       } catch (err) {
-        message.error(err instanceof Error ? err.message : "저장하지 못했습니다. 다시 시도하세요.");
+        message.error(
+          err instanceof Error
+            ? err.message
+            : "저장하지 못했습니다. 다시 시도하세요.",
+        );
         return false;
       }
     },
@@ -96,7 +113,9 @@ export default function App() {
     );
 
   const waiting = data.claims.filter((claim) =>
-    data.viewer.canManageClaims ? claim.status === "review" || claim.status === "approved" : claim.mine && claim.status === "review",
+    data.viewer.canEdit
+      ? claim.status === "review" || claim.status === "approved"
+      : claim.mine && claim.status === "review",
   ).length;
   const tabs: Array<{ id: View; label: string; badge?: number }> = [
     { id: "overview", label: "요약" },
@@ -108,64 +127,75 @@ export default function App() {
 
   return (
     <NutContext.Provider value={context}>
-      <ConfigProvider renderEmpty={() => <span className="nut-hint">맞는 항목이 없습니다</span>}>
-      <div className="nut">
-        <header className="nut-header">
-          <div className="nut-header__period">
-            <span className="nut-header__app">NUT 재무</span>
-            <Select
-              className="nut-period-select"
-              variant="borderless"
-              value={data.period.id}
-              popupMatchSelectWidth={false}
-              aria-label="반기 선택"
-              options={data.periods.map((period) => ({
-                value: period.id,
-                label: period.label,
-              }))}
-              onChange={(periodId) => void load(periodId)}
-            />
-            <span className="nut-header__dates">
-              {data.period.start.replaceAll("-", ".")} – {data.period.end.replaceAll("-", ".")}
-            </span>
-          </div>
-          <Button type="text" onClick={() => void signOut()}>
-            로그아웃
-          </Button>
-        </header>
-
-        {context.isPastPeriod && (
-          <Alert
-            className="nut-past-banner"
-            type="info"
-            showIcon
-            message={`지난 반기(${data.period.label})를 보고 있습니다. 고칠 수는 있지만 새 거래는 지금 반기에 기록하세요.`}
-          />
+      <ConfigProvider
+        renderEmpty={() => (
+          <span className="nut-hint">맞는 항목이 없습니다</span>
         )}
+      >
+        <div className="nut">
+          <header className="nut-header">
+            <div className="nut-header__period">
+              <span className="nut-header__app">NUT 재무</span>
+              <Select
+                className="nut-period-select"
+                variant="borderless"
+                value={data.period.id}
+                popupMatchSelectWidth={false}
+                aria-label="반기 선택"
+                options={data.periods.map((period) => ({
+                  value: period.id,
+                  label: period.label,
+                }))}
+                onChange={(periodId) => void load(periodId)}
+              />
+              <span className="nut-header__dates">
+                {data.period.start.replaceAll("-", ".")} –{" "}
+                {data.period.end.replaceAll("-", ".")}
+              </span>
+            </div>
+            <Button type="text" onClick={() => void signOut()}>
+              로그아웃
+            </Button>
+          </header>
 
-        <nav className="nut-tabs" aria-label="NUT 화면">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={"nut-tab" + (view === tab.id ? " nut-tab--active" : "")}
-              aria-current={view === tab.id ? "page" : undefined}
-              onClick={() => setView(tab.id)}
-            >
-              {tab.label}
-              {tab.badge ? <span className="nut-tab__badge">{tab.badge}</span> : null}
-            </button>
-          ))}
-        </nav>
+          {context.isPastPeriod && (
+            <Alert
+              className="nut-past-banner"
+              type="info"
+              showIcon
+              message={`지난 반기(${data.period.label})를 보고 있습니다. 고칠 수는 있지만 새 거래는 지금 반기에 기록하세요.`}
+            />
+          )}
 
-        <section className="nut-body">
-          {view === "overview" && <OverviewView onOpen={setView} />}
-          {view === "ledger" && <LedgerView />}
-          {view === "claims" && <ClaimsView />}
-          {view === "budget" && <BudgetView onPeriodCreated={(id) => void load(id)} />}
-          {view === "teams" && <TeamsView />}
-        </section>
-      </div>
+          <nav className="nut-tabs" aria-label="NUT 화면">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={
+                  "nut-tab" + (view === tab.id ? " nut-tab--active" : "")
+                }
+                aria-current={view === tab.id ? "page" : undefined}
+                onClick={() => setView(tab.id)}
+              >
+                {tab.label}
+                {tab.badge ? (
+                  <span className="nut-tab__badge">{tab.badge}</span>
+                ) : null}
+              </button>
+            ))}
+          </nav>
+
+          <section className="nut-body">
+            {view === "overview" && <OverviewView onOpen={setView} />}
+            {view === "ledger" && <LedgerView />}
+            {view === "claims" && <ClaimsView />}
+            {view === "budget" && (
+              <BudgetView onPeriodCreated={(id) => void load(id)} />
+            )}
+            {view === "teams" && <TeamsView />}
+          </section>
+        </div>
       </ConfigProvider>
     </NutContext.Provider>
   );

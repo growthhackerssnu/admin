@@ -3,12 +3,16 @@ import { getAuthenticatedMember } from "./auth";
 import { Prisma } from "@/generated/prisma";
 import { ApiError, errorBody } from "./errors";
 import { ClaimStateError, ParameterInUseError } from "./financeRepository";
+import { canEditFinance } from "./respond";
 
 export function withApiHandler(handler: (req: NextRequest, context: { member: Awaited<ReturnType<typeof getAuthenticatedMember>>; requestId: string }) => Promise<{ body: unknown; status?: number }>) {
   return async (req: NextRequest) => {
     const requestId = crypto.randomUUID();
     try {
       const member = await getAuthenticatedMember(req);
+      // 보기(GET)는 NUT 회원 전원, 그 밖의 모든 요청은 admin·총무만. 쓰기 권한은 여기 한 곳에서만 판단한다.
+      if (req.method !== "GET" && !canEditFinance(member))
+        throw new ApiError("FORBIDDEN", "NUT 수정은 총무와 관리자만 할 수 있습니다.");
       const result = await handler(req, { member, requestId });
       return NextResponse.json(result.body, { status: result.status ?? 200 });
     } catch (error) {

@@ -3,21 +3,16 @@ import type { Member } from "@/generated/prisma";
 import { ApiError, successBody } from "./errors";
 import { getFinanceOverview, resolvePeriodId } from "./financeRepository";
 
-// 청구서 승인·반려·지급과 계좌번호 열람은 admin과 총무·회장단만.
-export function canManageClaims(member: Member) {
-  return (
-    member.role === "admin" ||
-    member.opsRole === "treasurer" ||
-    member.opsRole === "president" ||
-    member.opsRole === "vice_president"
-  );
+// NUT 보기는 admin·acting 전원, 고치기(모든 쓰기)와 청구서 계좌번호 열람은 admin과 총무만.
+export function canEditFinance(member: Member) {
+  return member.role === "admin" || member.opsRole === "treasurer";
 }
 
 // 모든 NUT 쓰기 API는 바뀐 반기의 전체 화면 데이터를 돌려준다(화면이 그대로 갈아끼운다).
 export async function overviewBody(periodId: string, member: Member, requestId: string) {
   const overview = await getFinanceOverview(periodId, {
     memberId: member.id,
-    canManageClaims: canManageClaims(member),
+    canEdit: canEditFinance(member),
   });
   return successBody(overview, requestId);
 }

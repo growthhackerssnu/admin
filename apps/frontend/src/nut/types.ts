@@ -154,7 +154,8 @@ export interface TaxSummary {
 
 export interface FinanceOverview {
   periods: PeriodSummary[];
-  viewer: { canManageClaims: boolean };
+  // 고치기(모든 쓰기)는 총무·admin만. false면 화면은 보기 전용.
+  viewer: { canEdit: boolean };
   period: {
     id: string;
     label: string;

@@ -11,17 +11,17 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import * as r from "@/nut/lib/financeRepository";
 import { prisma } from "@/lib/prisma";
-const viewer = { memberId: "nobody", canManageClaims: true };
+const viewer = { memberId: "nobody", canEdit: true };
 (async () => {
   const p = await r.resolvePeriodId(null);
   let o = await r.getFinanceOverview(p, viewer);
   console.log("period", p, "cash", o.currentCash, "ledger", o.ledger.length, "last balance", o.ledger.at(-1)?.balance);
-  assert.equal(o.currentCash, 20786414); assert.equal(o.ledger.at(-1)!.balance, o.currentCash);
+  const base = o.currentCash; assert.equal(o.ledger.at(-1)!.balance, base, "running balance ends at current cash");
   const slack = o.budgetTree.find(n => n.name === "Slack")!; const spent0 = slack.actual;
   const major0 = o.budgetTree.find(n => n.id === o.budgetTree.find(x => x.id === slack.parentId)!.parentId)!;
   // claim -> pay -> ledger + spent
   await r.createClaim(p, { memberId: "m1", claimant: "테스트", date: "2026-10-01", detail: "e2e 청구", amount: 12345, bucket: "미분류", bankAccount: "토스 1", prepaid: true, source: "NUT" });
-  o = await r.getFinanceOverview(p, { memberId: "m2", canManageClaims: false });
+  o = await r.getFinanceOverview(p, { memberId: "m2", canEdit: false });
   const c = o.claims.find(x => x.detail === "e2e 청구")!; assert.equal(c.bankAccount, undefined, "account hidden from others");
   await assert.rejects(r.actOnClaim(c.id, { type: "pay", date: "2026-10-02" }, "rev"), /예산 항목/);
   await r.actOnClaim(c.id, { type: "pay", date: "2026-10-02", bucket: "Slack" }, "rev");
@@ -29,19 +29,17 @@ const viewer = { memberId: "nobody", canManageClaims: true };
   const paid = o.claims.find(x => x.id === c.id)!; assert.equal(paid.status, "paid"); assert.ok(paid.ledgerEntryId);
   assert.equal(o.budgetTree.find(n => n.name === "Slack")!.actual, spent0 + 12345, "leaf spent from ledger");
   assert.equal(o.budgetTree.find(n => n.id === major0.id)!.actual, major0.actual + 12345, "rollup");
-  assert.equal(o.currentCash, 20786414 - 12345);
+  assert.equal(o.currentCash, base - 12345);
   const le = o.ledger.find(e => e.id === paid.ledgerEntryId)!; assert.equal(le.claimId, c.id);
   // edit amount, then delete -> claim back to approved
   await r.updateLedgerEntry(le.id, { amount: 10000 });
-  o = await r.getFinanceOverview(p, viewer); assert.equal(o.currentCash, 20786414 - 10000);
+  o = await r.getFinanceOverview(p, viewer); assert.equal(o.currentCash, base - 10000);
   await r.deleteLedgerEntry(le.id);
   o = await r.getFinanceOverview(p, viewer);
-  assert.equal(o.claims.find(x => x.id === c.id)!.status, "approved"); assert.equal(o.currentCash, 20786414);
+  assert.equal(o.claims.find(x => x.id === c.id)!.status, "approved"); assert.equal(o.currentCash, base);
   await assert.rejects(r.actOnClaim(c.id, { type: "approve" }, "rev"), /검토 중/);
   await r.actOnClaim(c.id, { type: "reject", reason: "테스트" }, "rev");
   await r.actOnClaim(c.id, { type: "reopen" }, "rev");
-  await assert.rejects(r.cancelOwnClaim(c.id, "m2"), /본인/);
-  await r.cancelOwnClaim(c.id, "m1");
   // accounting
   await r.createAccountingDetail(p, { scope: "project", owner: "세타원", category: "support", date: "2026-10-03", detail: "e2e 다과", amount: 1000 });
   o = await r.getFinanceOverview(p, viewer);
@@ -57,7 +55,7 @@ const viewer = { memberId: "nobody", canManageClaims: true };
   // new period
   await r.createPeriod({ id: "2027-1h", label: "2027 상반기", start: "2027-01-01", end: "2027-06-30", copyFromId: p });
   const n = await r.getFinanceOverview("2027-1h", viewer);
-  assert.equal(n.openingCash, 20786414); assert.equal(n.ledger.length, 0); assert.equal(n.budgetTree.length, o.budgetTree.length);
+  assert.equal(n.openingCash, base); assert.equal(n.ledger.length, 0); assert.equal(n.budgetTree.length, o.budgetTree.length);
   assert.ok(n.budgetTree.every(x => x.actual === 0)); assert.equal(n.parameters.length, o.parameters.length);
   assert.equal(n.periods.length, 2); assert.equal(n.accountingSummaries.filter(s => s.scope === "team").length, 5);
   // rename node keeps ledger link
