@@ -865,9 +865,12 @@ export async function deleteLedgerEntry(id: string) {
 
 export class ClaimStateError extends Error {}
 
+// 청구서는 Slack 워크플로 단계(app/api/slack/events)에서만 만든다. id를 주면 그 id로 한 번만
+// 만든다(Slack은 응답이 늦으면 같은 이벤트를 다시 보낸다).
 export async function createClaim(
   periodId: string,
   input: {
+    id?: string;
     memberId: string | null;
     claimant: string;
     date: string;
@@ -880,9 +883,12 @@ export async function createClaim(
     source: "NUT" | "Slack";
   },
 ) {
-  await prisma.nutClaim.create({
-    data: {
-      id: `claim-${crypto.randomUUID()}`,
+  const id = input.id ?? `claim-${crypto.randomUUID()}`;
+  await prisma.nutClaim.upsert({
+    where: { id },
+    update: {},
+    create: {
+      id,
       periodId,
       memberId: input.memberId,
       claimant: input.claimant,
@@ -897,7 +903,7 @@ export async function createClaim(
       source: input.source,
     },
   });
-  return periodId;
+  return id;
 }
 
 // 처리 흐름: 검토 중 → 승인 → 지급 완료, 검토 중·승인 → 반려, 반려 → 검토 중(다시 열기).
