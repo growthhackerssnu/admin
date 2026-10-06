@@ -1,23 +1,23 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClaim, resolvePeriodId } from "@/nut/lib/financeRepository";
 
-// Slack 앱 "GH NUT"의 Events API 수신점. 지금은 워크플로 단계 하나만 처리한다:
+// Slack 앱 "GH NUT"(A0C802VMHK2)의 Events API 수신점. 지금은 워크플로 단계 하나만 처리한다:
 //   register_nut_claim — 청구서 워크플로의 양식 답변으로 NUT 청구서를 만든다.
-// 앱 설정은 slack-app/manifest.json(Slack CLI 프로젝트: cd slack-app && slack install). 서명 비밀값은 SLACK_SIGNING_SECRET.
+// 앱 설정은 slack-app/manifest.json(Slack CLI 프로젝트: cd slack-app && slack install -E deployed).
 //
+// 요청 검증: 서명 비밀값 대신 이벤트에 딸려오는 단기 봇 토큰을 Slack에 확인한다
+// (auth.test → bots.info로 이 앱이 발급받은 토큰인지). 위조 요청은 유효한 토큰을 가질 수 없다.
 // Slack은 3초 안에 응답이 없으면 같은 이벤트를 다시 보낸다(Cloud Run 콜드 스타트 때 생길 수 있다).
 // 청구서 id를 워크플로 실행 id로 만들어서 재전송이 와도 한 건만 생긴다.
+const APP_ID = "A0C802VMHK2";
 
-function verified(body: string, timestamp: string | null, signature: string | null) {
-  const secret = process.env.SLACK_SIGNING_SECRET;
-  if (!secret || !timestamp || !signature) return false;
-  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 60 * 5) return false;
-  const expected = "v0=" + createHmac("sha256", secret).update(`v0:${timestamp}:${body}`).digest("hex");
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
-  return a.length === b.length && timingSafeEqual(a, b);
+async function issuedToOurApp(token: string | undefined) {
+  if (!token) return false;
+  const auth = (await slack("auth.test", token, {})) as { ok: boolean; bot_id?: string };
+  if (!auth.ok || !auth.bot_id) return false;
+  const bot = (await slack("bots.info", token, { bot: auth.bot_id })) as { ok: boolean; bot?: { app_id?: string } };
+  return bot.ok && bot.bot?.app_id === APP_ID;
 }
 
 type Inputs = {
@@ -37,7 +37,11 @@ async function slack(method: string, token: string, body: Record<string, unknown
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
     body: JSON.stringify(body),
   });
-  return (await response.json()) as { ok: boolean; error?: string; user?: { real_name?: string; profile?: { email?: string; display_name?: string; real_name?: string } } };
+  return (await response.json()) as {
+    ok: boolean;
+    error?: string;
+    user?: { real_name?: string; profile?: { email?: string; display_name?: string; real_name?: string } };
+  };
 }
 
 // 양식 답변은 텍스트로 올 수 있어서 너그럽게 읽는다: "23,500원", "예"/"아니오" 등.
@@ -79,12 +83,8 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
 }
 
 export async function POST(req: Request) {
-  const body = await req.text();
-  if (!verified(body, req.headers.get("x-slack-request-timestamp"), req.headers.get("x-slack-signature")))
-    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
-
-  const payload = JSON.parse(body) as {
-    type: string;
+  const payload = (await req.json().catch(() => null)) as {
+    type?: string;
     challenge?: string;
     event?: {
       type: string;
@@ -93,23 +93,27 @@ export async function POST(req: Request) {
       inputs?: Inputs;
       bot_access_token?: string;
     };
-  };
-  if (payload.type === "url_verification") return NextResponse.json({ challenge: payload.challenge });
+  } | null;
+  // 요청 URL 확인: 받은 값을 그대로 돌려줄 뿐이라 검증할 것이 없다.
+  if (payload?.type === "url_verification") return NextResponse.json({ challenge: payload.challenge });
 
-  const event = payload.event;
-  if (event?.type === "function_executed" && event.function?.callback_id === "register_nut_claim") {
-    const token = event.bot_access_token!;
-    const executionId = event.function_execution_id!;
-    try {
-      const claimId = await registerClaim(executionId, event.inputs ?? {}, token);
-      await slack("functions.completeSuccess", token, { function_execution_id: executionId, outputs: { claim_id: claimId } });
-    } catch (error) {
-      console.error("[slack] register_nut_claim failed", error);
-      await slack("functions.completeError", token, {
-        function_execution_id: executionId,
-        error: error instanceof Error ? error.message : "NUT에 청구서를 등록하지 못했습니다.",
-      });
-    }
+  const event = payload?.event;
+  if (event?.type !== "function_executed" || event.function?.callback_id !== "register_nut_claim")
+    return new NextResponse(null, { status: 200 });
+  const token = event.bot_access_token;
+  if (!(await issuedToOurApp(token)) || !event.function_execution_id)
+    return NextResponse.json({ error: "unverified" }, { status: 401 });
+
+  const executionId = event.function_execution_id;
+  try {
+    const claimId = await registerClaim(executionId, event.inputs ?? {}, token!);
+    await slack("functions.completeSuccess", token!, { function_execution_id: executionId, outputs: { claim_id: claimId } });
+  } catch (error) {
+    console.error("[slack] register_nut_claim failed", error);
+    await slack("functions.completeError", token!, {
+      function_execution_id: executionId,
+      error: error instanceof Error ? error.message : "NUT에 청구서를 등록하지 못했습니다.",
+    });
   }
   return new NextResponse(null, { status: 200 });
 }
