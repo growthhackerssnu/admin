@@ -15,11 +15,11 @@ export function invalidateFieldOptions(): void {
   memoryDelete(OPTIONS_CACHE_KEY);
 }
 
-// 옵션 이름 비교용 정규화 — 공백·대소문자만 다른 값을 같은 옵션으로 본다
-// ("pm" ≈ "PM", "데이터  사이언스" ≈ "데이터 사이언스"). 표시 이름은 항상 Notion의
+// 옵션 이름 비교용 정규화 — 공백(단어 사이 포함)·대소문자만 다른 값을 같은 옵션으로
+// 본다("pm" ≈ "PM", "프로덕트매니저" ≈ "프로덕트 매니저"). 표시 이름은 항상 Notion의
 // 기존 옵션 이름을 쓴다(canonicalizeOptionValues).
 export function optionKey(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
+  return value.replace(/\s+/g, "").toLowerCase();
 }
 
 // 입력 값들을 기존 옵션 이름으로 맞춘다. 기존에 없으면 공백만 정리한 새 값으로 둔다.
