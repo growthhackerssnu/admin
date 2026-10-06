@@ -40,7 +40,7 @@ async function notifySlack(memberId: string, diff: unknown) {
     freeTextSections?: Record<string, unknown>;
   };
   const changed = [...Object.keys(structuredFields), ...Object.keys(freeTextSections).map((k) => SECTION_LABELS[k] ?? k)];
-  const text = `:pencil2: *${name}*님이 그핵드인 프로필 수정을 요청했습니다.\n바뀐 항목: ${changed.join(", ")}\n<https://admin.ghsnu.com/hr/admin|승인 큐 열기>`;
+  const text = `<!subteam^S0BDF7JAJ49> :pencil2: *${name}*님이 그핵드인 프로필 수정을 요청했습니다.\n바뀐 항목: ${changed.join(", ")}\n<https://admin.ghsnu.com/hr/admin|승인 큐 열기>`;
   await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
