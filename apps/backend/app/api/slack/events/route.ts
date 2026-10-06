@@ -8,7 +8,7 @@ import { normalizeName } from "@/portal/lib/normalize";
 //   register_nut_claim      — 청구서 워크플로의 양식 답변으로 NUT 청구서를 만든다.
 //   record_roll_call        — '출석핑' 워크플로의 출석체크 양식(네 명단)을 출석 기록으로 만든다.
 //   record_late_arrival     — '출석핑'의 '지각했어용' 버튼 양식(몇 분 늦었는지)을 그 사람의 기록에 채운다.
-// 앱 설정은 slack-app/manifest.json(Slack CLI 프로젝트: cd slack-app && slack install -E deployed).
+// 앱 설정은 slack-app/manifest.json(Slack CLI 프로젝트: cd slack-app && slack install --app A0C802VMHK2).
 //
 // 요청 검증: 서명 비밀값 대신 이벤트에 딸려오는 단기 봇 토큰을 Slack에 확인한다
 // (auth.test → bots.info로 이 앱이 발급받은 토큰인지). 위조 요청은 유효한 토큰을 가질 수 없다.

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
-const { penalty } = await import("./attendance");
+const { DEFAULT_RULES, penalty } = await import("./attendance");
 
 const late = (excuse: "partial" | "unexcused", minutesLate: number | null) => penalty({ type: "late", excuse, minutesLate });
 
@@ -25,5 +25,15 @@ describe("penalty", () => {
   it("never charges a full excuse and waits for minutes before charging lateness", () => {
     expect(penalty({ type: "absent", excuse: "excused", minutesLate: null })).toMatchObject({ points: 0, fine: 0 });
     expect(late("unexcused", null)).toMatchObject({ points: 0, needsMinutes: true });
+  });
+
+  it("uses the period's own rates and session length", () => {
+    const rules = {
+      sessionMinutes: 120,
+      rates: { ...DEFAULT_RULES.rates, "late-unexcused-5to30": { points: 4, fine: 15000 } },
+    };
+    // 9분은 3시간 기준으론 5% 경계지만 2시간 기준으론 7.5%다.
+    expect(penalty({ type: "late", excuse: "unexcused", minutesLate: 9 }, rules)).toMatchObject({ points: 4, fine: 15000 });
+    expect(penalty({ type: "late", excuse: "unexcused", minutesLate: 5 }, rules)).toMatchObject({ points: 1, fine: 5000 });
   });
 });

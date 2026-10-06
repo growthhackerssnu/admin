@@ -227,6 +227,13 @@ export const attendanceApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ periodId, ...input }),
     }),
+  // key: '<규칙 id>.points'·'<규칙 id>.fine'·'session-minutes'
+  saveRule: (periodId: string, key: string, value: number) =>
+    request<AttendanceData>("/api/v1/attendance/rules", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodId, key, value }),
+    }),
   remove: (periodId: string, id: string) =>
     request<AttendanceData>("/api/v1/attendance", {
       method: "DELETE",

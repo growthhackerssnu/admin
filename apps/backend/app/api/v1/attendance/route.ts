@@ -1,14 +1,10 @@
 import { z } from "zod";
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { canEditAttendance, deleteAttendanceRecord, getAttendance, saveAttendanceRecord } from "@/nut/lib/attendance";
+import { attendanceAccess as access, deleteAttendanceRecord, getAttendance, saveAttendanceRecord } from "@/nut/lib/attendance";
 import { successBody } from "@/nut/lib/errors";
 import { dateString, parseBody, periodFrom } from "@/nut/lib/respond";
 
 // 출석체크 기록. 보기는 NUT 회원 전원, 쓰기는 회장단·총무·admin만. 쓰기는 고친 반기의 출석 데이터를 돌려준다.
-const access = {
-  allow: (member: Parameters<typeof canEditAttendance>[0], method: string) => method === "GET" || canEditAttendance(member),
-  message: "출석체크 수정은 회장단·총무·관리자만 할 수 있습니다.",
-};
 
 const record = z
   .object({

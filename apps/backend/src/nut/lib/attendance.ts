@@ -12,35 +12,75 @@ export function canEditAttendance(member: Member) {
   );
 }
 
+// 출석체크 API 권한(withApiHandler의 access): GET은 전원, 쓰기는 위 사람들만.
+export const attendanceAccess = {
+  allow: (member: Member, method: string) => method === "GET" || canEditAttendance(member),
+  message: "출석체크 수정은 회장단·총무·관리자만 할 수 있습니다.",
+};
+
 export type AttendanceType = "late" | "absent" | "quest";
 export type Excuse = "excused" | "partial" | "unexcused";
 type Classifiable = { type: AttendanceType; excuse: Excuse; minutesLate: number | null };
 
-// 지각 비율(지각 분 ÷ 세션 길이)의 기준 세션 길이. 시트 기록(9분 = 5% 미만)에서 3시간으로 맞췄다.
-// ponytail: 세션마다 길이가 다르면 기록에 세션 길이를 저장한다.
-export const SESSION_MINUTES = 180;
+// 벌점벌금 탭의 열. 점수·금액은 반기마다 출석체크 탭에서 바꿀 수 있고, 안 바꾼 값은 시트의 기본값을 쓴다.
+// 사유(전부 인정)는 언제나 벌점이 없다.
+export const RULES = [
+  { id: "late-partial-under30", label: "부분사유지각(<30%)", points: 1, fine: 0 },
+  { id: "late-partial-over30", label: "부분사유지각(>30%)", points: 3, fine: 10000 },
+  { id: "late-unexcused-under5", label: "무단지각(<5%)", points: 1, fine: 5000 },
+  { id: "late-unexcused-5to30", label: "무단지각(5~30%)", points: 2, fine: 10000 },
+  { id: "late-unexcused-over30", label: "무단지각(>30%)", points: 5, fine: 20000 },
+  { id: "absent-partial", label: "부분사유결석", points: 3, fine: 10000 },
+  { id: "absent-unexcused", label: "무단결석", points: 5, fine: 20000 },
+  { id: "quest-partial", label: "퀘스트미제출(부분사유)", points: 1, fine: 5000 },
+  { id: "quest-unexcused", label: "퀘스트미제출(무단)", points: 2, fine: 10000 },
+] as const;
+export type RuleId = (typeof RULES)[number]["id"];
+export type AttendanceRules = { sessionMinutes: number; rates: Record<RuleId, { points: number; fine: number }> };
 
-// 벌점벌금 탭의 열과 같은 이름·점수·금액. 사유(전부 인정)는 벌점이 없다.
-export function penalty({ type, excuse, minutesLate }: Classifiable) {
-  if (excuse === "excused") return { label: type === "absent" ? "사유결석" : "사유지각", points: 0, fine: 0 };
-  if (type === "absent")
-    return excuse === "partial"
-      ? { label: "부분사유결석", points: 3, fine: 10000 }
-      : { label: "무단결석", points: 5, fine: 20000 };
-  if (type === "quest")
-    return excuse === "partial"
-      ? { label: "퀘스트미제출(부분사유)", points: 1, fine: 5000 }
-      : { label: "퀘스트미제출(무단)", points: 2, fine: 10000 };
+// 지각 비율(지각 분 ÷ 세션 길이)의 기준. 시트 기록(9분 = 5% 경계)에서 3시간으로 맞췄다.
+export const DEFAULT_RULES: AttendanceRules = {
+  sessionMinutes: 180,
+  rates: Object.fromEntries(RULES.map(({ id, points, fine }) => [id, { points, fine }])) as AttendanceRules["rates"],
+};
+
+function ruleFor({ type, excuse, minutesLate }: Classifiable, sessionMinutes: number): RuleId {
+  if (type !== "late") return `${type}-${excuse as "partial" | "unexcused"}`;
+  const ratio = minutesLate! / sessionMinutes;
+  if (excuse === "partial") return ratio <= 0.3 ? "late-partial-under30" : "late-partial-over30";
+  return ratio < 0.05 ? "late-unexcused-under5" : ratio <= 0.3 ? "late-unexcused-5to30" : "late-unexcused-over30";
+}
+
+export function penalty(record: Classifiable, rules: AttendanceRules = DEFAULT_RULES) {
+  const { type, excuse, minutesLate } = record;
+  if (excuse === "excused") return { label: type === "absent" ? "사유결석" : type === "quest" ? "퀘스트미제출(사유)" : "사유지각", points: 0, fine: 0 };
   // 지각 시간을 아직 모르면 벌점을 매기지 않고 화면에서 입력하라고 알린다.
-  if (minutesLate == null) return { label: excuse === "partial" ? "부분사유지각" : "무단지각", points: 0, fine: 0, needsMinutes: true };
-  const ratio = minutesLate / SESSION_MINUTES;
-  if (excuse === "partial")
-    return ratio <= 0.3
-      ? { label: "부분사유지각(<30%)", points: 1, fine: 0 }
-      : { label: "부분사유지각(>30%)", points: 3, fine: 10000 };
-  if (ratio < 0.05) return { label: "무단지각(<5%)", points: 1, fine: 5000 };
-  if (ratio <= 0.3) return { label: "무단지각(5~30%)", points: 2, fine: 10000 };
-  return { label: "무단지각(>30%)", points: 5, fine: 20000 };
+  if (type === "late" && minutesLate == null)
+    return { label: excuse === "partial" ? "부분사유지각" : "무단지각", points: 0, fine: 0, needsMinutes: true };
+  const id = ruleFor(record, rules.sessionMinutes);
+  return { label: RULES.find((rule) => rule.id === id)!.label, ...rules.rates[id] };
+}
+
+// 반기 설정: key는 '<규칙 id>.points'·'<규칙 id>.fine'·'session-minutes'. 없는 값은 기본값.
+export async function getRules(periodId: string): Promise<AttendanceRules> {
+  const rows = await prisma.nutAttendanceSetting.findMany({ where: { periodId } });
+  const value = new Map(rows.map((row) => [row.key, row.value]));
+  return {
+    sessionMinutes: value.get("session-minutes") ?? DEFAULT_RULES.sessionMinutes,
+    rates: Object.fromEntries(
+      RULES.map(({ id, points, fine }) => [id, { points: value.get(`${id}.points`) ?? points, fine: value.get(`${id}.fine`) ?? fine }]),
+    ) as AttendanceRules["rates"],
+  };
+}
+
+export const SETTING_KEYS = ["session-minutes", ...RULES.flatMap(({ id }) => [`${id}.points`, `${id}.fine`])];
+
+export async function saveRule(periodId: string, key: string, value: number) {
+  await prisma.nutAttendanceSetting.upsert({
+    where: { periodId_key: { periodId, key } },
+    update: { value },
+    create: { periodId, key, value },
+  });
 }
 
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
@@ -48,15 +88,17 @@ const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 // 반기 안의 기록과, 기록이 없는 사람도 0점으로 보이도록 환급 계좌 명단(= 학회원 명단)을 돌려준다.
 export async function getAttendance(periodId: string) {
   const period = await prisma.nutFinancePeriod.findUniqueOrThrow({ where: { id: periodId } });
-  const [records, roster] = await Promise.all([
+  const [records, roster, rules] = await Promise.all([
     prisma.nutAttendanceRecord.findMany({
       where: { date: { gte: period.periodStart, lte: period.periodEnd } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     }),
     prisma.nutRefundAccount.findMany({ select: { name: true, cohort: true }, orderBy: [{ cohort: "asc" }, { name: "asc" }] }),
+    getRules(periodId),
   ]);
   return {
-    sessionMinutes: SESSION_MINUTES,
+    sessionMinutes: rules.sessionMinutes,
+    rules: RULES.map(({ id, label }) => ({ id, label, ...rules.rates[id] })),
     roster,
     records: records.map((record) => {
       const classified = { type: record.type as AttendanceType, excuse: record.excuse as Excuse, minutesLate: record.minutesLate };
@@ -68,7 +110,7 @@ export async function getAttendance(periodId: string) {
         ...classified,
         note: record.note,
         source: record.source,
-        penalty: penalty(classified),
+        penalty: penalty(classified, rules),
       };
     }),
   };

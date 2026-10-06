@@ -81,7 +81,8 @@ export default function AttendanceView() {
     <div className="nut-attendance">
       <p className="nut-claims__intro">
         Slack 출석핑 워크플로의 출석체크·'지각했어용' 답변이 여기 쌓입니다. 지각
-        비율은 세션 {data.sessionMinutes / 60}시간 기준입니다.
+        비율은 세션 {data.sessionMinutes}분 기준이고, 벌점·벌금 기준은 맨
+        아래에서 바꿉니다.
         {canEdit
           ? " 사유가 일부만 인정되면 기록을 눌러 '부분 사유'로 바꾸세요."
           : " 수정은 회장단·총무·관리자만 할 수 있습니다."}
@@ -141,7 +142,145 @@ export default function AttendanceView() {
           </ul>
         )}
       </section>
+      <Rules
+        data={data}
+        canEdit={canEdit}
+        onSave={(key, value, label) =>
+          save(
+            () => attendanceApi.saveRule(periodId, key, value),
+            `${label} 기준을 바꿨습니다. 벌점이 다시 계산됐습니다.`,
+          )
+        }
+      />
     </div>
+  );
+}
+
+// 벌점·벌금 기준(반기별). 바꾸면 이 반기의 모든 기록이 새 기준으로 다시 계산된다.
+function Rules({
+  data,
+  canEdit,
+  onSave,
+}: {
+  data: AttendanceData;
+  canEdit: boolean;
+  onSave: (key: string, value: number, label: string) => Promise<boolean>;
+}) {
+  return (
+    <section className="nut-panel" aria-labelledby="attendance-rules">
+      <header className="nut-panel__head">
+        <div>
+          <h2 id="attendance-rules">벌점·벌금 기준</h2>
+          <p className="nut-panel__sub">
+            이 반기에만 적용됩니다. 사유(전부 인정)는 벌점이 없습니다. 지각
+            비율은 지각 분 ÷ 세션 길이입니다.
+          </p>
+        </div>
+      </header>
+      <table className="nut-headcount nut-attendance__table">
+        <thead>
+          <tr>
+            <th scope="col">종류</th>
+            <th scope="col">벌점</th>
+            <th scope="col">벌금</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.rules.map((rule) => (
+            <tr key={rule.id}>
+              <th scope="row">{rule.label}</th>
+              <td>
+                <RuleInput
+                  label={`${rule.label} 벌점`}
+                  value={rule.points}
+                  unit="점"
+                  canEdit={canEdit}
+                  onSave={(value) =>
+                    onSave(`${rule.id}.points`, value, `${rule.label} 벌점`)
+                  }
+                />
+              </td>
+              <td>
+                <RuleInput
+                  label={`${rule.label} 벌금`}
+                  value={rule.fine}
+                  unit="원"
+                  canEdit={canEdit}
+                  onSave={(value) =>
+                    onSave(`${rule.id}.fine`, value, `${rule.label} 벌금`)
+                  }
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">세션 길이</th>
+            <td colSpan={2}>
+              <RuleInput
+                label="세션 길이"
+                value={data.sessionMinutes}
+                unit="분"
+                canEdit={canEdit}
+                onSave={(value) =>
+                  onSave("session-minutes", value, "세션 길이")
+                }
+              />
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+  );
+}
+
+// 입력을 마치면(포커스를 옮기거나 Enter) 저장한다. 설정 탭의 단가 입력과 같은 방식.
+function RuleInput({
+  label,
+  value,
+  unit,
+  canEdit,
+  onSave,
+}: {
+  label: string;
+  value: number;
+  unit: string;
+  canEdit: boolean;
+  onSave: (value: number) => Promise<boolean>;
+}) {
+  const [draft, setDraft] = useState<number | null>(value);
+  useEffect(() => setDraft(value), [value]);
+  if (!canEdit)
+    return (
+      <span className="nut-setting__readonly">
+        {value.toLocaleString("ko-KR")}
+        {unit}
+      </span>
+    );
+  const commit = () => {
+    if (draft === null || draft === value) return;
+    void onSave(draft).then((ok) => ok || setDraft(value));
+  };
+  return (
+    <InputNumber
+      className="nut-setting__input nut-setting__input--compact"
+      aria-label={label}
+      min={0}
+      step={unit === "원" ? 1000 : 1}
+      precision={0}
+      value={draft}
+      addonAfter={unit}
+      formatter={(input) =>
+        input === undefined || String(input) === ""
+          ? ""
+          : Number(input).toLocaleString("ko-KR")
+      }
+      parser={(input) => Number((input ?? "").replace(/[^\d]/g, ""))}
+      onChange={setDraft}
+      onBlur={commit}
+      onPressEnter={commit}
+    />
   );
 }
 

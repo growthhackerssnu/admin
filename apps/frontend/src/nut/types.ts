@@ -287,6 +287,7 @@ export type AttendanceRecord = {
 
 export type AttendanceData = {
   sessionMinutes: number;
+  rules: Array<{ id: string; label: string; points: number; fine: number }>;
   roster: Array<{ name: string; cohort: string | null }>;
   records: AttendanceRecord[];
 };

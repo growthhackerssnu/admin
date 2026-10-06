@@ -1827,6 +1827,18 @@ model NutAttendanceRecord {
   @@schema("nut")
 }
 
+// 출석체크 벌점·벌금 기준(반기별). key = '<규칙 id>.points'·'<규칙 id>.fine'·'session-minutes'.
+// 행이 없으면 코드의 기본값(벌점벌금 시트의 값)을 쓴다.
+model NutAttendanceSetting {
+  periodId String @map("period_id")
+  key      String
+  value    Int
+
+  @@id([periodId, key])
+  @@map("attendance_settings")
+  @@schema("nut")
+}
+
 model NutTaxSummary {
   id                   String @id
   periodId             String @map("period_id")
