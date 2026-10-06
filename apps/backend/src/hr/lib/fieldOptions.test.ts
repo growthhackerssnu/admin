@@ -11,6 +11,13 @@ describe("canonicalizeOptionValues", () => {
     });
   });
 
+  it("단어 사이 공백 유무만 다른 값도 기존 옵션 이름으로 맞춘다", () => {
+    expect(canonicalizeOptionValues(["데이터사이언스", "Data Science"], ["데이터 사이언스", "DataScience"])).toEqual({
+      values: ["데이터 사이언스", "DataScience"],
+      newValues: [],
+    });
+  });
+
   it("기존에 없는 값은 새 옵션으로 표시한다(공백은 정리)", () => {
     expect(canonicalizeOptionValues(["PM", " 블록체인  "], existing)).toEqual({
       values: ["PM", "블록체인"],
