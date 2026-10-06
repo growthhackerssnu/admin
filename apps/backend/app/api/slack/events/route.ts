@@ -5,7 +5,7 @@ import { createClaim, resolvePeriodId } from "@/nut/lib/financeRepository";
 
 // Slack 앱 "GH NUT"의 Events API 수신점. 지금은 워크플로 단계 하나만 처리한다:
 //   register_nut_claim — 청구서 워크플로의 양식 답변으로 NUT 청구서를 만든다.
-// 앱 설정은 src/nut/slack-app-manifest.json. 서명 비밀값은 SLACK_SIGNING_SECRET.
+// 앱 설정은 slack-app/manifest.json(Slack CLI 프로젝트: cd slack-app && slack install). 서명 비밀값은 SLACK_SIGNING_SECRET.
 //
 // Slack은 3초 안에 응답이 없으면 같은 이벤트를 다시 보낸다(Cloud Run 콜드 스타트 때 생길 수 있다).
 // 청구서 id를 워크플로 실행 id로 만들어서 재전송이 와도 한 건만 생긴다.
