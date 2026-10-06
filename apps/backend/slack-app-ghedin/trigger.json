@@ -1,0 +1,9 @@
+{
+  "type": "webhook",
+  "name": "프로필 수정 요청 웹후크",
+  "description": "POST /api/v1/edit-requests가 호출한다. 본문: { \"text\": \"...\" }",
+  "workflow": "#/workflows/notify_edit_request",
+  "inputs": {
+    "text": { "value": "{{data.text}}" }
+  }
+}

@@ -16,4 +16,4 @@ prisma/*.db
 .env.*.local
 
 # Slack CLI 로컬 캐시
-apps/backend/slack-app/.slack/cache/
+apps/backend/slack-app*/.slack/cache/

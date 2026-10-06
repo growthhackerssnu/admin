@@ -1,0 +1,50 @@
+{
+  "display_information": {
+    "name": "그핵드인",
+    "description": "그핵드인(admin.ghsnu.com/hr) 프로필 수정 요청을 채널에 알립니다.",
+    "background_color": "#01397c"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "ghedin",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": true,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false,
+    "function_runtime": "remote"
+  },
+  "workflows": {
+    "notify_edit_request": {
+      "title": "프로필 수정 요청 알림",
+      "description": "백엔드가 웹후크 트리거로 보낸 text를 #pr-알럼-업데이트에 올립니다.",
+      "input_parameters": {
+        "text": {
+          "type": "string",
+          "title": "메시지",
+          "is_required": true
+        }
+      },
+      "steps": [
+        {
+          "id": "0",
+          "function_id": "slack#/functions/send_message",
+          "inputs": {
+            "channel_id": "C0C6ZL5GF62",
+            "message": "{{inputs.text}}"
+          }
+        }
+      ]
+    }
+  }
+}
