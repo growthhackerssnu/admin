@@ -43,6 +43,7 @@ export interface BudgetParameter {
 export interface DerivedParameter {
   id: string;
   label: string;
+  category: string;
   unit: string;
   expression: string;
   value: number;
@@ -99,10 +100,13 @@ export interface LedgerEntry {
   source: string;
   taxClass: TaxClass;
   claimId?: string;
+  teamId?: string;
 }
 
+// 팀이 지정된 회계 행(거래 내역)을 팀별로 모은 것. id는 회계 행 id.
 export interface AccountingDetail {
   id: string;
+  teamId: string;
   scope: "project" | "team";
   owner: string;
   category: "support" | "technical";
@@ -116,6 +120,7 @@ export interface AccountingDetail {
 export interface AccountingSummary {
   id: string;
   scope: "project" | "team";
+  term: "summer" | "regular" | "";
   name: string;
   supportBudget: number;
   supportSpent: number;
@@ -174,10 +179,11 @@ export interface TaxSummary {
 export interface FinanceOverview {
   periods: PeriodSummary[];
   // 고치기(모든 쓰기)는 총무·admin만. false면 화면은 보기 전용.
-  viewer: { canEdit: boolean };
+  viewer: { canEdit: boolean; canEditAttendance: boolean };
   period: {
     id: string;
     label: string;
+    operatingCohort: number;
     start: string;
     end: string;
     asOf: string;
@@ -207,3 +213,80 @@ export interface FinanceOverview {
   refundAccounts: RefundAccount[];
   tax: TaxSummary;
 }
+
+export interface TaxOverview {
+  fiscalYear: number;
+  fiscalYears: number[];
+  range: { start: string; end: string };
+  filingDue: string;
+  totals: {
+    taxableGains: number;
+    nonTaxableGains: number;
+    deductibleExpenses: number;
+    nonDeductibleExpenses: number;
+  };
+  corporate: {
+    businessIncome: number;
+    reserveRate: number;
+    reserve: number;
+    taxBase: number;
+    tax: number;
+    lines: Array<{ from: number; to: number; rate: number; tax: number }>;
+    rates: number[];
+    newRates: boolean;
+    local: number;
+    total: number;
+  };
+  vat: Array<{
+    key: string;
+    start: string;
+    end: string;
+    due: string;
+    receipts: number;
+    included: boolean;
+    supply: number;
+    outputTax: number;
+    inputTax: number;
+    payable: number;
+  }>;
+  withholding: {
+    business: { paid: number; national: number; local: number };
+    other: { paid: number; national: number; local: number };
+  };
+  entries: Array<{
+    id: string;
+    date: string;
+    type: LedgerType;
+    bucket: string;
+    detail: string;
+    amount: number;
+    taxClass: TaxClass;
+  }>;
+}
+
+export type AttendanceType = "late" | "absent" | "quest";
+export type Excuse = "excused" | "partial" | "unexcused";
+
+export type AttendanceRecord = {
+  id: string;
+  date: string;
+  name: string;
+  project: string | null;
+  type: AttendanceType;
+  excuse: Excuse;
+  minutesLate: number | null;
+  note: string | null;
+  source: string;
+  penalty: {
+    label: string;
+    points: number;
+    fine: number;
+    needsMinutes?: boolean;
+  };
+};
+
+export type AttendanceData = {
+  sessionMinutes: number;
+  roster: Array<{ name: string; cohort: string | null }>;
+  records: AttendanceRecord[];
+};

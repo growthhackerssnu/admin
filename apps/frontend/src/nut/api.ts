@@ -1,4 +1,11 @@
-import type { FinanceOverview, TaxClass } from "./types";
+import type {
+  AttendanceData,
+  AttendanceType,
+  Excuse,
+  FinanceOverview,
+  TaxClass,
+  TaxOverview,
+} from "./types";
 import { supabase } from "../lib/supabase";
 
 const baseUrl = (
@@ -72,6 +79,7 @@ export type LedgerInput = {
   claimant?: string | null;
   note?: string | null;
   taxClass: TaxClass;
+  teamId?: string | null;
 };
 
 export const ledgerApi = {
@@ -88,44 +96,33 @@ export const claimApi = {
   reject: (id: string, reason: string) =>
     send("claims", "PATCH", { id, type: "reject", reason }),
   reopen: (id: string) => send("claims", "PATCH", { id, type: "reopen" }),
-  pay: (id: string, date: string, bucket?: string) =>
-    send("claims", "PATCH", { id, type: "pay", date, bucket }),
+  pay: (id: string, date: string, bucket?: string, teamId?: string | null) =>
+    send("claims", "PATCH", { id, type: "pay", date, bucket, teamId }),
 };
 
 export type TeamInput = {
   id?: string;
   scope: "project" | "team";
+  term?: "summer" | "regular" | "";
   name: string;
   supportBudget: number;
   technicalBudget: number;
   note?: string | null;
 };
 
-export type TeamEntryInput = {
-  scope: "project" | "team";
-  owner: string;
-  category: "support" | "technical";
-  date: string;
-  detail: string;
-  amount: number;
-  claimant?: string | null;
-};
-
 export const accountingApi = {
   saveTeam: (periodId: string, input: TeamInput) =>
-    send("accounting", input.id ? "PATCH" : "POST", {
-      kind: "team",
-      periodId,
-      ...input,
-    }),
-  removeTeam: (id: string) =>
-    send("accounting", "DELETE", { kind: "team", id }),
-  addEntry: (periodId: string, input: TeamEntryInput) =>
-    send("accounting", "POST", { kind: "entry", periodId, ...input }),
-  updateEntry: (id: string, input: Partial<TeamEntryInput>) =>
-    send("accounting", "PATCH", { kind: "entry", id, ...input }),
-  removeEntry: (id: string) =>
-    send("accounting", "DELETE", { kind: "entry", id }),
+    send("accounting", input.id ? "PATCH" : "POST", { periodId, ...input }),
+  removeTeam: (id: string) => send("accounting", "DELETE", { id }),
+};
+
+export const incomeApi = {
+  save: (
+    periodId: string,
+    input: { id?: string; name: string; budget: number; note?: string | null },
+  ) =>
+    send("income-lines", input.id ? "PATCH" : "POST", { periodId, ...input }),
+  remove: (id: string) => send("income-lines", "DELETE", { id }),
 };
 
 export type BudgetNodeInput = {
@@ -193,4 +190,47 @@ export const refundApi = {
     }),
   remove: (periodId: string, id: string) =>
     send("refund-accounts", "DELETE", { periodId, id }),
+};
+
+export function fetchTax(fy?: number) {
+  return request<TaxOverview>(`/api/v1/finance/tax${fy ? `?fy=${fy}` : ""}`);
+}
+
+export function saveTaxInput(fy: number, key: string, value: number) {
+  return request<TaxOverview>("/api/v1/finance/tax", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fy, key, value }),
+  });
+}
+
+export type AttendanceInput = {
+  id?: string;
+  date: string;
+  name: string;
+  project?: string | null;
+  type: AttendanceType;
+  excuse: Excuse;
+  minutesLate: number | null;
+  note?: string | null;
+};
+
+// 출석체크는 재무 화면과 따로 불러온다. 쓰기는 그 반기의 출석 데이터를 돌려준다.
+export const attendanceApi = {
+  fetch: (periodId: string) =>
+    request<AttendanceData>(
+      `/api/v1/attendance?period=${encodeURIComponent(periodId)}`,
+    ),
+  save: (periodId: string, input: AttendanceInput) =>
+    request<AttendanceData>("/api/v1/attendance", {
+      method: input.id ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodId, ...input }),
+    }),
+  remove: (periodId: string, id: string) =>
+    request<AttendanceData>("/api/v1/attendance", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodId, id }),
+    }),
 };

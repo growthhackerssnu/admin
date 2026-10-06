@@ -7,13 +7,23 @@ import type { BudgetNode, BudgetParameter, FinanceOverview } from "../types";
 
 // 설정: 예전 시트 '예산안'처럼 인원·단가를 바꾸면 그 값을 쓰는 예산이 바로 다시 계산된다.
 // 보기는 모두, 고치기는 총무·admin만.
-const CATEGORIES = ["인원", "프로젝트", "지원 단가", "구독·환율", "기타"];
+// 무엇을 위한 돈인지 순서대로. 인원은 위의 표로 따로 보여준다.
+const CATEGORIES = [
+  "인원",
+  "방학 프로젝트",
+  "정규 프로젝트",
+  "운영팀 지원",
+  "행사·복지",
+  "구독·환율",
+  "기타",
+];
 const TEAMS = [
   { key: "business", label: "대협" },
   { key: "hr", label: "HR" },
   { key: "pr", label: "PR" },
 ];
-const COHORTS = ["19", "20"];
+// 운영 기수·신입 기수. 열 제목은 반기의 운영팀 기수로 채운다(2026-2 → 19기·20기).
+const COHORTS = ["senior", "junior"] as const;
 
 function identifiers(expression: string | undefined) {
   return new Set(expression?.match(/[a-z][a-z0-9-]*/g) ?? []);
@@ -118,7 +128,10 @@ export default function SettingsView() {
                 <th scope="col">팀</th>
                 {COHORTS.map((cohort) => (
                   <th scope="col" key={cohort}>
-                    {cohort}기
+                    {cohort === "senior"
+                      ? data.period.operatingCohort
+                      : data.period.operatingCohort + 1}
+                    기
                   </th>
                 ))}
               </tr>
@@ -150,16 +163,6 @@ export default function SettingsView() {
               </tr>
             </tfoot>
           </table>
-          <ul className="nut-derived">
-            {data.derivedParameters
-              .filter((item) => !item.id.startsWith("cohort-"))
-              .map((item) => (
-                <li key={item.id}>
-                  <span>{item.label}</span>
-                  <strong>{format(item.value, item.unit)}</strong>
-                </li>
-              ))}
-          </ul>
         </section>
       )}
 
@@ -174,6 +177,26 @@ export default function SettingsView() {
             <header className="nut-panel__head">
               <h2>{group.category}</h2>
             </header>
+            {data.derivedParameters.some(
+              (item) =>
+                item.category === group.category &&
+                !item.id.startsWith("cohort-"),
+            ) && (
+              <ul className="nut-derived">
+                {data.derivedParameters
+                  .filter(
+                    (item) =>
+                      item.category === group.category &&
+                      !item.id.startsWith("cohort-"),
+                  )
+                  .map((item) => (
+                    <li key={item.id}>
+                      <span>{item.label} (자동 계산)</span>
+                      <strong>{format(item.value, item.unit)}</strong>
+                    </li>
+                  ))}
+              </ul>
+            )}
             <ul className="nut-setting-list">
               {group.items.map((parameter) => (
                 <SettingRow
@@ -319,7 +342,7 @@ function NewSetting({ onDone }: { onDone: () => void }) {
     id: "",
     value: 0,
     unit: "원",
-    category: "지원 단가",
+    category: "행사·복지",
     description: "",
   });
   const validId = /^[a-z][a-z0-9-]{1,63}$/.test(draft.id);

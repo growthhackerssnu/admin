@@ -15,6 +15,16 @@ All require `Authorization: Bearer <Supabase access token>`; without it, `401` i
 - `POST/PATCH/DELETE /api/v1/finance/budget-nodes`
 - `PATCH /api/v1/finance/parameters`
 - `POST/PATCH /api/v1/finance/ledger`
+- `GET/POST/PATCH/DELETE /api/v1/attendance` — 출석체크 기록과 사람별 벌점·벌금(`src/nut/lib/attendance.ts`). GET은 NUT 회원 전원, 쓰기는 회장단(`president`·`vice_president`)·총무·admin만.
+
+### 출석체크 Slack 연결
+
+'출석핑' 워크플로의 시트 단계 두 개를 GH NUT 앱의 커스텀 단계로 바꾼다(`slack-app/manifest.json`, `cd slack-app && slack install -E deployed`로 반영):
+
+- 출석체크 양식 다음: **NUT에 출석 기록**(`record_roll_call`) — 프로젝트명과 네 명단(사유결석·사유지각·무단결석·무단지각)을 넣는다. 사유는 일단 벌점 없음으로 들어가고, 부분 사유는 화면에서 고친다.
+- '몇 분 늦으셨나요?' 양식 다음: **NUT에 지각 시간 기록**(`record_late_arrival`) — 늦은 사람(버튼 누른 사람)과 분. 그날 그 사람의 결석·지각 기록에 시간을 채우고, 없으면 무단지각으로 만든다.
+
+이름은 환급 계좌 명단에서 Slack 이메일로 찾는다. 날짜는 실행한 날(한국 시간)이다.
 
 Every successful mutation returns the refreshed `FinanceOverview` contract. `remaining` is `budget - actual`; `variance` is `actual - budget`, so a positive expense variance means over budget.
 

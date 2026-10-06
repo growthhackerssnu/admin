@@ -5,7 +5,7 @@ import { normalizeName } from "@/portal/lib/normalize";
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 // 화면을 보는 사람. 청구서 계좌번호는 수정 권한자(총무·admin)와 본인에게만 보인다.
-export type FinanceViewer = { memberId: string; canEdit: boolean };
+export type FinanceViewer = { memberId: string; canEdit: boolean; canEditAttendance?: boolean };
 
 // 요청한 반기가 없으면 오늘이 속한 반기, 그것도 없으면 가장 최근 반기.
 export async function resolvePeriodId(requested?: string | null, db: DbClient = prisma) {
@@ -238,12 +238,28 @@ type NodeSnapshot = {
 
 // 시트처럼 직접 입력하지 않고 다른 값으로 계산되는 기준. 산출식에서 이름 그대로 쓸 수 있다.
 // ponytail: 팀 구성이 바뀌면(예: 교육팀 추가) 여기 합계식을 고친다.
+// 운영 기수(senior, 2026-2라면 19기)와 신입 기수(junior, 20기). 이름의 {senior}/{junior}는 fillCohort가 바꾼다.
 export const DERIVED_PARAMETERS = [
-  { id: "cohort-19", label: "19기 총원", unit: "명", expression: "business-19 + hr-19 + pr-19" },
-  { id: "cohort-20", label: "20기 총원", unit: "명", expression: "business-20 + hr-20 + pr-20" },
-  { id: "summer-participants", label: "방학 프로젝트 참여 인원", unit: "명", expression: "cohort-19 - summer-interns" },
-  { id: "next-participants", label: "다음 학기 프로젝트 참여 인원", unit: "명", expression: "cohort-19 + cohort-20" },
+  { id: "cohort-senior", label: "{senior}기 총원", unit: "명", category: "인원", expression: "business-senior + hr-senior + pr-senior" },
+  { id: "cohort-junior", label: "{junior}기 총원", unit: "명", category: "인원", expression: "business-junior + hr-junior + pr-junior" },
+  { id: "summer-participants", label: "방학 프로젝트 참여 인원", unit: "명", category: "방학 프로젝트", expression: "cohort-senior - summer-interns" },
+  { id: "next-participants", label: "정규 프로젝트 참여 인원", unit: "명", category: "정규 프로젝트", expression: "cohort-senior + cohort-junior" },
 ] as const;
+
+export function fillCohort(text: string, operatingCohort: number) {
+  return text.replaceAll("{senior}", String(operatingCohort)).replaceAll("{junior}", String(operatingCohort + 1));
+}
+
+// 새 반기로 복사할 때 항목 이름의 기수·학기를 한 칸 민다: "19기"→"20기", "26-S"→"26-W", "26-2"→"27-1".
+export function advanceNames(name: string) {
+  return name
+    .replace(/(\d+)기/g, (_, cohort: string) => `${Number(cohort) + 1}기`)
+    .replace(/\b(\d{2})-([12SW])\b/g, (_, year: string, term: string) => {
+      const y = Number(year);
+      const next = { "1": [y, "2"], "2": [y + 1, "1"], S: [y, "W"], W: [y + 1, "S"] }[term] as [number, string];
+      return `${String(next[0]).padStart(2, "0")}-${next[1]}`;
+    });
+}
 
 // 입력 기준 + 계산 기준. 계산 기준은 위 순서대로 앞의 값을 쓸 수 있다.
 // 입력 기준이 빠져 있으면(새 반기 준비 중 등) 그 계산 기준은 건너뛴다.
@@ -328,44 +344,49 @@ function serializeNode(node: ReturnType<typeof calculateNodes>[number]) {
   };
 }
 
-// 프로젝트·운영팀 지원비: 사용액·건수·잔액을 내역에서 계산한다. 잔액은 날짜순 누적.
+// 팀별 지원비: 회계 행 중 팀이 지정된 것(teamId)을 팀별로 모은다. 그래서 거래 내역과 늘 같다.
+// 항목 이름에 '기술'이 있으면 기술지원비, 아니면 (팀)지원비. 잔액은 날짜순 누적.
 function accountingView(
   summaries: Awaited<ReturnType<typeof prisma.nutAccountingSummary.findMany>>,
-  details: Awaited<ReturnType<typeof prisma.nutAccountingDetail.findMany>>,
+  ledger: Awaited<ReturnType<typeof prisma.nutLedgerEntry.findMany>>,
 ) {
-  const budgetOf = (scope: string, owner: string, category: string) => {
-    const summary = summaries.find((item) => item.scope === scope && item.name === owner);
-    if (!summary) return 0;
-    return toNumber(category === "support" ? summary.supportBudget : summary.technicalBudget);
-  };
+  const byId = new Map(summaries.map((summary) => [summary.id, summary]));
   const used = new Map<string, number>();
   const count = new Map<string, number>();
-  const accountingDetails = details.map((detail) => {
-    const key = `${detail.scope}|${detail.owner}|${detail.category}`;
-    const spent = (used.get(key) ?? 0) + toNumber(detail.amount);
+  const tagged = ledger
+    .filter((entry) => entry.teamId && byId.has(entry.teamId))
+    .sort((a, b) => a.transactionDate.getTime() - b.transactionDate.getTime() || a.id.localeCompare(b.id));
+  const accountingDetails = tagged.map((entry) => {
+    const team = byId.get(entry.teamId!)!;
+    const category = team.scope === "project" && entry.bucket.includes("기술") ? "technical" : "support";
+    const key = `${team.id}|${category}`;
+    const spent = (used.get(key) ?? 0) + toNumber(entry.expense) - toNumber(entry.income);
     used.set(key, spent);
-    count.set(`${detail.scope}|${detail.owner}`, (count.get(`${detail.scope}|${detail.owner}`) ?? 0) + 1);
+    count.set(team.id, (count.get(team.id) ?? 0) + 1);
+    const budget = toNumber(category === "support" ? team.supportBudget : team.technicalBudget);
     return {
-      id: detail.id,
-      scope: detail.scope,
-      owner: detail.owner,
-      category: detail.category,
-      date: dateOnly(detail.date),
-      detail: detail.detail,
-      amount: toNumber(detail.amount),
-      balance: budgetOf(detail.scope, detail.owner, detail.category) - spent,
-      claimant: detail.claimant ?? undefined,
+      id: entry.id,
+      teamId: team.id,
+      scope: team.scope,
+      owner: team.name,
+      category,
+      date: dateOnly(entry.transactionDate),
+      detail: entry.detail,
+      amount: toNumber(entry.expense) - toNumber(entry.income),
+      balance: budget - spent,
+      claimant: entry.claimant ?? undefined,
     };
   });
   const accountingSummaries = summaries.map((summary) => ({
     id: summary.id,
     scope: summary.scope,
+    term: summary.term,
     name: summary.name,
     supportBudget: toNumber(summary.supportBudget),
-    supportSpent: used.get(`${summary.scope}|${summary.name}|support`) ?? 0,
+    supportSpent: used.get(`${summary.id}|support`) ?? 0,
     technicalBudget: toNumber(summary.technicalBudget),
-    technicalSpent: used.get(`${summary.scope}|${summary.name}|technical`) ?? 0,
-    entryCount: count.get(`${summary.scope}|${summary.name}`) ?? 0,
+    technicalSpent: used.get(`${summary.id}|technical`) ?? 0,
+    entryCount: count.get(summary.id) ?? 0,
     note: summary.note ?? undefined,
   }));
   return { accountingDetails, accountingSummaries };
@@ -384,7 +405,6 @@ export async function getFinanceOverview(
     incomeLines,
     monthlyFlows,
     rawLedger,
-    accountingDetails,
     accountingSummaries,
     claims,
     tax,
@@ -409,7 +429,6 @@ export async function getFinanceOverview(
       orderBy: { month: "asc" },
     }),
     db.nutLedgerEntry.findMany({ where: { periodId } }),
-    db.nutAccountingDetail.findMany({ where: { periodId }, orderBy: [{ date: "asc" }, { id: "asc" }] }),
     db.nutAccountingSummary.findMany({ where: { periodId }, orderBy: { id: "asc" } }),
     db.nutClaim.findMany({ where: { periodId }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
     db.nutTaxSummary.findUnique({ where: { periodId } }),
@@ -418,12 +437,22 @@ export async function getFinanceOverview(
   if (!period)
     throw new Error(`NUT finance period ${periodId} was not found`);
 
-  const parameters = rawParameters.map((parameter) => ({ ...parameter }));
+  const parameters = rawParameters.map((parameter) => ({
+    ...parameter,
+    label: fillCohort(parameter.label, period.operatingCohort),
+    description: fillCohort(parameter.description, period.operatingCohort),
+  }));
   const allValues = parameterValues(parameters);
   const derivedParameters = DERIVED_PARAMETERS.filter((derived) => allValues.has(derived.id)).map((derived) => ({
     ...derived,
+    label: fillCohort(derived.label, period.operatingCohort),
     value: allValues.get(derived.id)!,
   }));
+  // 수입 계획의 실제 수입도 회계 내역에서 같은 이름으로 합산한다.
+  const incomeByBucket = new Map<string, number>();
+  rawLedger.forEach((entry) =>
+    incomeByBucket.set(entry.bucket, (incomeByBucket.get(entry.bucket) ?? 0) + toNumber(entry.income)),
+  );
   // 실제 지출은 회계 내역에서 항목 이름별로 합산한다(저장된 spent는 쓰지 않는다).
   const spentByBucket = new Map<string, number>();
   rawLedger.forEach((entry) =>
@@ -481,6 +510,7 @@ export async function getFinanceOverview(
       expense: toNumber(entry.expense),
       balance: (running += toNumber(entry.income) - toNumber(entry.expense)),
       claimId: claimByLedger.get(entry.id),
+      teamId: entry.teamId ?? undefined,
       amount: toNumber(entry.amount),
       claimant: entry.claimant ?? undefined,
       note: entry.note ?? undefined,
@@ -490,7 +520,7 @@ export async function getFinanceOverview(
   const income = ledger.reduce((sum, entry) => sum + entry.income, 0);
   const expense = ledger.reduce((sum, entry) => sum + entry.expense, 0);
   const currentCash = toNumber(period.openingCash) + income - expense;
-  const incomeBudget = toNumber(period.incomeBudget);
+  const incomeBudget = incomeLines.reduce((sum, line) => sum + toNumber(line.budget), 0);
   // 지출 예산도 저장값 대신 예산 트리(대분류 합계)에서 계산한다. 저장값은 가져오기 등으로 어긋날 수 있다.
   const expenseBudget = budgetTree
     .filter((node) => node.parentId === null && node.kind === "expense")
@@ -518,10 +548,11 @@ export async function getFinanceOverview(
       start: dateOnly(item.periodStart),
       end: dateOnly(item.periodEnd),
     })),
-    viewer: { canEdit: viewer.canEdit },
+    viewer: { canEdit: viewer.canEdit, canEditAttendance: viewer.canEditAttendance ?? false },
     period: {
       id: period.id,
       label: period.label,
+      operatingCohort: period.operatingCohort,
       start: dateOnly(period.periodStart),
       end: dateOnly(period.periodEnd),
       asOf: dateOnly(period.asOf),
@@ -547,7 +578,7 @@ export async function getFinanceOverview(
     budgetLines: expenseLines,
     incomeLines: incomeLines.map((line) => {
       const budget = toNumber(line.budget);
-      const lineActual = toNumber(line.actual);
+      const lineActual = incomeByBucket.get(line.name) ?? 0;
       return {
         id: line.id,
         name: line.name,
@@ -574,7 +605,7 @@ export async function getFinanceOverview(
       };
     }),
     ledger,
-    ...accountingView(accountingSummaries, accountingDetails),
+    ...accountingView(accountingSummaries, rawLedger),
     refundAccounts: refundAccounts.map((account) => ({
       id: account.id,
       name: account.name,
@@ -690,20 +721,6 @@ export async function updateBudgetParameter(
   return prisma.$transaction(async (tx) => {
     await tx.nutBudgetParameter.update({ where: { periodId_id: { periodId, id } }, data: input });
     await syncBudgetRollups(tx, periodId);
-    if (id === "freelance-contract-cost" && input.value !== undefined) {
-      const tax = await tx.nutTaxSummary.findUnique({ where: { periodId } });
-      if (tax) {
-        const withholdingTax = Math.round(input.value * 0.033);
-        await tx.nutTaxSummary.update({
-          where: { id: tax.id },
-          data: {
-            freelanceContractCost: BigInt(input.value),
-            withholdingTax: BigInt(withholdingTax),
-            totalTax: tax.corporateTax + tax.vat + BigInt(withholdingTax),
-          },
-        });
-      }
-    }
     return periodId;
   });
 }
@@ -840,6 +857,7 @@ type LedgerInput = {
   note?: string | null;
   source?: string;
   taxClass: TaxClass;
+  teamId?: string | null;
 };
 
 function ledgerData(input: LedgerInput) {
@@ -856,11 +874,19 @@ function ledgerData(input: LedgerInput) {
     claimant: input.claimant ?? null,
     note: input.note ?? null,
     taxClass: input.taxClass,
+    teamId: input.teamId ?? null,
   };
+}
+
+async function assertTeamInPeriod(db: DbClient, teamId: string | null | undefined, periodId: string) {
+  if (!teamId) return;
+  const team = await db.nutAccountingSummary.findUnique({ where: { id: teamId } });
+  if (!team || team.periodId !== periodId) throw new ClaimStateError("같은 반기의 팀만 고를 수 있습니다.");
 }
 
 // 잔액·실제 지출·수입 합계는 모두 조회 때 회계 내역에서 계산하므로 행만 쓰면 된다.
 async function insertLedgerEntry(tx: Prisma.TransactionClient, periodId: string, input: LedgerInput) {
+  await assertTeamInPeriod(tx, input.teamId, periodId);
   return tx.nutLedgerEntry.create({
     data: {
       id: `ledger-${crypto.randomUUID()}`,
@@ -888,8 +914,10 @@ export async function updateLedgerEntry(id: string, input: Partial<LedgerInput>)
     claimant: before.claimant,
     note: before.note,
     taxClass: before.taxClass,
+    teamId: before.teamId,
     ...Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined)),
   };
+  await assertTeamInPeriod(prisma, merged.teamId, before.periodId);
   await prisma.nutLedgerEntry.update({ where: { id }, data: ledgerData(merged) });
   return before.periodId;
 }
@@ -960,7 +988,7 @@ export async function actOnClaim(
     | { type: "approve"; bucket?: string }
     | { type: "reject"; reason: string }
     | { type: "reopen" }
-    | { type: "pay"; date: string; bucket?: string },
+    | { type: "pay"; date: string; bucket?: string; teamId?: string | null },
   reviewerMemberId: string,
 ) {
   return prisma.$transaction(async (tx) => {
@@ -995,6 +1023,7 @@ export async function actOnClaim(
         note: null,
         source: "청구서",
         taxClass: node?.taxClass ?? "tax_deductible_expense",
+        teamId: action.teamId ?? null,
       });
       await tx.nutClaim.update({
         where: { id },
@@ -1013,6 +1042,7 @@ export async function saveAccountingSummary(
   input: {
     id?: string;
     scope: "project" | "team";
+    term?: "summer" | "regular" | "";
     name: string;
     supportBudget: number;
     technicalBudget: number;
@@ -1026,16 +1056,12 @@ export async function saveAccountingSummary(
         where: { id: input.id },
         data: {
           name: input.name,
+          term: input.scope === "project" ? (input.term ?? before.term) : "",
           supportBudget: BigInt(input.supportBudget),
           technicalBudget: BigInt(input.technicalBudget),
           note: input.note ?? null,
         },
       });
-      if (before.name !== input.name)
-        await tx.nutAccountingDetail.updateMany({
-          where: { periodId: before.periodId, scope: before.scope, owner: before.name },
-          data: { owner: input.name },
-        });
       return before.periodId;
     }
     await tx.nutAccountingSummary.create({
@@ -1043,6 +1069,7 @@ export async function saveAccountingSummary(
         id: `accounting-${crypto.randomUUID()}`,
         periodId,
         scope: input.scope,
+        term: input.scope === "project" ? (input.term ?? "regular") : "",
         name: input.name,
         supportBudget: BigInt(input.supportBudget),
         supportSpent: 0n,
@@ -1058,59 +1085,10 @@ export async function saveAccountingSummary(
 
 export async function deleteAccountingSummary(id: string) {
   const summary = await prisma.nutAccountingSummary.findUniqueOrThrow({ where: { id } });
-  const used = await prisma.nutAccountingDetail.count({
-    where: { periodId: summary.periodId, scope: summary.scope, owner: summary.name },
-  });
-  if (used) throw new ClaimStateError("사용 내역이 있는 팀은 삭제할 수 없습니다. 내역을 먼저 지우세요.");
+  const used = await prisma.nutLedgerEntry.count({ where: { teamId: id } });
+  if (used) throw new ClaimStateError("거래가 연결된 팀은 지울 수 없습니다. 거래 내역에서 팀 연결을 먼저 바꾸세요.");
   await prisma.nutAccountingSummary.delete({ where: { id } });
   return summary.periodId;
-}
-
-type AccountingDetailInput = {
-  scope: "project" | "team";
-  owner: string;
-  category: "support" | "technical";
-  date: string;
-  detail: string;
-  amount: number;
-  claimant?: string | null;
-};
-
-export async function createAccountingDetail(periodId: string, input: AccountingDetailInput) {
-  await prisma.nutAccountingDetail.create({
-    data: {
-      id: `accounting-detail-${crypto.randomUUID()}`,
-      periodId,
-      scope: input.scope,
-      owner: input.owner,
-      category: input.category,
-      date: new Date(`${input.date}T00:00:00Z`),
-      detail: input.detail,
-      amount: BigInt(Math.max(0, Math.round(input.amount))),
-      balance: 0n,
-      claimant: input.claimant || null,
-    },
-  });
-  return periodId;
-}
-
-export async function updateAccountingDetail(id: string, input: Partial<AccountingDetailInput>) {
-  const detail = await prisma.nutAccountingDetail.update({
-    where: { id },
-    data: {
-      ...(input.category ? { category: input.category } : {}),
-      ...(input.date ? { date: new Date(`${input.date}T00:00:00Z`) } : {}),
-      ...(input.detail ? { detail: input.detail } : {}),
-      ...(input.amount !== undefined ? { amount: BigInt(Math.max(0, Math.round(input.amount))) } : {}),
-      ...(input.claimant !== undefined ? { claimant: input.claimant || null } : {}),
-    },
-  });
-  return detail.periodId;
-}
-
-export async function deleteAccountingDetail(id: string) {
-  const detail = await prisma.nutAccountingDetail.delete({ where: { id } });
-  return detail.periodId;
 }
 
 // ---------- 반기 ----------
@@ -1136,6 +1114,7 @@ export async function createPeriod(input: {
       data: {
         id: input.id,
         label: input.label,
+        operatingCohort: source.operatingCohort + 1,
         periodStart: start,
         periodEnd: new Date(`${input.end}T00:00:00Z`),
         asOf: start,
@@ -1153,11 +1132,13 @@ export async function createPeriod(input: {
       tx.nutAccountingSummary.findMany({ where: { periodId: source.id, scope: "team" } }),
       tx.nutIncomeLine.findMany({ where: { periodId: source.id } }),
     ]);
+    // 설정은 기수에 묶이지 않으므로(운영/신입 기수) 그대로 복사하고, 항목 이름의 기수·학기만 한 칸 민다.
     await tx.nutBudgetParameter.createMany({ data: parameters.map((parameter) => ({ ...parameter, periodId: input.id })) });
     const newIds = new Map(nodes.map((node) => [node.id, `budget-node-${crypto.randomUUID()}`]));
     await tx.nutBudgetNode.createMany({
       data: nodes.map((node) => ({
         ...node,
+        name: advanceNames(node.name),
         id: newIds.get(node.id)!,
         parentId: node.parentId ? (newIds.get(node.parentId) ?? null) : null,
         periodId: input.id,
@@ -1175,7 +1156,13 @@ export async function createPeriod(input: {
       })),
     });
     await tx.nutIncomeLine.createMany({
-      data: incomeLines.map((line) => ({ ...line, id: `income-${crypto.randomUUID()}`, periodId: input.id, actual: 0n })),
+      data: incomeLines.map((line) => ({
+        ...line,
+        name: advanceNames(line.name),
+        id: `income-${crypto.randomUUID()}`,
+        periodId: input.id,
+        actual: 0n,
+      })),
     });
     await syncBudgetRollups(tx, input.id);
     return input.id;
@@ -1216,4 +1203,44 @@ export async function saveRefundAccount(input: {
 
 export async function deleteRefundAccount(id: string) {
   await prisma.nutRefundAccount.delete({ where: { id } });
+}
+
+// ---------- 수입 계획 ----------
+// 실제 수입은 조회 때 같은 이름의 회계 수입에서 계산한다. 이름을 바꾸면 그 이름으로 기록된 수입도 같이 바꾼다.
+
+export async function saveIncomeLine(periodId: string, input: { id?: string; name: string; budget: number; note?: string | null }) {
+  return prisma.$transaction(async (tx) => {
+    if (input.id) {
+      const before = await tx.nutIncomeLine.findUniqueOrThrow({ where: { id: input.id } });
+      await tx.nutIncomeLine.update({
+        where: { id: input.id },
+        data: { name: input.name, budget: BigInt(input.budget), note: input.note ?? null },
+      });
+      if (before.name !== input.name)
+        await tx.nutLedgerEntry.updateMany({
+          where: { periodId: before.periodId, type: "income", bucket: before.name },
+          data: { bucket: input.name },
+        });
+      return before.periodId;
+    }
+    const last = await tx.nutIncomeLine.findFirst({ where: { periodId }, orderBy: { sortOrder: "desc" } });
+    await tx.nutIncomeLine.create({
+      data: {
+        id: `income-${crypto.randomUUID()}`,
+        periodId,
+        name: input.name,
+        budget: BigInt(input.budget),
+        actual: 0n,
+        sortOrder: (last?.sortOrder ?? 0) + 1,
+        note: input.note ?? null,
+        taxClass: "taxable_gain",
+      },
+    });
+    return periodId;
+  });
+}
+
+export async function deleteIncomeLine(id: string) {
+  const line = await prisma.nutIncomeLine.delete({ where: { id } });
+  return line.periodId;
 }

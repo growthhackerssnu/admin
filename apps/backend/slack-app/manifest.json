@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "GH NUT",
-    "description": "청구서 워크플로 답변을 NUT(admin.ghsnu.com/nut)에 등록합니다.",
+    "description": "청구서·출석핑 워크플로 답변을 NUT(admin.ghsnu.com/nut)에 등록합니다.",
     "background_color": "#01397c"
   },
   "features": {
@@ -77,6 +77,80 @@
         "claim_id": {
           "type": "string",
           "title": "NUT 청구서 id",
+          "is_required": true
+        }
+      }
+    },
+    "record_roll_call": {
+      "title": "NUT에 출석 기록",
+      "description": "출석체크 양식의 네 명단을 NUT 출석체크에 기록합니다. 날짜는 실행한 날(한국 시간)입니다.",
+      "input_parameters": {
+        "project": {
+          "type": "string",
+          "title": "프로젝트명",
+          "is_required": false
+        },
+        "excused_absent": {
+          "type": "array",
+          "items": {
+            "type": "slack#/types/user_id"
+          },
+          "title": "사유결석인원",
+          "is_required": false
+        },
+        "excused_late": {
+          "type": "array",
+          "items": {
+            "type": "slack#/types/user_id"
+          },
+          "title": "사유지각인원",
+          "is_required": false
+        },
+        "unexcused_absent": {
+          "type": "array",
+          "items": {
+            "type": "slack#/types/user_id"
+          },
+          "title": "무단결석인원",
+          "is_required": false
+        },
+        "unexcused_late": {
+          "type": "array",
+          "items": {
+            "type": "slack#/types/user_id"
+          },
+          "title": "무단지각인원",
+          "is_required": false
+        }
+      },
+      "output_parameters": {
+        "recorded": {
+          "type": "number",
+          "title": "기록한 사람 수",
+          "is_required": true
+        }
+      }
+    },
+    "record_late_arrival": {
+      "title": "NUT에 지각 시간 기록",
+      "description": "'지각했어용'을 누른 사람의 오늘 출석 기록에 늦은 시간(분)을 채웁니다.",
+      "input_parameters": {
+        "user": {
+          "type": "slack#/types/user_id",
+          "title": "늦은 사람",
+          "is_required": true
+        },
+        "minutes": {
+          "type": "string",
+          "title": "늦은 시간(분)",
+          "description": "숫자 또는 '15분' 같은 텍스트",
+          "is_required": true
+        }
+      },
+      "output_parameters": {
+        "record_id": {
+          "type": "string",
+          "title": "출석 기록 id",
           "is_required": true
         }
       }

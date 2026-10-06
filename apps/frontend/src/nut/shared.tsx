@@ -76,6 +76,48 @@ export function majorOf(data: FinanceOverview, name: string) {
   return node && node.name !== name ? node.name : undefined;
 }
 
+// 회계 항목 이름으로 어느 팀 돈인지 판단한다. 팀을 고르게 할지, 어떤 팀 목록을 보여줄지에 쓴다.
+// ponytail: 이름 규칙에 기댄다("방학/정규 프로젝트 … 지원비", "HR팀 지원비" 등). 항목 이름을 크게 바꾸면 여기도 고친다.
+const OPS_TEAM_BY_BUCKET: Record<string, string> = {
+  "HR팀 지원비": "HR팀",
+  "PR팀 지원비": "PR팀",
+  "대외협력팀 지원비": "대외협력팀",
+  "회장단 지원비": "회장단",
+  "운영팀 회의 지원비": "운영진",
+};
+export function teamTarget(
+  bucket: string,
+):
+  | { scope: "project"; term: "summer" | "regular" }
+  | { scope: "team"; teamName: string }
+  | null {
+  if (/방학 프로젝트/.test(bucket) && /지원비/.test(bucket))
+    return { scope: "project", term: "summer" };
+  if (/정규 프로젝트/.test(bucket) && /지원비/.test(bucket))
+    return { scope: "project", term: "regular" };
+  const teamName = OPS_TEAM_BY_BUCKET[bucket];
+  return teamName ? { scope: "team", teamName } : null;
+}
+
+export function teamsFor(data: FinanceOverview, bucket: string) {
+  const target = teamTarget(bucket);
+  if (!target) return [];
+  return data.accountingSummaries.filter((team) =>
+    target.scope === "project"
+      ? team.scope === "project" && team.term === target.term
+      : team.scope === "team",
+  );
+}
+
+// 운영팀 지원비처럼 항목 이름으로 팀이 정해지면 그 팀을 바로 고른다.
+export function defaultTeamId(data: FinanceOverview, bucket: string) {
+  const target = teamTarget(bucket);
+  if (target?.scope !== "team") return undefined;
+  return data.accountingSummaries.find(
+    (team) => team.scope === "team" && team.name === target.teamName,
+  )?.id;
+}
+
 type NutContextValue = {
   data: FinanceOverview;
   // 저장 요청을 보내고, 성공하면 화면 데이터를 바꾸고 안내를 띄운다. 성공하면 새 데이터, 실패하면 null.
@@ -105,7 +147,8 @@ export function Meter({
   label: string;
 }) {
   const ratio = total > 0 ? used / total : used > 0 ? 1.01 : 0;
-  const state = ratio > 1 ? "over" : ratio >= 0.85 ? "near" : "ok";
+  // 예산을 넘겼을 때만 색을 바꾼다.
+  const state = ratio > 1 ? "over" : "ok";
   return (
     <div
       className={"nut-meter nut-meter--" + state}

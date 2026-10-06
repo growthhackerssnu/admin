@@ -5,14 +5,24 @@ import { ApiError, errorBody } from "./errors";
 import { ClaimStateError, ParameterInUseError } from "./financeRepository";
 import { canEditFinance } from "./respond";
 
-export function withApiHandler(handler: (req: NextRequest, context: { member: Awaited<ReturnType<typeof getAuthenticatedMember>>; requestId: string }) => Promise<{ body: unknown; status?: number }>) {
+type AuthedMember = Awaited<ReturnType<typeof getAuthenticatedMember>>;
+
+// 기본: 보기(GET)는 NUT 회원 전원, 그 밖의 모든 요청은 admin·총무만. 권한은 여기 한 곳에서만 판단한다.
+// 출석체크처럼 보기부터 막아야 하는 라우트는 access로 덮어쓴다.
+const financeAccess = {
+  allow: (member: AuthedMember, method: string) => method === "GET" || canEditFinance(member),
+  message: "NUT 수정은 총무와 관리자만 할 수 있습니다.",
+};
+
+export function withApiHandler(
+  handler: (req: NextRequest, context: { member: AuthedMember; requestId: string }) => Promise<{ body: unknown; status?: number }>,
+  access = financeAccess,
+) {
   return async (req: NextRequest) => {
     const requestId = crypto.randomUUID();
     try {
       const member = await getAuthenticatedMember(req);
-      // 보기(GET)는 NUT 회원 전원, 그 밖의 모든 요청은 admin·총무만. 쓰기 권한은 여기 한 곳에서만 판단한다.
-      if (req.method !== "GET" && !canEditFinance(member))
-        throw new ApiError("FORBIDDEN", "NUT 수정은 총무와 관리자만 할 수 있습니다.");
+      if (!access.allow(member, req.method)) throw new ApiError("FORBIDDEN", access.message);
       const result = await handler(req, { member, requestId });
       return NextResponse.json(result.body, { status: result.status ?? 200 });
     } catch (error) {

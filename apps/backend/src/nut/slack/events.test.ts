@@ -33,6 +33,9 @@ vi.stubGlobal(
   }),
 );
 
+const recordRollCall = vi.fn(async () => 2);
+vi.mock("@/nut/lib/attendance", () => ({ recordRollCall, recordArrival: vi.fn(async () => "att-1") }));
+
 const { POST } = await import("../../../app/api/slack/events/route");
 const post = (payload: unknown) =>
   POST(new Request("http://localhost/api/slack/events", { method: "POST", body: JSON.stringify(payload) }));
@@ -81,6 +84,26 @@ describe("POST /api/slack/events", () => {
     findRefundAccount.mockResolvedValueOnce(null);
     await post(step("good"));
     expect(createClaim).toHaveBeenCalledWith("2026-2h", expect.objectContaining({ claimant: "홍길동", bankAccount: null }));
+  });
+
+  it("records the roll call's lists under the roster names", async () => {
+    await post({
+      type: "event_callback",
+      event: {
+        type: "function_executed",
+        function: { callback_id: "record_roll_call" },
+        function_execution_id: "Fx2",
+        bot_access_token: "good",
+        inputs: { project: "에듀세션", unexcused_late: ["U1"], excused_absent: ["U2"] },
+      },
+    });
+    expect(recordRollCall).toHaveBeenCalledWith("Fx2", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), "에듀세션", [
+      { people: [{ name: "김주형", email: null }], type: "absent", excuse: "excused" },
+      { people: [], type: "late", excuse: "excused" },
+      { people: [], type: "absent", excuse: "unexcused" },
+      { people: [{ name: "김주형", email: null }], type: "late", excuse: "unexcused" },
+    ]);
+    expect(calls).toContain("functions.completeSuccess");
   });
 
   it("rejects a forged event whose token Slack does not recognize", async () => {

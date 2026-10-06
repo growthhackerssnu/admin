@@ -265,9 +265,6 @@
   transform-origin: left;
   transition: transform 200ms ease-out;
 }
-.nut-meter--near > span {
-  background: var(--nut-near);
-}
 .nut-meter--over > span {
   background: var(--nut-over);
 }
@@ -895,4 +892,9 @@ button.nut-tree__toggle:hover {
     flex-direction: column;
     gap: var(--ds-space-2);
   }
+}
+
+/* ---------- 출석체크 ---------- */
+.nut-attendance__table {
+  max-width: 560px;
 }

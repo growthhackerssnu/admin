@@ -13,6 +13,8 @@ const entry = z.object({
   claimant: z.string().trim().nullish(),
   note: z.string().trim().nullish(),
   taxClass,
+  // 팀지원비·기술지원비·운영팀 지원비면 어느 팀 돈인지. null이면 연결 해제.
+  teamId: z.string().nullish(),
 });
 
 export const POST = withApiHandler(async (req, { member, requestId }) => {

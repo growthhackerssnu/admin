@@ -1,9 +1,37 @@
 import { Input, InputNumber, Popconfirm, Radio } from "antd";
 import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
-import { budgetApi, createPeriod } from "../api";
+import { budgetApi, createPeriod, incomeApi } from "../api";
 import { Meter, money, taxClassFor, useNut } from "../shared";
-import type { BudgetNode } from "../types";
+import type { BudgetNode, FinanceOverview, IncomeLine } from "../types";
+
+// 계산식을 설정 이름으로 읽기 쉽게: "summer-support-per-person * summer-participants"
+// → "팀지원비 (1인당) × 방학 프로젝트 참여 인원".
+function readableFormula(data: FinanceOverview, expression: string) {
+  const labels = new Map<string, string>([
+    ...data.parameters.map(
+      (parameter) => [parameter.id, parameter.label] as [string, string],
+    ),
+    ...data.derivedParameters.map(
+      (derived) => [derived.id, derived.label] as [string, string],
+    ),
+  ]);
+  const functions: Record<string, string> = {
+    round: "반올림",
+    ceil: "올림",
+    floor: "내림",
+    min: "최소",
+    max: "최대",
+    abs: "절댓값",
+  };
+  return expression
+    .replace(
+      /[a-z][a-z0-9-]*/g,
+      (name) => labels.get(name) ?? functions[name] ?? name,
+    )
+    .replaceAll("*", "×")
+    .replaceAll("/", "÷");
+}
 
 const levelBelow = { major: "middle", middle: "minor" } as const;
 const levelName = {
@@ -129,31 +157,7 @@ export default function BudgetView({
         </div>
       </section>
 
-      {data.incomeLines.length > 0 && (
-        <section className="nut-panel" aria-labelledby="income-plan">
-          <header className="nut-panel__head">
-            <h2 id="income-plan">수입 계획</h2>
-          </header>
-          <ul className="nut-list">
-            {data.incomeLines.map((line) => {
-              const actual = ledgerIncome.get(line.name) ?? line.actual;
-              return (
-                <li key={line.id} className="nut-budget-row">
-                  <div className="nut-budget-row__top">
-                    <strong>{line.name}</strong>
-                    <span>
-                      {money(actual)} / {money(line.budget)}
-                    </span>
-                  </div>
-                  {line.note && (
-                    <span className="nut-budget-row__sub">{line.note}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <IncomePlan actualByName={ledgerIncome} />
 
       {data.viewer.canEdit && <NewPeriod onCreated={onPeriodCreated} />}
     </div>
@@ -184,6 +188,7 @@ function TreeRow({
   const { data, run } = useNut();
   const canEdit = data.viewer.canEdit;
   const [editing, setEditing] = useState(false);
+  const [showFormula, setShowFormula] = useState(false);
   const index = siblings.findIndex((item) => item.id === node.id);
   const move = (offset: number) => {
     const ids = siblings.map((item) => item.id);
@@ -215,12 +220,18 @@ function TreeRow({
           )}
           <span>
             <strong>{node.name}</strong>
-            {(node.formulaExpression || node.note) && (
-              <small>
-                {node.formulaExpression
-                  ? `계산식 ${node.formulaExpression}`
-                  : node.note}
-              </small>
+            {node.note && <small>{node.note}</small>}
+            {node.formulaExpression && (
+              <button
+                type="button"
+                className="nut-formula-toggle"
+                aria-expanded={showFormula}
+                onClick={() => setShowFormula((value) => !value)}
+              >
+                {showFormula
+                  ? readableFormula(data, node.formulaExpression)
+                  : "계산식 보기"}
+              </button>
             )}
           </span>
         </span>
@@ -493,6 +504,163 @@ function NodeForm({
   );
 }
 
+// 수입 계획: 반기 수입 목표. 실제 수입은 같은 이름의 회계 수입을 더한 값.
+function IncomePlan({ actualByName }: { actualByName: Map<string, number> }) {
+  const { data } = useNut();
+  const [adding, setAdding] = useState(false);
+  const planned = data.incomeLines.reduce((sum, line) => sum + line.budget, 0);
+  const actual = data.incomeLines.reduce(
+    (sum, line) => sum + (actualByName.get(line.name) ?? 0),
+    0,
+  );
+  return (
+    <section className="nut-panel" aria-labelledby="income-plan">
+      <header className="nut-panel__head">
+        <div>
+          <h2 id="income-plan">수입 계획</h2>
+          <p className="nut-panel__sub">
+            계획 {money(planned)} · 실제 {money(actual)}
+          </p>
+        </div>
+        {data.viewer.canEdit && !adding && (
+          <Button onClick={() => setAdding(true)}>수입 추가</Button>
+        )}
+      </header>
+      {adding && <IncomeForm onDone={() => setAdding(false)} />}
+      <ul className="nut-list">
+        {data.incomeLines.map((line) => (
+          <IncomeRow
+            key={line.id}
+            line={line}
+            actual={actualByName.get(line.name) ?? 0}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function IncomeRow({ line, actual }: { line: IncomeLine; actual: number }) {
+  const { data } = useNut();
+  const [editing, setEditing] = useState(false);
+  if (editing)
+    return <IncomeForm line={line} onDone={() => setEditing(false)} />;
+  return (
+    <li className="nut-budget-row nut-income-row">
+      <div className="nut-budget-row__top">
+        <strong>{line.name}</strong>
+        <span>
+          {money(actual)} / {money(line.budget)}
+          {data.viewer.canEdit && (
+            <Button type="text" size="small" onClick={() => setEditing(true)}>
+              수정
+            </Button>
+          )}
+        </span>
+      </div>
+      {line.note && <span className="nut-budget-row__sub">{line.note}</span>}
+    </li>
+  );
+}
+
+function IncomeForm({
+  line,
+  onDone,
+}: {
+  line?: IncomeLine;
+  onDone: () => void;
+}) {
+  const { data, run } = useNut();
+  const [value, setValue] = useState({
+    name: line?.name ?? "",
+    budget: line?.budget ?? 0,
+    note: line?.note ?? "",
+  });
+  return (
+    <form
+      className="nut-inline-form"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!value.name.trim()) return;
+        const ok = await run(
+          () =>
+            incomeApi.save(data.period.id, {
+              id: line?.id,
+              name: value.name.trim(),
+              budget: value.budget,
+              note: value.note || null,
+            }),
+          line
+            ? `${value.name}을 고쳤습니다.`
+            : `${value.name}을 추가했습니다.`,
+        );
+        if (ok) onDone();
+      }}
+    >
+      <label>
+        이름
+        <Input
+          autoFocus
+          value={value.name}
+          onChange={(event) => setValue({ ...value, name: event.target.value })}
+        />
+        {line && (
+          <small>이름을 바꾸면 이 이름으로 기록된 수입도 같이 바뀝니다.</small>
+        )}
+      </label>
+      <label>
+        계획 금액
+        <InputNumber
+          min={0}
+          addonAfter="원"
+          value={value.budget}
+          formatter={(input) =>
+            input ? Number(input).toLocaleString("ko-KR") : ""
+          }
+          parser={(input) => Number((input ?? "").replace(/[^\d]/g, ""))}
+          onChange={(input) => setValue({ ...value, budget: input ?? 0 })}
+        />
+      </label>
+      <label className="nut-inline-form__wide">
+        메모
+        <Input
+          value={value.note}
+          onChange={(event) => setValue({ ...value, note: event.target.value })}
+        />
+      </label>
+      <div className="nut-form-actions">
+        {line && (
+          <Popconfirm
+            title={`'${line.name}'을 수입 계획에서 지울까요?`}
+            description="이 이름으로 기록된 수입 거래는 그대로 남습니다."
+            okText="지우기"
+            cancelText="그대로 두기"
+            okButtonProps={{ danger: true }}
+            onConfirm={async () => {
+              if (
+                await run(
+                  () => incomeApi.remove(line.id),
+                  `${line.name}을 지웠습니다.`,
+                )
+              )
+                onDone();
+            }}
+          >
+            <Button type="text" danger>
+              지우기
+            </Button>
+          </Popconfirm>
+        )}
+        <span className="nut-spacer" />
+        <Button onClick={onDone}>취소</Button>
+        <Button type="primary" htmlType="submit" disabled={!value.name.trim()}>
+          저장
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 // 반기가 바뀔 때 한 번. 지금 보고 있는 반기의 예산 구조·계산 기준·운영팀을 복사해서 시작한다.
 function NewPeriod({ onCreated }: { onCreated: (id: string) => void }) {
   const { data, run } = useNut();
@@ -503,7 +671,7 @@ function NewPeriod({ onCreated }: { onCreated: (id: string) => void }) {
   const half = nextStart.getUTCMonth() < 6 ? 1 : 2;
   const [value, setValue] = useState({
     id: `${year}-${half}h`,
-    label: `${year} ${half === 1 ? "상반기" : "하반기"}`,
+    label: `${year}-${half} · ${data.period.operatingCohort + 1}기 운영팀 임기`,
     start: nextStart.toISOString().slice(0, 10),
     end: `${year}-${half === 1 ? "06-30" : "12-31"}`,
   });

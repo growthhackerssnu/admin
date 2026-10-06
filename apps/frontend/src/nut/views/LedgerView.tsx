@@ -8,11 +8,22 @@ import {
   expenseCategories,
   incomeCategories,
   money,
+  defaultTeamId,
   signed,
   taxClassFor,
+  teamsFor,
+  teamTarget,
   useNut,
 } from "../shared";
-import type { LedgerEntry } from "../types";
+import type { LedgerEntry, TaxClass } from "../types";
+
+export const taxClassLabel: Record<TaxClass, string> = {
+  taxable_gain: "과세 수익",
+  non_taxable_gain: "비과세 수익",
+  tax_deductible_expense: "손금 비용",
+  non_tax_deductible_expense: "손금불산입 비용",
+  tax: "세금",
+};
 
 type Draft = Omit<LedgerInput, "taxClass" | "amount"> & {
   amount: number | null;
@@ -27,6 +38,7 @@ function emptyDraft(date: string): Draft {
     amount: null,
     claimant: "",
     note: "",
+    teamId: null,
   };
 }
 
@@ -88,7 +100,10 @@ export default function LedgerView() {
     { income: 0, expense: 0 },
   );
   const filtering = Boolean(query || category || month || type !== "all");
+  // 팀지원비·기술지원비·운영팀 지원비면 팀까지 골라야 팀별 지원비와 맞는다.
+  const needsTeam = teamsFor(data, draft.bucket).length > 0;
   const canSave =
+    (!needsTeam || Boolean(draft.teamId)) &&
     draft.bucket &&
     draft.detail.trim() &&
     draft.amount &&
@@ -157,8 +172,27 @@ export default function LedgerView() {
             }
             value={draft.bucket || undefined}
             options={draft.type === "expense" ? expenseOptions : incomeOptions}
-            onChange={(value) => setDraft({ ...draft, bucket: value })}
+            onChange={(value) =>
+              setDraft({
+                ...draft,
+                bucket: value,
+                teamId: defaultTeamId(data, value) ?? null,
+              })
+            }
           />
+          {teamsFor(data, draft.bucket).length > 0 && (
+            <Select
+              aria-label="팀"
+              className="nut-quick-add__team"
+              placeholder="어느 팀?"
+              value={draft.teamId ?? undefined}
+              options={teamsFor(data, draft.bucket).map((team) => ({
+                value: team.id,
+                label: team.name,
+              }))}
+              onChange={(teamId) => setDraft({ ...draft, teamId })}
+            />
+          )}
           <Input
             aria-label="내용"
             className="nut-quick-add__detail"
@@ -299,6 +333,15 @@ export default function LedgerView() {
                             <strong>{entry.detail}</strong>
                             <span>
                               {entry.bucket}
+                              {entry.teamId
+                                ? ` · ${data.accountingSummaries.find((team) => team.id === entry.teamId)?.name ?? ""}`
+                                : ""}
+                              {!entry.teamId && teamTarget(entry.bucket) ? (
+                                <span className="nut-negative">
+                                  {" "}
+                                  · 팀 미지정
+                                </span>
+                              ) : null}
                               {entry.claimant ? ` · ${entry.claimant}` : ""}
                               {entry.claimId ? " · 청구서로 지급" : ""}
                               {entry.note ? ` · ${entry.note}` : ""}
@@ -373,7 +416,10 @@ function LedgerEditor({
     amount: entry.amount,
     claimant: entry.claimant ?? "",
     note: entry.note ?? "",
+    teamId: entry.teamId ?? null,
+    taxClass: entry.taxClass,
   });
+  const teams = teamsFor(data, value.bucket);
   const options =
     entry.type === "expense"
       ? expenseCategories(data).map((node) => ({
@@ -401,7 +447,13 @@ function LedgerEditor({
             showSearch
             value={value.bucket}
             options={options}
-            onChange={(bucket) => setValue({ ...value, bucket })}
+            onChange={(bucket) =>
+              setValue({
+                ...value,
+                bucket,
+                teamId: defaultTeamId(data, bucket) ?? null,
+              })
+            }
           />
         </label>
         <label className="nut-entry-editor__wide">
@@ -424,6 +476,38 @@ function LedgerEditor({
             }
             parser={(amount) => Number((amount ?? "").replace(/[^\d]/g, ""))}
             onChange={(amount) => setValue({ ...value, amount: amount ?? 0 })}
+          />
+        </label>
+        {teams.length > 0 && (
+          <label>
+            팀
+            <Select
+              placeholder="어느 팀?"
+              value={value.teamId ?? undefined}
+              options={teams.map((team) => ({
+                value: team.id,
+                label: team.name,
+              }))}
+              onChange={(teamId) => setValue({ ...value, teamId })}
+            />
+          </label>
+        )}
+        <label>
+          세금 분류
+          <Select
+            value={value.taxClass}
+            options={(entry.type === "income"
+              ? (["taxable_gain", "non_taxable_gain"] as const)
+              : ([
+                  "tax_deductible_expense",
+                  "non_tax_deductible_expense",
+                  "tax",
+                ] as const)
+            ).map((taxClass) => ({
+              value: taxClass,
+              label: taxClassLabel[taxClass],
+            }))}
+            onChange={(taxClass) => setValue({ ...value, taxClass })}
           />
         </label>
         <label>

@@ -40,24 +40,28 @@ const viewer = { memberId: "nobody", canEdit: true };
   await assert.rejects(r.actOnClaim(c.id, { type: "approve" }, "rev"), /검토 중/);
   await r.actOnClaim(c.id, { type: "reject", reason: "테스트" }, "rev");
   await r.actOnClaim(c.id, { type: "reopen" }, "rev");
-  // accounting
-  await r.createAccountingDetail(p, { scope: "project", owner: "세타원", category: "support", date: "2026-10-03", detail: "e2e 다과", amount: 1000 });
+  // team tagging: 팀지원비 거래를 팀에 연결하면 팀별 지원비에 바로 잡힌다
+  const theta = o.accountingSummaries.find((t) => t.name === "세타원")!;
+  await r.createLedgerEntry(p, { date: "2026-10-03", type: "expense", bucket: "26-S 방학 프로젝트 팀 지원비", detail: "e2e 다과", amount: 1000, taxClass: "tax_deductible_expense", teamId: theta.id });
   o = await r.getFinanceOverview(p, viewer);
-  const theta = o.accountingSummaries.find(s => s.name === "세타원")!; assert.equal(theta.supportSpent, 395350 + 1000);
-  const d = o.accountingDetails.find(x => x.detail === "e2e 다과")!; assert.equal(d.balance, 400000 - 396350);
-  await r.deleteAccountingDetail(d.id);
+  assert.equal(o.accountingSummaries.find((t) => t.id === theta.id)!.supportSpent, theta.supportSpent + 1000, "tagged ledger row counts for the team");
+  const tagged = o.ledger.find((e) => e.detail === "e2e 다과")!;
+  await assert.rejects(r.updateLedgerEntry(tagged.id, { teamId: "accounting-nope" }), /같은 반기/);
+  await r.deleteLedgerEntry(tagged.id);
   // parameter recompute
-  const before = o.budgetTree.find(n => n.formulaExpression?.includes("cohort-20"))!;
-  await r.updateBudgetParameter(p, "cohort-20", { value: 14 });
+  const before = o.budgetTree.find(n => n.formulaExpression?.includes("cohort-junior"))!;
+  await r.updateBudgetParameter(p, "hr-junior", { value: 6 });
   o = await r.getFinanceOverview(p, viewer);
   console.log("slack budget", before.budget, "->", o.budgetTree.find(n => n.id === before.id)!.budget);
-  await r.updateBudgetParameter(p, "cohort-20", { value: 13 });
+  await r.updateBudgetParameter(p, "hr-junior", { value: 5 });
   // new period
   await r.createPeriod({ id: "2027-1h", label: "2027 상반기", start: "2027-01-01", end: "2027-06-30", copyFromId: p });
   const n = await r.getFinanceOverview("2027-1h", viewer);
   assert.equal(n.openingCash, base); assert.equal(n.ledger.length, 0); assert.equal(n.budgetTree.length, o.budgetTree.length);
   assert.ok(n.budgetTree.every(x => x.actual === 0)); assert.equal(n.parameters.length, o.parameters.length);
   assert.equal(n.periods.length, 2); assert.equal(n.accountingSummaries.filter(s => s.scope === "team").length, 5);
+  assert.equal(n.period.operatingCohort, o.period.operatingCohort + 1, "next period is the next cohort");
+  assert.ok(n.budgetTree.some(x => x.name.includes(`${o.period.operatingCohort + 1}기`)), "cohort numbers in item names advance");
   // rename node keeps ledger link
   const slackNew = n.budgetTree.find(x => x.name === "Slack")!;
   await r.createLedgerEntry("2027-1h", { date: "2027-01-05", type: "expense", bucket: "Slack", detail: "1월 슬랙", amount: 5000, taxClass: "tax_deductible_expense" });

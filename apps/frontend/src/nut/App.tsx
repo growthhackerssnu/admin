@@ -12,6 +12,7 @@ import BudgetView from "./views/BudgetView";
 import TeamsView from "./views/TeamsView";
 import SettingsView from "./views/SettingsView";
 import RefundAccountsView from "./views/RefundAccountsView";
+import AttendanceView from "./views/AttendanceView";
 
 type View =
   | "overview"
@@ -20,7 +21,8 @@ type View =
   | "budget"
   | "teams"
   | "settings"
-  | "accounts";
+  | "accounts"
+  | "attendance";
 
 function initialView(): View {
   const saved = new URLSearchParams(window.location.search).get(
@@ -35,6 +37,7 @@ function initialView(): View {
       "teams",
       "settings",
       "accounts",
+      "attendance",
     ].includes(saved)
     ? saved
     : "overview";
@@ -146,6 +149,7 @@ export default function App() {
     { id: "claims", label: "청구서", badge: waiting || undefined },
     { id: "budget", label: "예산" },
     { id: "teams", label: "팀별 지원비" },
+    { id: "attendance", label: "출석체크" },
     { id: "settings", label: "설정" },
     ...(data.viewer.canEdit
       ? [{ id: "accounts" as const, label: "환급 계좌" }]
@@ -221,6 +225,7 @@ export default function App() {
               <BudgetView onPeriodCreated={(id) => void load(id)} />
             )}
             {view === "teams" && <TeamsView />}
+            {view === "attendance" && <AttendanceView />}
             {view === "settings" && <SettingsView />}
             {view === "accounts" && data.viewer.canEdit && (
               <RefundAccountsView />

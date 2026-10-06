@@ -4,9 +4,11 @@ import { AppButton as Button } from "@/components/ui/app-button";
 import { claimApi } from "../api";
 import {
   defaultDate,
+  defaultTeamId,
   expenseCategories,
   money,
   shortDate,
+  teamsFor,
   useNut,
 } from "../shared";
 import type { Claim, ClaimStatus } from "../types";
@@ -215,6 +217,10 @@ function PayButton({ claim }: { claim: Claim }) {
   const [bucket, setBucket] = useState(
     claim.bucket === "미분류" ? "" : claim.bucket,
   );
+  const [teamId, setTeamId] = useState<string | undefined>(
+    defaultTeamId(data, claim.bucket),
+  );
+  const teams = teamsFor(data, bucket);
   return (
     <Popover
       open={open}
@@ -241,19 +247,36 @@ function PayButton({ claim }: { claim: Claim }) {
                 value: node.name,
                 label: node.name,
               }))}
-              onChange={setBucket}
+              onChange={(value) => {
+                setBucket(value);
+                setTeamId(defaultTeamId(data, value));
+              }}
             />
           </label>
+          {teams.length > 0 && (
+            <label>
+              어느 팀 돈인가요?
+              <Select
+                placeholder="팀 고르기"
+                value={teamId}
+                options={teams.map((team) => ({
+                  value: team.id,
+                  label: team.name,
+                }))}
+                onChange={setTeamId}
+              />
+            </label>
+          )}
           <p className="nut-hint">
             지급 완료로 바꾸고 거래 내역에 지출로 기록합니다.
           </p>
           <Button
             type="primary"
-            disabled={!bucket || !date}
+            disabled={!bucket || !date || (teams.length > 0 && !teamId)}
             onClick={async () => {
               if (
                 await run(
-                  () => claimApi.pay(claim.id, date, bucket),
+                  () => claimApi.pay(claim.id, date, bucket, teamId),
                   `${claim.claimant}님에게 ${money(claim.amount)} 지급을 기록했습니다.`,
                 )
               )

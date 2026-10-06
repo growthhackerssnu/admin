@@ -1588,6 +1588,8 @@ enum NutClaimStatus {
 model NutFinancePeriod {
   id             String   @id
   label          String
+  // 이 반기 운영팀의 기수(2026-2 = 19기). 설정 이름의 {senior}기·{junior}기가 이 값으로 바뀐다.
+  operatingCohort Int     @map("operating_cohort")
   periodStart    DateTime @map("period_start") @db.Date
   periodEnd      DateTime @map("period_end") @db.Date
   asOf           DateTime @map("as_of") @db.Date
@@ -1704,8 +1706,11 @@ model NutLedgerEntry {
   note          String?
   source        String
   taxClass      NutTaxClass  @map("tax_class")
+  // 팀지원비·기술지원비·운영팀 지원비로 나간 돈이면 어느 팀 돈인지. 팀별 지원비 화면은 이 값으로 모은다.
+  teamId        String?      @map("team_id")
 
   @@index([periodId, transactionDate])
+  @@index([teamId])
   @@index([bucket])
   @@map("ledger_entries")
   @@schema("nut")
@@ -1732,6 +1737,8 @@ model NutAccountingSummary {
   id             String             @id
   periodId       String             @map("period_id")
   scope          NutAccountingScope
+  // 프로젝트 팀의 학기 구분: summer(방학)·regular(정규). 운영팀은 "".
+  term           String             @default("")
   name           String
   supportBudget  BigInt             @map("support_budget")
   supportSpent   BigInt             @map("support_spent")
@@ -1740,7 +1747,7 @@ model NutAccountingSummary {
   entryCount     Int                @map("entry_count")
   note           String?
 
-  @@unique([periodId, scope, name])
+  @@unique([periodId, scope, term, name])
   @@map("accounting_summaries")
   @@schema("nut")
 }
@@ -1773,6 +1780,17 @@ model NutClaim {
   @@schema("nut")
 }
 
+// 세금 탭의 입력값(매입세액, 원천징수 대상 지급액, 고유목적사업준비금 비율 등).
+// key 예: "vat:2026-1:input-tax", "fy:2026:business-paid". 계산은 코드(taxRepository)에서 한다.
+model NutTaxInput {
+  key       String   @id
+  value     Float
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("tax_inputs")
+  @@schema("nut")
+}
+
 // 회원 환급 계좌(예전 내부운영 시트 '학회원 정보'). 청구서가 Slack으로 들어올 때 청구인의
 // Slack 이메일(없으면 이름)로 찾아 계좌를 채운다. 보기·수정 모두 총무·admin만.
 // 전화번호·생일은 쓰지 않으므로 저장하지 않는다.
@@ -1786,6 +1804,26 @@ model NutRefundAccount {
 
   @@index([name])
   @@map("refund_accounts")
+  @@schema("nut")
+}
+
+// 출석체크: Slack '출석핑' 워크플로(출석 기록·지각 시간)와 화면 입력으로 쌓인다.
+// 벌점·벌금은 저장하지 않고 type·excuse·minutes_late로 조회 때 계산한다(src/nut/lib/attendance.ts).
+model NutAttendanceRecord {
+  id          String   @id
+  date        DateTime @db.Date
+  name        String
+  email       String?
+  project     String?
+  type        String   // late | absent | quest
+  excuse      String   // excused | partial | unexcused
+  minutesLate Int?     @map("minutes_late")
+  note        String?
+  source      String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("attendance_records")
   @@schema("nut")
 }
 

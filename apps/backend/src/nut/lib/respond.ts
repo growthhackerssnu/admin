@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Member } from "@/generated/prisma";
 import { ApiError, successBody } from "./errors";
+import { canEditAttendance } from "./attendance";
 import { getFinanceOverview, resolvePeriodId } from "./financeRepository";
 
 // NUT 보기는 admin·acting 전원, 고치기(모든 쓰기)와 청구서 계좌번호 열람은 admin과 총무만.
@@ -13,6 +14,7 @@ export async function overviewBody(periodId: string, member: Member, requestId: 
   const overview = await getFinanceOverview(periodId, {
     memberId: member.id,
     canEdit: canEditFinance(member),
+    canEditAttendance: canEditAttendance(member),
   });
   return successBody(overview, requestId);
 }
