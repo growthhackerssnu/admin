@@ -45,40 +45,72 @@ export default function RefundAccountsView() {
           {query ? "찾는 사람이 없습니다." : "등록된 환급 계좌가 없습니다."}
         </p>
       ) : (
-        <ul className="nut-list nut-panel">
-          {accounts.map((account) => (
-            <AccountRow key={account.id} account={account} />
-          ))}
-        </ul>
+        <div className="nut-panel nut-accounts__table-wrap">
+          <table className="nut-accounts__table">
+            <thead>
+              <tr>
+                <th scope="col">이름</th>
+                <th scope="col">기수</th>
+                <th scope="col">Slack 이메일</th>
+                <th scope="col">환급 계좌</th>
+                <th scope="col">
+                  <span className="nut-visually-hidden">관리</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((account) => (
+                <AccountRow key={account.id} account={account} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 }
 
 function AccountRow({ account }: { account: RefundAccount }) {
+  const { data, run } = useNut();
   const [editing, setEditing] = useState(false);
   if (editing)
-    return <AccountForm account={account} onDone={() => setEditing(false)} />;
+    return (
+      <tr>
+        <td colSpan={5}>
+          <AccountForm account={account} onDone={() => setEditing(false)} />
+        </td>
+      </tr>
+    );
   return (
-    <li>
-      <button
-        type="button"
-        className="nut-entry"
-        onClick={() => setEditing(true)}
-        aria-label={`${account.name} 계좌 수정`}
-      >
-        <span className="nut-entry__main">
-          <strong>
-            {account.name}
-            {account.cohort ? ` · ${account.cohort}` : ""}
-          </strong>
-          <span>{account.email ?? "이메일 없음 (이름으로만 찾음)"}</span>
-        </span>
-        <span className="nut-entry__end">
-          <span>{account.bankAccount}</span>
-        </span>
-      </button>
-    </li>
+    <tr>
+      <th scope="row">{account.name}</th>
+      <td>{account.cohort ?? "−"}</td>
+      <td className="nut-accounts__email">
+        {account.email ?? <span className="nut-hint">이메일 없음</span>}
+      </td>
+      <td className="nut-accounts__bank">{account.bankAccount}</td>
+      <td className="nut-accounts__actions">
+        <Button type="text" size="small" onClick={() => setEditing(true)}>
+          수정
+        </Button>
+        <Popconfirm
+          title={`${account.name} 계좌를 지울까요?`}
+          okText="지우기"
+          cancelText="그대로 두기"
+          okButtonProps={{ danger: true }}
+          onConfirm={() =>
+            void run(
+              () => refundApi.remove(data.period.id, account.id),
+              `${account.name} 계좌를 지웠습니다.`,
+            )
+          }
+        >
+          <Button type="text" size="small" danger>
+            지우기
+          </Button>
+        </Popconfirm>
+      </td>
+    </tr>
   );
 }
 

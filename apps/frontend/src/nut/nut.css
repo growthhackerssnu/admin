@@ -898,3 +898,184 @@ button.nut-tree__toggle:hover {
 .nut-attendance__table {
   max-width: 560px;
 }
+
+/* ---------- 환급 계좌 ---------- */
+.nut-accounts__table-wrap {
+  padding: 0;
+  overflow-x: auto;
+}
+.nut-accounts__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.nut-accounts__table th,
+.nut-accounts__table td {
+  padding: var(--ds-space-2) var(--ds-space-4);
+  border-bottom: 1px solid var(--nut-line);
+  text-align: left;
+  vertical-align: middle;
+}
+.nut-accounts__table thead th {
+  color: var(--nut-muted);
+  font-size: var(--ds-type-caption);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nut-accounts__table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.nut-accounts__table tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nut-accounts__email {
+  color: var(--nut-muted);
+  overflow-wrap: anywhere;
+}
+.nut-accounts__bank {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.nut-accounts__actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+.nut-accounts__table .nut-inline-form {
+  margin: 0;
+}
+
+/* ---------- 팀별 지원비: 방학·정규 나란히 ---------- */
+.nut-term-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--layout-group-gap);
+  align-items: start;
+}
+.nut-term-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+.nut-term-column__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.nut-term-column__head h2 {
+  margin: 0;
+  font-size: var(--ds-type-subtitle-1);
+  font-weight: 700;
+}
+.nut-term-column .nut-team__meters {
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 900px) {
+  .nut-term-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- 계산식 보기·수입 ---------- */
+.nut-formula-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ds-link);
+  font: inherit;
+  font-size: var(--ds-type-caption);
+  text-align: left;
+  cursor: pointer;
+}
+.nut-formula-toggle:hover {
+  text-decoration: underline;
+}
+.nut-formula-toggle[aria-expanded="true"] {
+  color: var(--nut-muted);
+}
+.nut-income-row .nut-budget-row__top > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-1);
+}
+.nut-quick-add__team {
+  width: 160px;
+}
+
+/* ---------- 세금 ---------- */
+.nut-tax__total {
+  font-size: var(--ds-type-headline-6);
+  font-variant-numeric: tabular-nums;
+}
+.nut-tax__lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.nut-tax__lines > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-2) 0;
+  border-top: 1px solid var(--nut-line);
+}
+.nut-tax__lines > div:first-child {
+  border-top: 0;
+}
+.nut-tax__lines dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  color: var(--ds-gray-800);
+}
+.nut-tax__lines dt small,
+.nut-tax__lines dd small {
+  display: block;
+  color: var(--nut-muted);
+  font-size: var(--ds-type-caption);
+}
+.nut-tax__lines dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.nut-tax__sub dt,
+.nut-tax__sub dd {
+  color: var(--ds-text-strong);
+  font-weight: 700;
+}
+.nut-tax__detail dt,
+.nut-tax__detail dd {
+  color: var(--nut-muted);
+  font-size: var(--ds-type-caption);
+  font-weight: 400;
+}
+.nut-tax__rate {
+  width: 100px;
+}
+.nut-tax__amount {
+  width: 210px;
+}
+.nut-tax__class {
+  width: 150px;
+}
+.nut-vat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--layout-group-gap);
+}
+.nut-vat__head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--ds-space-2);
+  color: var(--nut-muted);
+  font-size: var(--ds-type-caption);
+}
+.nut-vat__head strong {
+  color: var(--ds-text-strong);
+  font-size: var(--ds-type-body-2);
+}

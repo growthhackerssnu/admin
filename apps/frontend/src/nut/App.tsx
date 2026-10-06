@@ -11,6 +11,7 @@ import ClaimsView from "./views/ClaimsView";
 import BudgetView from "./views/BudgetView";
 import TeamsView from "./views/TeamsView";
 import SettingsView from "./views/SettingsView";
+import TaxView from "./views/TaxView";
 import RefundAccountsView from "./views/RefundAccountsView";
 import AttendanceView from "./views/AttendanceView";
 
@@ -22,7 +23,8 @@ type View =
   | "teams"
   | "settings"
   | "accounts"
-  | "attendance";
+  | "attendance"
+  | "tax";
 
 function initialView(): View {
   const saved = new URLSearchParams(window.location.search).get(
@@ -38,6 +40,7 @@ function initialView(): View {
       "settings",
       "accounts",
       "attendance",
+      "tax",
     ].includes(saved)
     ? saved
     : "overview";
@@ -150,6 +153,7 @@ export default function App() {
     { id: "budget", label: "예산" },
     { id: "teams", label: "팀별 지원비" },
     { id: "attendance", label: "출석체크" },
+    { id: "tax", label: "세금" },
     { id: "settings", label: "설정" },
     ...(data.viewer.canEdit
       ? [{ id: "accounts" as const, label: "환급 계좌" }]
@@ -227,6 +231,7 @@ export default function App() {
             {view === "teams" && <TeamsView />}
             {view === "attendance" && <AttendanceView />}
             {view === "settings" && <SettingsView />}
+            {view === "tax" && <TaxView />}
             {view === "accounts" && data.viewer.canEdit && (
               <RefundAccountsView />
             )}
