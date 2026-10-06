@@ -1,3 +1,4 @@
+import { PersonLink } from "../../lib/PersonLink";
 import { Input, Popconfirm } from "antd";
 import { useMemo, useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
@@ -83,7 +84,9 @@ function AccountRow({ account }: { account: RefundAccount }) {
     );
   return (
     <tr>
-      <th scope="row">{account.name}</th>
+      <th scope="row">
+        <PersonLink name={account.name} cohort={account.cohort} />
+      </th>
       <td>{account.cohort ?? "−"}</td>
       <td className="nut-accounts__email">
         {account.email ?? <span className="nut-hint">이메일 없음</span>}

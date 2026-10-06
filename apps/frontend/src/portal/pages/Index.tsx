@@ -50,6 +50,12 @@ const TILE: Record<
     bg: "var(--background)",
     tone: "light",
   },
+  attendance: {
+    en: "ROLL CALL",
+    desc: "출석·지각 기록과 벌점·벌금",
+    bg: "var(--background)",
+    tone: "light",
+  },
 };
 
 const ROLE_LABEL: Record<Me["role"], string> = {

@@ -10,7 +10,7 @@
 export type Role = "admin" | "acting" | "alumni";
 
 /** admin.ghsnu.com 아래에서 role별로 오갈 수 있는 화면. */
-export type AppKey = "admin" | "dh" | "hr" | "nut";
+export type AppKey = "admin" | "dh" | "hr" | "nut" | "attendance";
 
 /**
  * 각 화면의 경로. 전부 apps/frontend 한 앱의 라우트다.
@@ -20,6 +20,7 @@ export const APP_PATH: Record<AppKey, string> = {
   dh: "/dh",
   hr: "/hr",
   nut: "/nut",
+  attendance: "/attendance",
 };
 
 export const APP_LABEL: Record<AppKey, string> = {
@@ -27,11 +28,12 @@ export const APP_LABEL: Record<AppKey, string> = {
   dh: "대협봇",
   hr: "그핵드인",
   nut: "NUT",
+  attendance: "출석체크",
 };
 
 /**
  * role별로 갈 수 있는 화면 목록. 배열 순서가 곧 화면(index/side pane)에
- * 나열되는 순서다. NUT은 admin·acting 전용이다(백엔드도
+ * 나열되는 순서다. NUT·출석체크는 admin·acting 전용이다(백엔드도
  * apps/backend/src/nut/lib/auth.ts에서 alumni를 막는다).
  *
  * alumni는 갈 곳이 hr 하나뿐이라 "고르는 화면"이나 "갈아타는 패널" 자체가
@@ -41,7 +43,7 @@ export const APP_LABEL: Record<AppKey, string> = {
  * 안 만듦), "혹시 빠뜨린 role이 있나" 걱정할 필요가 없게 했다.
  */
 export function reachableApps(role: Role): AppKey[] {
-  if (role === "admin") return ["admin", "dh", "hr", "nut"];
-  if (role === "acting") return ["dh", "hr", "nut"];
+  if (role === "admin") return ["admin", "dh", "hr", "nut", "attendance"];
+  if (role === "acting") return ["dh", "hr", "nut", "attendance"];
   return ["hr"];
 }

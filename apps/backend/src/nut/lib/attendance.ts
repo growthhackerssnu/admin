@@ -86,17 +86,26 @@ export async function saveRule(periodId: string, key: string, value: number) {
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 
 // 반기 안의 기록과, 기록이 없는 사람도 0점으로 보이도록 환급 계좌 명단(= 학회원 명단)을 돌려준다.
-export async function getAttendance(periodId: string) {
+// 출석체크는 NUT와 같은 반기를 쓴다. 화면 위쪽 반기 선택에 쓰도록 반기 목록도 같이 준다.
+export async function getAttendance(periodId: string, canEdit: boolean) {
   const period = await prisma.nutFinancePeriod.findUniqueOrThrow({ where: { id: periodId } });
-  const [records, roster, rules] = await Promise.all([
+  const [periods, records, roster, rules, reset] = await Promise.all([
+    prisma.nutFinancePeriod.findMany({ orderBy: { periodStart: "desc" }, select: { id: true, label: true } }),
     prisma.nutAttendanceRecord.findMany({
       where: { date: { gte: period.periodStart, lte: period.periodEnd } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     }),
     prisma.nutRefundAccount.findMany({ select: { name: true, cohort: true }, orderBy: [{ cohort: "asc" }, { name: "asc" }] }),
     getRules(periodId),
+    prisma.nutAttendanceReset.findFirst({ orderBy: { createdAt: "desc" } }),
   ]);
+  const clearedThrough = reset ? dateOnly(reset.clearedThrough) : null;
   return {
+    period: { id: period.id, label: period.label, start: dateOnly(period.periodStart), end: dateOnly(period.periodEnd) },
+    periods,
+    canEdit,
+    // 이 날짜까지의 기록은 초기화돼서 벌점·벌금 합계에 넣지 않는다(기록은 남는다).
+    clearedThrough,
     sessionMinutes: rules.sessionMinutes,
     rules: RULES.map(({ id, label }) => ({ id, label, ...rules.rates[id] })),
     roster,
@@ -111,6 +120,7 @@ export async function getAttendance(periodId: string) {
         note: record.note,
         source: record.source,
         penalty: penalty(classified, rules),
+        cleared: clearedThrough != null && dateOnly(record.date) <= clearedThrough,
       };
     }),
   };
@@ -187,4 +197,18 @@ export async function recordArrival(executionId: string, date: string, person: P
     create: { id, date: day, name: person.name, email: person.email, type: "late", excuse: "unexcused", minutesLate, source: "Slack" },
   });
   return id;
+}
+
+// ---------- 벌점 초기화 ----------
+
+export async function clearPenalties(through: string) {
+  await prisma.nutAttendanceReset.create({
+    data: { id: `att-reset-${crypto.randomUUID()}`, clearedThrough: new Date(`${through}T00:00:00Z`) },
+  });
+}
+
+// 가장 최근 초기화를 취소한다. 그 전 초기화가 있으면 그것이 다시 기준이 된다.
+export async function undoLastClear() {
+  const last = await prisma.nutAttendanceReset.findFirst({ orderBy: { createdAt: "desc" } });
+  if (last) await prisma.nutAttendanceReset.delete({ where: { id: last.id } });
 }

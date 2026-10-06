@@ -1,6 +1,7 @@
 import { z } from "zod";
+import type { Member } from "@/generated/prisma";
 import { withApiHandler } from "@/nut/lib/apiHandler";
-import { attendanceAccess as access, deleteAttendanceRecord, getAttendance, saveAttendanceRecord } from "@/nut/lib/attendance";
+import { attendanceAccess as access, canEditAttendance, deleteAttendanceRecord, getAttendance, saveAttendanceRecord } from "@/nut/lib/attendance";
 import { successBody } from "@/nut/lib/errors";
 import { dateString, parseBody, periodFrom } from "@/nut/lib/respond";
 
@@ -18,28 +19,30 @@ const record = z
     note: z.string().trim().nullish(),
   });
 
-const reply = async (periodId: string | undefined, requestId: string) =>
-  successBody(await getAttendance(await periodFrom(periodId)), requestId);
+const reply = async (periodId: string | undefined, member: Member, requestId: string) =>
+  successBody(await getAttendance(await periodFrom(periodId), canEditAttendance(member)), requestId);
 
 export const GET = withApiHandler(
-  async (req, { requestId }) => ({ body: await reply(req.nextUrl.searchParams.get("period") ?? undefined, requestId) }),
+  async (req, { member, requestId }) => ({
+    body: await reply(req.nextUrl.searchParams.get("period") ?? undefined, member, requestId),
+  }),
   access,
 );
 
-export const POST = withApiHandler(async (req, { requestId }) => {
+export const POST = withApiHandler(async (req, { member, requestId }) => {
   const body = await parseBody(req, record);
   await saveAttendanceRecord(body);
-  return { body: await reply(body.periodId, requestId), status: 201 };
+  return { body: await reply(body.periodId, member, requestId), status: 201 };
 }, access);
 
-export const PATCH = withApiHandler(async (req, { requestId }) => {
+export const PATCH = withApiHandler(async (req, { member, requestId }) => {
   const body = await parseBody(req, record.extend({ id: z.string() }));
   await saveAttendanceRecord(body);
-  return { body: await reply(body.periodId, requestId) };
+  return { body: await reply(body.periodId, member, requestId) };
 }, access);
 
-export const DELETE = withApiHandler(async (req, { requestId }) => {
+export const DELETE = withApiHandler(async (req, { member, requestId }) => {
   const body = await parseBody(req, z.object({ id: z.string(), periodId: z.string().optional() }));
   await deleteAttendanceRecord(body.id);
-  return { body: await reply(body.periodId, requestId) };
+  return { body: await reply(body.periodId, member, requestId) };
 }, access);

@@ -1,4 +1,5 @@
 import {
+  CalendarCheck,
   ClipboardList,
   Handshake,
   ShieldCheck,
@@ -32,6 +33,7 @@ const icons = {
   dh: Handshake,
   hr: UsersRound,
   nut: Wallet,
+  attendance: CalendarCheck,
 };
 export function AppNavigationLinks({
   role,

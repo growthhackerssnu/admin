@@ -1829,6 +1829,17 @@ model NutAttendanceRecord {
 
 // 출석체크 벌점·벌금 기준(반기별). key = '<규칙 id>.points'·'<규칙 id>.fine'·'session-minutes'.
 // 행이 없으면 코드의 기본값(벌점벌금 시트의 값)을 쓴다.
+// 출석체크 벌점 초기화(분기마다). cleared_through까지의 기록은 지우지 않고 합계에서만 뺀다.
+// 가장 최근 행이 기준이고, 그 행을 지우면 되돌린 것이 된다.
+model NutAttendanceReset {
+  id             String   @id
+  clearedThrough DateTime @map("cleared_through") @db.Date
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("attendance_resets")
+  @@schema("nut")
+}
+
 model NutAttendanceSetting {
   periodId String @map("period_id")
   key      String

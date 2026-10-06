@@ -5,7 +5,7 @@ import { normalizeName } from "@/portal/lib/normalize";
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 // 화면을 보는 사람. 청구서 계좌번호는 수정 권한자(총무·admin)와 본인에게만 보인다.
-export type FinanceViewer = { memberId: string; canEdit: boolean; canEditAttendance?: boolean };
+export type FinanceViewer = { memberId: string; canEdit: boolean };
 
 // 요청한 반기가 없으면 오늘이 속한 반기, 그것도 없으면 가장 최근 반기.
 export async function resolvePeriodId(requested?: string | null, db: DbClient = prisma) {
@@ -548,7 +548,7 @@ export async function getFinanceOverview(
       start: dateOnly(item.periodStart),
       end: dateOnly(item.periodEnd),
     })),
-    viewer: { canEdit: viewer.canEdit, canEditAttendance: viewer.canEditAttendance ?? false },
+    viewer: { canEdit: viewer.canEdit },
     period: {
       id: period.id,
       label: period.label,

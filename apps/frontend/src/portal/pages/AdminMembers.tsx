@@ -1,3 +1,4 @@
+import { PersonLink } from "../../lib/PersonLink";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { AppTag as Tag } from "@/components/ui/app-tag";
 import { useCallback, useEffect, useState } from "react";
@@ -283,7 +284,9 @@ export function AdminMembers() {
       key: "member",
       render: (_, m) => (
         <div>
-          <div>{m.displayName}</div>
+          <div>
+            <PersonLink name={m.displayName} cohort={m.cohort} />
+          </div>
           <div className="meta">{m.email}</div>
         </div>
       ),

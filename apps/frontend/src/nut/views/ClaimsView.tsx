@@ -1,3 +1,4 @@
+import { PersonLink } from "../../lib/PersonLink";
 import { Input, Popover, Segmented, Select } from "antd";
 import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
@@ -101,7 +102,7 @@ function ClaimRow({ claim }: { claim: Claim }) {
           </span>
         </div>
         <span className="nut-claim__meta">
-          {claim.claimant} · {shortDate(claim.date)} 사용 ·{" "}
+          <PersonLink name={claim.claimant} /> · {shortDate(claim.date)} 사용 ·{" "}
           <span className={uncategorized ? "nut-negative" : undefined}>
             {uncategorized ? "예산 항목 미정" : claim.bucket}
           </span>

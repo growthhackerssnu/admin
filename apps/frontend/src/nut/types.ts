@@ -179,7 +179,7 @@ export interface TaxSummary {
 export interface FinanceOverview {
   periods: PeriodSummary[];
   // 고치기(모든 쓰기)는 총무·admin만. false면 화면은 보기 전용.
-  viewer: { canEdit: boolean; canEditAttendance: boolean };
+  viewer: { canEdit: boolean };
   period: {
     id: string;
     label: string;
@@ -284,9 +284,15 @@ export type AttendanceRecord = {
     fine: number;
     needsMinutes?: boolean;
   };
+  // 벌점 초기화 날짜 이전 기록이라 합계에 들어가지 않는다.
+  cleared: boolean;
 };
 
 export type AttendanceData = {
+  period: { id: string; label: string; start: string; end: string };
+  periods: Array<{ id: string; label: string }>;
+  canEdit: boolean;
+  clearedThrough: string | null;
   sessionMinutes: number;
   rules: Array<{ id: string; label: string; points: number; fine: number }>;
   roster: Array<{ name: string; cohort: string | null }>;

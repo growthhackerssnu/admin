@@ -894,9 +894,42 @@ button.nut-tree__toggle:hover {
   }
 }
 
-/* ---------- 출석체크 ---------- */
+/* ---------- 출석체크(/attendance, 같은 nut 스타일을 쓴다) ---------- */
 .nut-attendance__table {
   max-width: 560px;
+  table-layout: fixed;
+}
+.nut-attendance__cohort + .nut-attendance__cohort {
+  margin-top: var(--ds-space-3);
+}
+.nut-attendance__cohort > summary {
+  display: flex;
+  gap: var(--ds-space-3);
+  align-items: baseline;
+  padding: var(--ds-space-2) 0;
+  cursor: pointer;
+}
+.nut-attendance__cohort > summary span {
+  color: var(--nut-muted);
+  font-size: var(--ds-type-caption);
+}
+.nut-attendance__count {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.nut-attendance__breakdown {
+  max-width: none;
+}
+.nut-attendance__cleared {
+  opacity: 0.55;
+}
+.nut-attendance .nut-entry--static {
+  align-items: center;
 }
 
 /* ---------- 환급 계좌 ---------- */

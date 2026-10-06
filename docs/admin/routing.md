@@ -8,6 +8,7 @@ admin.ghsnu.com  (Vercel, apps/frontend — 단일 SPA, 라우터 하나)
   /dh  /dh/listup                  대협봇
   /hr  /hr/people/:id  /hr/requests  /hr/admin   그핵드인
   /nut                             NUT
+  /attendance                      출석체크(NUT 반기·API를 같이 쓴다)
         │  fetch + Authorization: Bearer <supabase access token>
         ▼
 api.ghsnu.com    (Railway, apps/backend — Next.js API 전용)

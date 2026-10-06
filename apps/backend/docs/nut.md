@@ -16,6 +16,7 @@ All require `Authorization: Bearer <Supabase access token>`; without it, `401` i
 - `PATCH /api/v1/finance/parameters`
 - `POST/PATCH /api/v1/finance/ledger`
 - `GET/POST/PATCH/DELETE /api/v1/attendance` — 출석체크 기록과 사람별 벌점·벌금(`src/nut/lib/attendance.ts`). GET은 NUT 회원 전원, 쓰기는 회장단(`president`·`vice_president`)·총무·admin만.
+- `POST/DELETE /api/v1/attendance/resets` — 벌점 초기화(분기마다). POST `{ through }`까지의 기록을 합계에서 빼고(기록은 남는다), DELETE는 가장 최근 초기화를 되돌린다.
 - `PATCH /api/v1/attendance/rules` — 반기별 벌점·벌금 기준 한 칸(`<규칙 id>.points`·`<규칙 id>.fine`·`session-minutes`). 저장 안 한 값은 벌점벌금 시트의 기본값(`DEFAULT_RULES`).
 
 ### 출석체크 Slack 연결

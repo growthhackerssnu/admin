@@ -4,28 +4,37 @@ import {
   Input,
   InputNumber,
   Popconfirm,
+  Popover,
   Segmented,
   Select,
   Skeleton,
 } from "antd";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
-import { attendanceApi, type AttendanceInput } from "../api";
-import { dateLabel, defaultDate, money, useNut } from "../shared";
+import { PersonLink } from "../lib/PersonLink";
+import { attendanceApi, type AttendanceInput } from "../nut/api";
+import { dateLabel, defaultDate, money, today } from "../nut/shared";
 import type {
   AttendanceData,
   AttendanceRecord,
   AttendanceType,
   Excuse,
-} from "../types";
+} from "../nut/types";
 
-// 출석체크: Slack '출석핑' 워크플로가 쌓은 기록과 사람별 벌점·벌금(예전 시트의 출석체크·벌점벌금 탭).
-// 보기는 전원, 고치기는 회장단·총무·관리자만.
-export default function AttendanceView() {
-  const { data: finance } = useNut();
+// /attendance — Slack '출석핑' 워크플로가 쌓은 기록과 사람별 벌점·벌금(예전 시트의 출석체크·벌점벌금 탭).
+// 반기는 NUT와 같다. 보기는 전원, 고치기는 회장단·총무·관리자만(서버가 canEdit으로 알려준다).
+export default function AttendancePage() {
   const { message } = AntApp.useApp();
-  const periodId = finance.period.id;
-  const canEdit = finance.viewer.canEditAttendance;
+  // 반기를 주소에 남겨서 새로고침·링크 공유에도 같은 반기가 열리게 한다. 없으면 서버가 오늘의 반기를 고른다.
+  const [periodId, setPeriodId] = useState(
+    () => new URLSearchParams(window.location.search).get("period") ?? "",
+  );
   const [data, setData] = useState<AttendanceData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -35,7 +44,16 @@ export default function AttendanceView() {
     setError(null);
     attendanceApi
       .fetch(periodId)
-      .then(setData)
+      .then((next) => {
+        setData(next);
+        const params = new URLSearchParams(window.location.search);
+        params.set("period", next.period.id);
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}?${params}`,
+        );
+      })
       .catch((err) =>
         setError(
           err instanceof Error
@@ -73,12 +91,37 @@ export default function AttendanceView() {
       />
     );
   if (!data) return <Skeleton active paragraph={{ rows: 8 }} />;
+  const canEdit = data.canEdit;
+  const cohortOf = new Map(
+    data.roster.map((person) => [person.name, person.cohort]),
+  );
 
   const missing = data.records.filter(
     (record) => record.penalty.needsMinutes,
   ).length;
   return (
-    <div className="nut-attendance">
+    <div className="nut nut-attendance">
+      <header className="nut-header">
+        <div className="nut-header__period">
+          <span className="nut-header__app">출석체크</span>
+          <Select
+            className="nut-period-select"
+            variant="borderless"
+            value={data.period.id}
+            popupMatchSelectWidth={false}
+            aria-label="반기 선택"
+            options={data.periods.map((period) => ({
+              value: period.id,
+              label: period.label,
+            }))}
+            onChange={setPeriodId}
+          />
+          <span className="nut-header__dates">
+            {data.period.start.replaceAll("-", ".")} –{" "}
+            {data.period.end.replaceAll("-", ".")}
+          </span>
+        </div>
+      </header>
       <p className="nut-claims__intro">
         Slack 출석핑 워크플로의 출석체크·'지각했어용' 답변이 여기 쌓입니다. 지각
         비율은 세션 {data.sessionMinutes}분 기준이고, 벌점·벌금 기준은 맨
@@ -95,7 +138,28 @@ export default function AttendanceView() {
           message={`지각 시간이 없는 기록이 ${missing}건 있습니다. 시간을 넣기 전까지 벌점이 매겨지지 않습니다.`}
         />
       )}
-      <Summary data={data} />
+      <Summary
+        data={data}
+        actions={
+          canEdit && (
+            <ClearPenalties
+              data={data}
+              onClear={(through) =>
+                save(
+                  () => attendanceApi.clear(data.period.id, through),
+                  `${dateLabel(through)}까지의 벌점·벌금을 초기화했습니다.`,
+                )
+              }
+              onUndo={() =>
+                save(
+                  () => attendanceApi.undoClear(data.period.id),
+                  "마지막 초기화를 되돌렸습니다.",
+                )
+              }
+            />
+          )
+        }
+      />
       <section className="nut-panel" aria-labelledby="attendance-records">
         <header className="nut-panel__head">
           <h2 id="attendance-records">기록</h2>
@@ -105,10 +169,11 @@ export default function AttendanceView() {
         </header>
         {adding && (
           <RecordForm
+            period={data.period}
             names={data.roster.map((person) => person.name)}
             onSave={(input) =>
               save(
-                () => attendanceApi.save(periodId, input),
+                () => attendanceApi.save(data.period.id, input),
                 `${input.name} 기록을 저장했습니다.`,
               )
             }
@@ -123,17 +188,19 @@ export default function AttendanceView() {
               <RecordRow
                 key={record.id}
                 record={record}
+                cohort={cohortOf.get(record.name)}
+                period={data.period}
                 canEdit={canEdit}
                 names={data.roster.map((person) => person.name)}
                 onSave={(input) =>
                   save(
-                    () => attendanceApi.save(periodId, input),
+                    () => attendanceApi.save(data.period.id, input),
                     `${input.name} 기록을 고쳤습니다.`,
                   )
                 }
                 onRemove={() =>
                   save(
-                    () => attendanceApi.remove(periodId, record.id),
+                    () => attendanceApi.remove(data.period.id, record.id),
                     "기록을 지웠습니다.",
                   )
                 }
@@ -147,7 +214,7 @@ export default function AttendanceView() {
         canEdit={canEdit}
         onSave={(key, value, label) =>
           save(
-            () => attendanceApi.saveRule(periodId, key, value),
+            () => attendanceApi.saveRule(data.period.id, key, value),
             `${label} 기준을 바꿨습니다. 벌점이 다시 계산됐습니다.`,
           )
         }
@@ -284,80 +351,249 @@ function RuleInput({
   );
 }
 
-// 사람별 합계. 기록이 없는 학회원(환급 계좌 명단)도 0점으로 보인다.
-function Summary({ data }: { data: AttendanceData }) {
-  const rows = useMemo(() => {
-    const byName = new Map(
+type PersonRow = {
+  name: string;
+  cohort: string | null;
+  points: number;
+  fine: number;
+  records: AttendanceRecord[];
+};
+
+// 사람별 합계를 기수별로 접고 편다. 기록이 없는 학회원(환급 계좌 명단)도 0점으로 보인다.
+function Summary({
+  data,
+  actions,
+}: {
+  data: AttendanceData;
+  actions?: ReactNode;
+}) {
+  // 벌점 열 머리를 누르면 많은 순 ↔ 적은 순으로 바뀐다.
+  const [order, setOrder] = useState<"desc" | "asc">("desc");
+  const groups = useMemo(() => {
+    const byName = new Map<string, PersonRow>(
       data.roster.map((person) => [
         person.name,
-        { ...person, points: 0, fine: 0, count: 0 },
+        { ...person, points: 0, fine: 0, records: [] },
       ]),
     );
     data.records.forEach((record) => {
+      if (record.cleared) return;
       const row = byName.get(record.name) ?? {
         name: record.name,
         cohort: null,
         points: 0,
         fine: 0,
-        count: 0,
+        records: [],
       };
       row.points += record.penalty.points;
       row.fine += record.penalty.fine;
-      row.count += 1;
+      row.records.push(record);
       byName.set(record.name, row);
     });
-    return [...byName.values()].sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.fine - a.fine ||
-        a.name.localeCompare(b.name, "ko"),
-    );
-  }, [data]);
-  const totalFine = rows.reduce((sum, row) => sum + row.fine, 0);
+    const byCohort = new Map<string, PersonRow[]>();
+    byName.forEach((row) => {
+      const cohort = row.cohort ?? "기수 미상";
+      byCohort.set(cohort, [...(byCohort.get(cohort) ?? []), row]);
+    });
+    return [...byCohort.entries()]
+      .sort(([a], [b]) => (parseInt(a, 10) || 999) - (parseInt(b, 10) || 999))
+      .map(([cohort, rows]) => ({
+        cohort,
+        rows: rows.sort(
+          (a, b) =>
+            (order === "desc" ? 1 : -1) *
+              (b.points - a.points || b.fine - a.fine) ||
+            a.name.localeCompare(b.name, "ko"),
+        ),
+      }));
+  }, [data, order]);
+  const totalFine = data.records.reduce(
+    (sum, record) => sum + (record.cleared ? 0 : record.penalty.fine),
+    0,
+  );
   return (
     <section className="nut-panel" aria-labelledby="attendance-summary">
       <header className="nut-panel__head">
         <div>
           <h2 id="attendance-summary">벌점·벌금</h2>
           <p className="nut-panel__sub">
-            이 반기 합계. 벌금 총액 {money(totalFine)}
+            {data.clearedThrough
+              ? `${dateLabel(data.clearedThrough)} 초기화 이후 합계`
+              : "이 반기 합계"}
+            . 벌금 총액 {money(totalFine)}. 기수를 눌러 접고, 기록 수를 눌러
+            종류별로 봅니다.
           </p>
         </div>
+        {actions}
       </header>
-      <table className="nut-headcount nut-attendance__table">
-        <thead>
-          <tr>
-            <th scope="col">이름</th>
-            <th scope="col">기수</th>
-            <th scope="col">기록</th>
-            <th scope="col">벌점</th>
-            <th scope="col">벌금</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.name}>
-              <th scope="row">{row.name}</th>
-              <td>{row.cohort ?? "—"}</td>
-              <td>{row.count}건</td>
-              <td>{row.points}점</td>
-              <td>{money(row.fine)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {groups.map((group) => (
+        <details key={group.cohort} className="nut-attendance__cohort" open>
+          <summary>
+            <strong>{group.cohort}</strong>
+            <span>
+              {group.rows.length}명 · 벌점{" "}
+              {group.rows.reduce((sum, row) => sum + row.points, 0)}점 · 벌금{" "}
+              {money(group.rows.reduce((sum, row) => sum + row.fine, 0))}
+            </span>
+          </summary>
+          <table className="nut-headcount nut-attendance__table">
+            <thead>
+              <tr>
+                <th scope="col">이름</th>
+                <th scope="col">기록</th>
+                <th
+                  scope="col"
+                  aria-sort={order === "desc" ? "descending" : "ascending"}
+                >
+                  <button
+                    type="button"
+                    className="nut-attendance__count"
+                    onClick={() => setOrder(order === "desc" ? "asc" : "desc")}
+                  >
+                    벌점 {order === "desc" ? "↓" : "↑"}
+                  </button>
+                </th>
+                <th scope="col">벌금</th>
+              </tr>
+            </thead>
+            <tbody>
+              {group.rows.map((row) => (
+                <tr key={row.name}>
+                  <th scope="row">
+                    <PersonLink name={row.name} cohort={row.cohort} />
+                  </th>
+                  <td>
+                    <Breakdown records={row.records} />
+                  </td>
+                  <td>{row.points}점</td>
+                  <td>{money(row.fine)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      ))}
     </section>
+  );
+}
+
+// 벌점 초기화(분기마다). 고른 날짜까지의 기록은 남겨두고 합계에서만 뺀다. 가장 최근 초기화는 되돌릴 수 있다.
+function ClearPenalties({
+  data,
+  onClear,
+  onUndo,
+}: {
+  data: AttendanceData;
+  onClear: (through: string) => Promise<boolean>;
+  onUndo: () => Promise<boolean>;
+}) {
+  const [through, setThrough] = useState(today());
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="nut-panel__tools">
+      {data.clearedThrough && (
+        <Popconfirm
+          title="마지막 초기화를 되돌릴까요?"
+          description={`${dateLabel(data.clearedThrough)}까지의 기록이 다시 합계에 들어갑니다.`}
+          okText="되돌리기"
+          cancelText="그대로 두기"
+          onConfirm={() => void onUndo()}
+        >
+          <Button type="text">초기화 되돌리기</Button>
+        </Popconfirm>
+      )}
+      <Popover
+        trigger="click"
+        open={open}
+        onOpenChange={setOpen}
+        placement="bottomRight"
+        content={
+          <form
+            className="nut-popover-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (through && (await onClear(through))) setOpen(false);
+            }}
+          >
+            <label>
+              이 날짜까지의 기록을 초기화
+              <Input
+                type="date"
+                value={through}
+                onChange={(event) => setThrough(event.target.value)}
+              />
+            </label>
+            <p className="nut-hint">
+              기록은 지우지 않고 벌점·벌금 합계에서만 뺍니다.
+            </p>
+            <Button type="primary" danger htmlType="submit" disabled={!through}>
+              초기화
+            </Button>
+          </form>
+        }
+      >
+        <Button danger>벌점 초기화</Button>
+      </Popover>
+    </div>
+  );
+}
+
+// 기록 수를 누르면 종류(벌점벌금 탭의 열)별 건수와 벌점·벌금이 펼쳐진다.
+function Breakdown({ records }: { records: AttendanceRecord[] }) {
+  if (records.length === 0) return <span className="nut-hint">0건</span>;
+  const byLabel = new Map<
+    string,
+    { count: number; points: number; fine: number }
+  >();
+  records.forEach(({ penalty }) => {
+    const label = penalty.needsMinutes
+      ? `${penalty.label}(시간 미입력)`
+      : penalty.label;
+    const item = byLabel.get(label) ?? { count: 0, points: 0, fine: 0 };
+    byLabel.set(label, {
+      count: item.count + 1,
+      points: item.points + penalty.points,
+      fine: item.fine + penalty.fine,
+    });
+  });
+  return (
+    <Popover
+      trigger="click"
+      placement="bottomLeft"
+      content={
+        <table className="nut-headcount nut-attendance__breakdown">
+          <tbody>
+            {[...byLabel.entries()].map(([label, item]) => (
+              <tr key={label}>
+                <th scope="row">{label}</th>
+                <td>{item.count}건</td>
+                <td>{item.points}점</td>
+                <td>{money(item.fine)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      }
+    >
+      <button type="button" className="nut-attendance__count">
+        {records.length}건 ▾
+      </button>
+    </Popover>
   );
 }
 
 function RecordRow({
   record,
+  cohort,
+  period,
   canEdit,
   names,
   onSave,
   onRemove,
 }: {
   record: AttendanceRecord;
+  cohort?: string | null;
+  period: AttendanceData["period"];
   canEdit: boolean;
   names: string[];
   onSave: (input: AttendanceInput) => Promise<boolean>;
@@ -369,6 +605,7 @@ function RecordRow({
       <li>
         <RecordForm
           record={record}
+          period={period}
           names={names}
           onSave={onSave}
           onRemove={onRemove}
@@ -381,10 +618,11 @@ function RecordRow({
     <>
       <span className="nut-entry__main">
         <strong>
-          {record.name} · {penalty.label}
+          <PersonLink name={record.name} cohort={cohort} /> · {penalty.label}
           {record.minutesLate != null ? ` ${record.minutesLate}분` : ""}
         </strong>
         <span>
+          {record.cleared ? "초기화됨 · " : ""}
           {dateLabel(record.date)}
           {record.project ? ` · ${record.project}` : ""}
           {record.note ? ` · ${record.note}` : ""}
@@ -402,41 +640,49 @@ function RecordRow({
       </span>
     </>
   );
+  // 이름이 그핵드인 링크라서 줄 전체를 버튼으로 만들지 않고 '수정' 버튼을 따로 둔다.
   return (
     <li>
-      {canEdit ? (
-        <button
-          type="button"
-          className="nut-entry"
-          onClick={() => setEditing(true)}
-          aria-label={`${record.name} 기록 수정`}
-        >
-          {content}
-        </button>
-      ) : (
-        <div className="nut-entry nut-entry--static">{content}</div>
-      )}
+      <div
+        className={
+          "nut-entry nut-entry--static" +
+          (record.cleared ? " nut-attendance__cleared" : "")
+        }
+      >
+        {content}
+        {canEdit && (
+          <Button
+            type="text"
+            size="small"
+            onClick={() => setEditing(true)}
+            aria-label={`${record.name} 기록 수정`}
+          >
+            수정
+          </Button>
+        )}
+      </div>
     </li>
   );
 }
 
 function RecordForm({
   record,
+  period,
   names,
   onSave,
   onRemove,
   onDone,
 }: {
   record?: AttendanceRecord;
+  period: AttendanceData["period"];
   names: string[];
   onSave: (input: AttendanceInput) => Promise<boolean>;
   onRemove?: () => Promise<boolean>;
   onDone: () => void;
 }) {
-  const { data } = useNut();
   const [value, setValue] = useState<AttendanceInput>({
     id: record?.id,
-    date: record?.date ?? defaultDate(data.period),
+    date: record?.date ?? defaultDate(period),
     name: record?.name ?? "",
     project: record?.project ?? "",
     type: record?.type ?? "late",

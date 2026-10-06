@@ -227,6 +227,19 @@ export const attendanceApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ periodId, ...input }),
     }),
+  // 그 날짜까지의 기록을 벌점·벌금 합계에서 뺀다(분기마다). undoClear는 가장 최근 초기화를 되돌린다.
+  clear: (periodId: string, through: string) =>
+    request<AttendanceData>("/api/v1/attendance/resets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodId, through }),
+    }),
+  undoClear: (periodId: string) =>
+    request<AttendanceData>("/api/v1/attendance/resets", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodId }),
+    }),
   // key: '<규칙 id>.points'·'<규칙 id>.fine'·'session-minutes'
   saveRule: (periodId: string, key: string, value: number) =>
     request<AttendanceData>("/api/v1/attendance/rules", {

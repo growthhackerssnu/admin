@@ -69,3 +69,14 @@
   --sidebar-border: hsl(240 3.7% 15.9%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
+
+/* 학회원 이름 → 그핵드인 프로필 링크(lib/PersonLink). 글자색은 주변을 따르고 밑줄로만 표시한다. */
+.person-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+}
+.person-link:hover {
+  text-decoration-color: currentColor;
+}
