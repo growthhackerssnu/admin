@@ -8,8 +8,14 @@ const toNumber = (value: bigint | number | null | undefined) => Number(value ?? 
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 const utc = (value: string) => new Date(`${value}T00:00:00Z`);
 
+// 학회가 세금 계산을 시작하는 날. 첫 회계연도(FY2026)만 이날부터 11월 30일까지이고,
+// 그 전 거래는 어떤 세금에도 넣지 않는다.
+export const TAX_START = "2026-10-11";
+const FIRST_FISCAL_YEAR = 2026;
+
 export function fiscalYearRange(fy: number) {
-  return { start: `${fy - 1}-12-01`, end: `${fy}-11-30` };
+  const start = `${fy - 1}-12-01`;
+  return { start: start < TAX_START ? TAX_START : start, end: `${fy}-11-30` };
 }
 
 export function fiscalYearOf(date: string) {
@@ -18,7 +24,7 @@ export function fiscalYearOf(date: string) {
 }
 
 // 법인세율: 2026년 1월 1일 이후 시작하는 사업연도부터 구간별 1%p 인상(2025.12 개정 법인세법 제55조).
-// 회계연도가 12월에 시작하므로 FY2026(2025-12-01 시작)까지는 종전 세율, FY2027부터 새 세율.
+// 첫 사업연도(FY2026)는 2026-10-11에 시작하므로 처음부터 새 세율이다. 종전 세율은 그 전 날짜용으로만 남겨 둔다.
 const BRACKETS = {
   before2026: [
     { upTo: 200_000_000, rate: 0.09 },
@@ -72,21 +78,27 @@ export async function setTaxInput(key: string, value: number) {
 export async function getTaxOverview(requestedFy?: number | null) {
   const bounds = await prisma.nutLedgerEntry.aggregate({ _min: { transactionDate: true }, _max: { transactionDate: true } });
   const today = new Date().toISOString().slice(0, 10);
-  const first = fiscalYearOf(bounds._min.transactionDate ? dateOnly(bounds._min.transactionDate) : today);
+  const first = Math.max(
+    FIRST_FISCAL_YEAR,
+    fiscalYearOf(bounds._min.transactionDate ? dateOnly(bounds._min.transactionDate) : today),
+  );
   const last = Math.max(fiscalYearOf(bounds._max.transactionDate ? dateOnly(bounds._max.transactionDate) : today), fiscalYearOf(today));
   const fiscalYears = Array.from({ length: last - first + 1 }, (_, index) => last - index);
   const fy = requestedFy && fiscalYears.includes(requestedFy) ? requestedFy : fiscalYearOf(today);
   const range = fiscalYearRange(fy);
 
   // 부가세는 달력 기준 1기(1~6월)·2기(7~12월). 이 회계연도와 겹치는 기를 모두 보여준다.
-  const startYear = Number(range.start.slice(0, 4));
+  // 세금 계산 시작일 이전 기간은 빼고, 걸치는 기는 시작일부터만 센다.
+  const startYear = fy - 1;
   const vatPeriods = [
     { key: `${startYear}-2`, start: `${startYear}-07-01`, end: `${startYear}-12-31`, due: `${startYear + 1}-01-25` },
     { key: `${fy}-1`, start: `${fy}-01-01`, end: `${fy}-06-30`, due: `${fy}-07-25` },
     { key: `${fy}-2`, start: `${fy}-07-01`, end: `${fy}-12-31`, due: `${fy + 1}-01-25` },
-  ];
-  const earliest = vatPeriods[0]!.start;
-  const latest = vatPeriods[2]!.end;
+  ]
+    .filter((period) => period.end >= TAX_START && period.end >= range.start && period.start <= range.end)
+    .map((period) => ({ ...period, start: period.start < TAX_START ? TAX_START : period.start }));
+  const earliest = vatPeriods[0]?.start ?? range.start;
+  const latest = vatPeriods.at(-1)?.end ?? range.end;
   const entries = await prisma.nutLedgerEntry.findMany({
     where: { transactionDate: { gte: utc(earliest < range.start ? earliest : range.start), lte: utc(latest > range.end ? latest : range.end) } },
     orderBy: [{ transactionDate: "asc" }, { id: "asc" }],
@@ -140,6 +152,7 @@ export async function getTaxOverview(requestedFy?: number | null) {
     fiscalYear: fy,
     fiscalYears,
     range,
+    taxStart: TAX_START,
     filingDue: `${fy + 1}-02-${new Date(Date.UTC(fy + 1, 2, 0)).getUTCDate()}`,
     totals,
     corporate: {

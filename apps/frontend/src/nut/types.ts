@@ -218,6 +218,7 @@ export interface TaxOverview {
   fiscalYear: number;
   fiscalYears: number[];
   range: { start: string; end: string };
+  taxStart: string;
   filingDue: string;
   totals: {
     taxableGains: number;
