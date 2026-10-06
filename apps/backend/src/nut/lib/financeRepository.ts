@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
+import { normalizeName } from "@/portal/lib/normalize";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -554,7 +555,7 @@ export async function getFinanceOverview(
       const canSeeAccount = viewer.canEdit || claim.memberId === viewer.memberId;
       // 청구서에 계좌가 없으면 환급 계좌 명단에서 같은 이름을 찾아 보여준다(처리 권한자에게만).
       const fallback = viewer.canEdit && !claim.bankAccount
-        ? refundAccounts.find((account) => account.name === claim.claimant)?.bankAccount
+        ? refundAccounts.find((account) => normalizeName(account.name) === normalizeName(claim.claimant))?.bankAccount
         : undefined;
       return {
         id: claim.id,
@@ -959,7 +960,7 @@ export async function actOnClaim(
         detail: claim.detail,
         amount: toNumber(claim.amount),
         claimant: claim.claimant,
-        note: claim.prepaid ? "선결제 후지급" : null,
+        note: null,
         source: "청구서",
         taxClass: node?.taxClass ?? "tax_deductible_expense",
       });
@@ -1151,15 +1152,17 @@ export async function createPeriod(input: {
 
 // ---------- 환급 계좌 ----------
 
-// Slack 청구인의 이메일로 먼저, 없으면 이름으로 찾는다(이름이 같은 사람이 둘이면 찾지 않는다).
+// Slack 청구인의 이메일로 먼저, 없으면 이름(공백 무시)으로 찾는다. 이름이 같은 사람이 둘이면 찾지 않는다.
+// 찾은 사람의 이름이 청구서의 청구인 이름이 된다(예전 시트의 '선결제 후지급' 칸 = 정규화된 청구인 이름).
 export async function findRefundAccount(email: string | null | undefined, name: string | null | undefined) {
   if (email) {
     const byEmail = await prisma.nutRefundAccount.findUnique({ where: { email: email.toLowerCase() } });
-    if (byEmail) return byEmail.bankAccount;
+    if (byEmail) return byEmail;
   }
   if (!name) return null;
-  const byName = await prisma.nutRefundAccount.findMany({ where: { name }, take: 2 });
-  return byName.length === 1 ? byName[0]!.bankAccount : null;
+  const target = normalizeName(name);
+  const byName = (await prisma.nutRefundAccount.findMany()).filter((account) => normalizeName(account.name) === target);
+  return byName.length === 1 ? byName[0]! : null;
 }
 
 export async function saveRefundAccount(input: {

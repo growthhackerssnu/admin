@@ -56,12 +56,6 @@
           "description": "숫자 또는 '23,500원' 같은 텍스트",
           "is_required": true
         },
-        "prepaid": {
-          "type": "string",
-          "title": "선결제 후지급",
-          "description": "예/아니오. 비우면 예",
-          "is_required": false
-        },
         "bank_account": {
           "type": "string",
           "title": "계좌번호",

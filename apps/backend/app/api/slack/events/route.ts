@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClaim, findRefundAccount, resolvePeriodId } from "@/nut/lib/financeRepository";
+import { normalizeName } from "@/portal/lib/normalize";
 
 // Slack 앱 "GH NUT"(A0C802VMHK2)의 Events API 수신점. 지금은 워크플로 단계 하나만 처리한다:
 //   register_nut_claim — 청구서 워크플로의 양식 답변으로 NUT 청구서를 만든다.
@@ -26,7 +27,6 @@ type Inputs = {
   detail?: string;
   amount?: number | string;
   bank_account?: string;
-  prepaid?: boolean | string;
   bucket?: string;
   note?: string;
 };
@@ -44,14 +44,10 @@ async function slack(method: string, token: string, body: Record<string, unknown
   };
 }
 
-// 양식 답변은 텍스트로 올 수 있어서 너그럽게 읽는다: "23,500원", "예"/"아니오" 등.
+// 양식 답변은 텍스트로 올 수 있어서 너그럽게 읽는다: "23,500원" 등.
 function parseAmount(value: Inputs["amount"]) {
   const amount = typeof value === "number" ? value : Number(String(value ?? "").replace(/[^\d.]/g, ""));
   return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null;
-}
-function parsePrepaid(value: Inputs["prepaid"]) {
-  if (typeof value === "boolean") return value;
-  return !/^(아니|no|false|x)/i.test(String(value ?? "예").trim());
 }
 
 async function registerClaim(executionId: string, inputs: Inputs, token: string) {
@@ -64,8 +60,11 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
   const info = inputs.claimant ? await slack("users.info", token, { user: inputs.claimant }) : null;
   const email = info?.user?.profile?.email;
   const member = email ? await prisma.member.findUnique({ where: { email } }) : null;
-  const name =
-    member?.displayName ?? info?.user?.profile?.real_name ?? info?.user?.real_name ?? info?.user?.profile?.display_name ?? "이름 미상";
+  // 청구인 이름은 환급 계좌 명단의 이름을 쓴다(시트의 '선결제 후지급' 칸처럼 정규화된 이름).
+  // 명단에 없으면 회원·Slack 이름에서 공백을 뺀다.
+  const slackName = member?.displayName ?? info?.user?.profile?.real_name ?? info?.user?.real_name ?? info?.user?.profile?.display_name;
+  const account = await findRefundAccount(email, slackName);
+  const name = account?.name ?? (slackName ? normalizeName(slackName) : "이름 미상");
 
   return createClaim(await resolvePeriodId(null), {
     id: `claim-slack-${executionId}`,
@@ -76,8 +75,9 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
     amount,
     bucket: inputs.bucket?.trim() || "미분류",
     // 양식에 계좌가 없으면 환급 계좌 명단(NUT '환급 계좌' 탭)에서 채운다.
-    bankAccount: inputs.bank_account?.trim() || (await findRefundAccount(email, name)),
-    prepaid: parsePrepaid(inputs.prepaid),
+    bankAccount: inputs.bank_account?.trim() || account?.bankAccount || null,
+    // 청구서는 모두 선결제 후지급이다(회원이 먼저 내고 학회가 돌려준다).
+    prepaid: true,
     note: inputs.note?.trim() || null,
     source: "Slack",
   });
