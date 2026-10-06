@@ -17,18 +17,37 @@ import { normalizeName } from "@/portal/lib/normalize";
 const APP_ID = "A0C802VMHK2";
 
 // 거절 이유를 로그에 남긴다(Slack 쪽엔 event_dispatch_failed만 보인다).
+// 워크플로 토큰(xwfp-)은 auth.test에 bot_id가 없을 수 있어서, 토큰의 사용자(= 앱의 봇 사용자)를
+// users.info로 열어 profile.api_app_id를 확인한다. bot_id가 있으면 bots.info로도 확인한다.
 async function issuedToOurApp(token: string | undefined) {
   if (!token) return "no token";
-  const auth = (await slack("auth.test", token, {})) as { ok: boolean; error?: string; bot_id?: string; team_id?: string };
-  if (!auth.ok || !auth.bot_id) return `auth.test: ${auth.error ?? "no bot_id"}`;
-  // 조직 단위로 설치된 앱의 토큰은 team_id가 있어야 bots.info가 답한다.
-  const bot = (await slack("bots.info", token, { bot: auth.bot_id, ...(auth.team_id ? { team_id: auth.team_id } : {}) })) as {
+  const auth = (await slack("auth.test", token, {})) as {
     ok: boolean;
     error?: string;
-    bot?: { app_id?: string };
+    bot_id?: string;
+    user_id?: string;
+    team_id?: string;
   };
-  if (!bot.ok) return `bots.info: ${bot.error}`;
-  return bot.bot?.app_id === APP_ID ? null : `app_id ${bot.bot?.app_id}`;
+  if (!auth.ok) return `auth.test: ${auth.error}`;
+  const team = auth.team_id ? { team_id: auth.team_id } : {};
+  if (auth.bot_id) {
+    const bot = (await slack("bots.info", token, { bot: auth.bot_id, ...team })) as {
+      ok: boolean;
+      bot?: { app_id?: string };
+    };
+    if (bot.ok && bot.bot?.app_id === APP_ID) return null;
+  }
+  if (auth.user_id) {
+    const user = (await slack("users.info", token, { user: auth.user_id })) as {
+      ok: boolean;
+      error?: string;
+      user?: { is_bot?: boolean; profile?: { api_app_id?: string } };
+    };
+    if (user.ok && user.user?.is_bot && user.user.profile?.api_app_id === APP_ID) return null;
+    if (!user.ok) return `users.info: ${user.error}`;
+    return `bot user app ${user.user?.profile?.api_app_id ?? "?"}`;
+  }
+  return `auth.test fields: ${Object.keys(auth).join(",")}`;
 }
 
 type Inputs = {

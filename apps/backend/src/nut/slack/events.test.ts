@@ -12,6 +12,7 @@ vi.mock("@/nut/lib/financeRepository", () => ({
 }));
 
 // Slack Web API 흉내: 토큰 "good"만 GH NUT 앱(A0C802VMHK2)이 발급받은 것으로 답한다.
+// 실제 워크플로 토큰처럼 auth.test에는 bot_id가 없고, 봇 사용자(UBOT)의 프로필에 앱 id가 있다.
 const calls: string[] = [];
 vi.stubGlobal(
   "fetch",
@@ -19,16 +20,17 @@ vi.stubGlobal(
     const method = url.split("/").pop()!;
     calls.push(method);
     const good = String((init.headers as Record<string, string>).Authorization) === "Bearer good";
+    const user = init.body instanceof URLSearchParams ? init.body.get("user") : null;
     const body =
       method === "auth.test"
         ? good
-          ? { ok: true, bot_id: "B1" }
+          ? { ok: true, user_id: "UBOT", team_id: "T1" }
           : { ok: false, error: "invalid_auth" }
-        : method === "bots.info"
-          ? { ok: true, bot: { app_id: "A0C802VMHK2" } }
-          : method === "users.info"
-            ? { ok: true, user: { real_name: "홍 길동", profile: {} } }
-            : { ok: true };
+        : method === "users.info"
+          ? user === "UBOT"
+            ? { ok: true, user: { is_bot: true, profile: { api_app_id: "A0C802VMHK2" } } }
+            : { ok: true, user: { real_name: "홍 길동", profile: {} } }
+          : { ok: true };
     return new Response(JSON.stringify(body));
   }),
 );
