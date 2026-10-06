@@ -16,12 +16,19 @@ import { normalizeName } from "@/portal/lib/normalize";
 // 청구서·출석 기록 id를 워크플로 실행 id로 만들어서 재전송이 와도 한 건만 생긴다.
 const APP_ID = "A0C802VMHK2";
 
+// 거절 이유를 로그에 남긴다(Slack 쪽엔 event_dispatch_failed만 보인다).
 async function issuedToOurApp(token: string | undefined) {
-  if (!token) return false;
-  const auth = (await slack("auth.test", token, {})) as { ok: boolean; bot_id?: string };
-  if (!auth.ok || !auth.bot_id) return false;
-  const bot = (await slack("bots.info", token, { bot: auth.bot_id })) as { ok: boolean; bot?: { app_id?: string } };
-  return bot.ok && bot.bot?.app_id === APP_ID;
+  if (!token) return "no token";
+  const auth = (await slack("auth.test", token, {})) as { ok: boolean; error?: string; bot_id?: string; team_id?: string };
+  if (!auth.ok || !auth.bot_id) return `auth.test: ${auth.error ?? "no bot_id"}`;
+  // 조직 단위로 설치된 앱의 토큰은 team_id가 있어야 bots.info가 답한다.
+  const bot = (await slack("bots.info", token, { bot: auth.bot_id, ...(auth.team_id ? { team_id: auth.team_id } : {}) })) as {
+    ok: boolean;
+    error?: string;
+    bot?: { app_id?: string };
+  };
+  if (!bot.ok) return `bots.info: ${bot.error}`;
+  return bot.bot?.app_id === APP_ID ? null : `app_id ${bot.bot?.app_id}`;
 }
 
 type Inputs = {
@@ -37,8 +44,17 @@ type Inputs = {
 async function slack(method: string, token: string, body: Record<string, unknown>) {
   const response = await fetch(`https://slack.com/api/${method}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify(body),
+    // 조회 메서드(auth.test·bots.info·users.info)는 JSON 본문의 인자를 무시하므로 폼으로 보낸다.
+    // functions.complete*는 outputs가 객체라 JSON으로 보낸다.
+    ...(method.startsWith("functions.")
+      ? {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify(body),
+        }
+      : {
+          headers: { Authorization: `Bearer ${token}` },
+          body: new URLSearchParams(Object.entries(body).map(([key, value]) => [key, String(value)])),
+        }),
   });
   return (await response.json()) as {
     ok: boolean;
@@ -150,10 +166,13 @@ export async function POST(req: Request) {
   if (event?.type !== "function_executed" || !callbackId || !(callbackId in steps))
     return new NextResponse(null, { status: 200 });
   const token = event.bot_access_token;
-  if (!(await issuedToOurApp(token)) || !event.function_execution_id)
+  const rejected = event.function_execution_id ? await issuedToOurApp(token) : "no function_execution_id";
+  if (rejected) {
+    console.warn(`[slack] ${callbackId} rejected: ${rejected}`);
     return NextResponse.json({ error: "unverified" }, { status: 401 });
+  }
 
-  const executionId = event.function_execution_id;
+  const executionId = event.function_execution_id!;
   try {
     const outputs = await steps[callbackId]!(executionId, event.inputs ?? {}, token!);
     await slack("functions.completeSuccess", token!, { function_execution_id: executionId, outputs });
