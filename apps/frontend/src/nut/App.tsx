@@ -10,18 +10,32 @@ import LedgerView from "./views/LedgerView";
 import ClaimsView from "./views/ClaimsView";
 import BudgetView from "./views/BudgetView";
 import TeamsView from "./views/TeamsView";
+import SettingsView from "./views/SettingsView";
 import RefundAccountsView from "./views/RefundAccountsView";
 
-type View = "overview" | "ledger" | "claims" | "budget" | "teams" | "accounts";
+type View =
+  | "overview"
+  | "ledger"
+  | "claims"
+  | "budget"
+  | "teams"
+  | "settings"
+  | "accounts";
 
 function initialView(): View {
   const saved = new URLSearchParams(window.location.search).get(
     "tab",
   ) as View | null;
   return saved &&
-    ["overview", "ledger", "claims", "budget", "teams", "accounts"].includes(
-      saved,
-    )
+    [
+      "overview",
+      "ledger",
+      "claims",
+      "budget",
+      "teams",
+      "settings",
+      "accounts",
+    ].includes(saved)
     ? saved
     : "overview";
 }
@@ -67,18 +81,24 @@ export default function App() {
   }, [data, view]);
 
   const run = useCallback(
-    async (action: () => Promise<FinanceOverview>, success: string) => {
+    async (
+      action: () => Promise<FinanceOverview>,
+      success: string | ((next: FinanceOverview) => string),
+    ) => {
       try {
-        setData(await action());
-        message.success(success);
-        return true;
+        const next = await action();
+        setData(next);
+        message.success(
+          typeof success === "function" ? success(next) : success,
+        );
+        return next;
       } catch (err) {
         message.error(
           err instanceof Error
             ? err.message
             : "저장하지 못했습니다. 다시 시도하세요.",
         );
-        return false;
+        return null;
       }
     },
     [message],
@@ -126,6 +146,7 @@ export default function App() {
     { id: "claims", label: "청구서", badge: waiting || undefined },
     { id: "budget", label: "예산" },
     { id: "teams", label: "팀별 지원비" },
+    { id: "settings", label: "설정" },
     ...(data.viewer.canEdit
       ? [{ id: "accounts" as const, label: "환급 계좌" }]
       : []),
@@ -200,6 +221,7 @@ export default function App() {
               <BudgetView onPeriodCreated={(id) => void load(id)} />
             )}
             {view === "teams" && <TeamsView />}
+            {view === "settings" && <SettingsView />}
             {view === "accounts" && data.viewer.canEdit && (
               <RefundAccountsView />
             )}

@@ -1646,9 +1646,13 @@ model NutBudgetParameter {
   periodId    String   @map("period_id")
   id          String
   label       String
-  value       Int
+  // 달러 단가($8.75)·개월 수(4.5)가 있어서 실수다.
+  value       Float
   unit        String
   description String
+  // 설정 화면의 묶음(인원·프로젝트·지원 단가·구독·환율)과 그 안의 순서.
+  category    String   @default("기타")
+  sortOrder   Int      @default(0) @map("sort_order")
 
   @@id([periodId, id])
   @@map("budget_parameters")

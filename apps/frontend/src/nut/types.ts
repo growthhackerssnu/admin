@@ -35,6 +35,17 @@ export interface BudgetParameter {
   value: number;
   unit: string;
   description: string;
+  category: string;
+  sortOrder: number;
+}
+
+// 직접 입력하지 않고 다른 기준에서 계산되는 값(19기 총원 = 대협+HR+PR 등).
+export interface DerivedParameter {
+  id: string;
+  label: string;
+  unit: string;
+  expression: string;
+  value: number;
 }
 
 export interface BudgetLine {
@@ -184,6 +195,7 @@ export interface FinanceOverview {
   remaining: { income: number; expense: number; net: number };
   budgetTree: BudgetNode[];
   parameters: BudgetParameter[];
+  derivedParameters: DerivedParameter[];
   budgetLines: BudgetLine[];
   incomeLines: IncomeLine[];
   monthlyFlows: MonthlyFlow[];

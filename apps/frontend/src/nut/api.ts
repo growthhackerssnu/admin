@@ -160,6 +160,7 @@ export const budgetApi = {
       value: number;
       unit: string;
       description: string;
+      category?: string;
     },
   ) => send("parameters", "POST", { periodId, ...input }),
   removeParameter: (periodId: string, id: string) =>

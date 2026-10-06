@@ -78,11 +78,12 @@ export function majorOf(data: FinanceOverview, name: string) {
 
 type NutContextValue = {
   data: FinanceOverview;
-  // 저장 요청을 보내고, 성공하면 화면 데이터를 바꾸고 안내를 띄운다. 실패하면 false.
+  // 저장 요청을 보내고, 성공하면 화면 데이터를 바꾸고 안내를 띄운다. 성공하면 새 데이터, 실패하면 null.
+  // success를 함수로 주면 새 데이터를 보고 안내 문구를 만든다.
   run: (
     action: () => Promise<FinanceOverview>,
-    success: string,
-  ) => Promise<boolean>;
+    success: string | ((next: FinanceOverview) => string),
+  ) => Promise<FinanceOverview | null>;
   isPastPeriod: boolean;
 };
 

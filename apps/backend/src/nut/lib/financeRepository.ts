@@ -93,6 +93,7 @@ function tokenizeFormula(expression: string): FormulaToken[] {
 export function evaluateFormula(
   expression: string,
   values: Map<string, number>,
+  roundResult = true,
 ) {
   const tokens = tokenizeFormula(expression);
   let index = 0;
@@ -193,7 +194,7 @@ export function evaluateFormula(
   const result = parseExpression();
   if (index !== tokens.length || !Number.isFinite(result))
     throw new Error("산출식을 해석할 수 없습니다.");
-  return Math.round(result);
+  return roundResult ? Math.round(result) : result;
 }
 
 function formulaExpressionFor(
@@ -235,13 +236,34 @@ type NodeSnapshot = {
   active: boolean;
 };
 
+// 시트처럼 직접 입력하지 않고 다른 값으로 계산되는 기준. 산출식에서 이름 그대로 쓸 수 있다.
+// ponytail: 팀 구성이 바뀌면(예: 교육팀 추가) 여기 합계식을 고친다.
+export const DERIVED_PARAMETERS = [
+  { id: "cohort-19", label: "19기 총원", unit: "명", expression: "business-19 + hr-19 + pr-19" },
+  { id: "cohort-20", label: "20기 총원", unit: "명", expression: "business-20 + hr-20 + pr-20" },
+  { id: "summer-participants", label: "방학 프로젝트 참여 인원", unit: "명", expression: "cohort-19 - summer-interns" },
+  { id: "next-participants", label: "다음 학기 프로젝트 참여 인원", unit: "명", expression: "cohort-19 + cohort-20" },
+] as const;
+
+// 입력 기준 + 계산 기준. 계산 기준은 위 순서대로 앞의 값을 쓸 수 있다.
+// 입력 기준이 빠져 있으면(새 반기 준비 중 등) 그 계산 기준은 건너뛴다.
+export function parameterValues(parameters: Array<{ id: string; value: number }>) {
+  const values = new Map(parameters.map((parameter) => [parameter.id, parameter.value]));
+  for (const derived of DERIVED_PARAMETERS) {
+    try {
+      values.set(derived.id, evaluateFormula(derived.expression, values, false));
+    } catch {
+      // 필요한 입력 기준이 없다.
+    }
+  }
+  return values;
+}
+
 function calculateNodes(
   nodes: NodeSnapshot[],
   parameters: Array<{ id: string; value: number }>,
 ) {
-  const values = new Map(
-    parameters.map((parameter) => [parameter.id, parameter.value]),
-  );
+  const values = parameterValues(parameters);
   const calculated = nodes.map((node) => {
     const formulaExpression = formulaExpressionFor(
       node.formulaExpression,
@@ -377,7 +399,7 @@ export async function getFinanceOverview(
       where: { periodId, active: true },
       orderBy: { sortOrder: "asc" },
     }),
-    db.nutBudgetParameter.findMany({ where: { periodId }, orderBy: { id: "asc" } }),
+    db.nutBudgetParameter.findMany({ where: { periodId }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] }),
     db.nutIncomeLine.findMany({
       where: { periodId },
       orderBy: { sortOrder: "asc" },
@@ -397,6 +419,11 @@ export async function getFinanceOverview(
     throw new Error(`NUT finance period ${periodId} was not found`);
 
   const parameters = rawParameters.map((parameter) => ({ ...parameter }));
+  const allValues = parameterValues(parameters);
+  const derivedParameters = DERIVED_PARAMETERS.filter((derived) => allValues.has(derived.id)).map((derived) => ({
+    ...derived,
+    value: allValues.get(derived.id)!,
+  }));
   // 실제 지출은 회계 내역에서 항목 이름별로 합산한다(저장된 spent는 쓰지 않는다).
   const spentByBucket = new Map<string, number>();
   rawLedger.forEach((entry) =>
@@ -464,7 +491,10 @@ export async function getFinanceOverview(
   const expense = ledger.reduce((sum, entry) => sum + entry.expense, 0);
   const currentCash = toNumber(period.openingCash) + income - expense;
   const incomeBudget = toNumber(period.incomeBudget);
-  const expenseBudget = toNumber(period.expenseBudget);
+  // 지출 예산도 저장값 대신 예산 트리(대분류 합계)에서 계산한다. 저장값은 가져오기 등으로 어긋날 수 있다.
+  const expenseBudget = budgetTree
+    .filter((node) => node.parentId === null && node.kind === "expense")
+    .reduce((sum, node) => sum + node.budget, 0);
   const plan = {
     income: incomeBudget,
     expense: expenseBudget,
@@ -513,6 +543,7 @@ export async function getFinanceOverview(
     remaining,
     budgetTree,
     parameters,
+    derivedParameters,
     budgetLines: expenseLines,
     incomeLines: incomeLines.map((line) => {
       const budget = toNumber(line.budget);
@@ -679,10 +710,11 @@ export async function updateBudgetParameter(
 
 export async function createBudgetParameter(
   periodId: string,
-  input: { id: string; label: string; value: number; unit: string; description: string },
+  input: { id: string; label: string; value: number; unit: string; description: string; category?: string },
 ) {
   return prisma.$transaction(async (tx) => {
-    await tx.nutBudgetParameter.create({ data: { periodId, ...input } });
+    const last = await tx.nutBudgetParameter.findFirst({ where: { periodId }, orderBy: { sortOrder: "desc" } });
+    await tx.nutBudgetParameter.create({ data: { periodId, ...input, sortOrder: (last?.sortOrder ?? 0) + 1 } });
     await syncBudgetRollups(tx, periodId);
     return periodId;
   });

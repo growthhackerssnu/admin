@@ -155,7 +155,6 @@ export default function BudgetView({
         </section>
       )}
 
-      <Parameters />
       {data.viewer.canEdit && <NewPeriod onCreated={onPeriodCreated} />}
     </div>
   );
@@ -362,7 +361,7 @@ function NodeEditor({
                   setValue({ ...value, formulaExpression: event.target.value })
                 }
               />
-              <small>아래 '예산 계산 기준'의 이름을 쓸 수 있습니다.</small>
+              <small>'설정' 탭의 영문 이름을 쓸 수 있습니다.</small>
             </label>
           )}
         </>
@@ -491,171 +490,6 @@ function NodeForm({
         </Button>
       </div>
     </form>
-  );
-}
-
-// 계산식에 쓰는 값(인원·팀 수 등). 값을 바꾸면 그 값을 쓰는 예산이 바로 다시 계산된다.
-function Parameters() {
-  const { data, run } = useNut();
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState({
-    id: "",
-    label: "",
-    value: 0,
-    unit: "명",
-    description: "",
-  });
-  return (
-    <section className="nut-panel" aria-labelledby="parameters">
-      <header className="nut-panel__head">
-        <div>
-          <h2 id="parameters">예산 계산 기준</h2>
-          <p className="nut-panel__sub">
-            인원·팀 수를 바꾸면 이 값을 쓰는 예산이 바로 다시 계산됩니다.
-          </p>
-        </div>
-        {data.viewer.canEdit && (
-          <Button type="text" onClick={() => setOpen((value) => !value)}>
-            {open ? "닫기" : "기준 추가"}
-          </Button>
-        )}
-      </header>
-      {open && (
-        <form
-          className="nut-inline-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const ok = await run(
-              () =>
-                budgetApi.createParameter(data.period.id, {
-                  ...draft,
-                  description: draft.description || draft.label,
-                }),
-              `${draft.label} 기준을 추가했습니다.`,
-            );
-            if (ok) {
-              setOpen(false);
-              setDraft({
-                id: "",
-                label: "",
-                value: 0,
-                unit: "명",
-                description: "",
-              });
-            }
-          }}
-        >
-          <label>
-            이름
-            <Input
-              placeholder="예: 방학 프로젝트 참여 인원"
-              value={draft.label}
-              onChange={(event) =>
-                setDraft({ ...draft, label: event.target.value })
-              }
-            />
-          </label>
-          <label>
-            계산식에 쓸 영문 이름
-            <Input
-              placeholder="예: summer-participants"
-              value={draft.id}
-              status={
-                draft.id && !/^[a-z][a-z0-9-]{1,63}$/.test(draft.id)
-                  ? "error"
-                  : undefined
-              }
-              onChange={(event) =>
-                setDraft({ ...draft, id: event.target.value.trim() })
-              }
-            />
-            <small>영문 소문자·숫자·하이픈</small>
-          </label>
-          <label>
-            값
-            <InputNumber
-              min={0}
-              value={draft.value}
-              onChange={(value) => setDraft({ ...draft, value: value ?? 0 })}
-            />
-          </label>
-          <label>
-            단위
-            <Input
-              value={draft.unit}
-              onChange={(event) =>
-                setDraft({ ...draft, unit: event.target.value })
-              }
-            />
-          </label>
-          <div className="nut-form-actions">
-            <Button
-              type="primary"
-              htmlType="submit"
-              disabled={
-                !draft.label.trim() || !/^[a-z][a-z0-9-]{1,63}$/.test(draft.id)
-              }
-            >
-              추가
-            </Button>
-          </div>
-        </form>
-      )}
-      <ul className="nut-params">
-        {data.parameters.map((parameter) => (
-          <li key={parameter.id} className="nut-param">
-            <span className="nut-param__label">
-              <strong>{parameter.label}</strong>
-              <code>{parameter.id}</code>
-            </span>
-            <InputNumber
-              min={0}
-              defaultValue={parameter.value}
-              disabled={!data.viewer.canEdit}
-              addonAfter={parameter.unit}
-              aria-label={parameter.label}
-              onBlur={(event) => {
-                const value = Number(event.target.value.replace(/[^\d]/g, ""));
-                if (value !== parameter.value)
-                  void run(
-                    () =>
-                      budgetApi.updateParameter(
-                        data.period.id,
-                        parameter.id,
-                        value,
-                      ),
-                    `${parameter.label}을 ${value}${parameter.unit}로 바꿨습니다.`,
-                  );
-              }}
-            />
-            {data.viewer.canEdit && (
-              <Popconfirm
-                title={`'${parameter.label}' 기준을 지울까요?`}
-                description="계산식에서 쓰고 있으면 지울 수 없습니다."
-                okText="지우기"
-                cancelText="그대로 두기"
-                okButtonProps={{ danger: true }}
-                onConfirm={() =>
-                  void run(
-                    () =>
-                      budgetApi.removeParameter(data.period.id, parameter.id),
-                    "기준을 지웠습니다.",
-                  )
-                }
-              >
-                <Button
-                  type="text"
-                  size="small"
-                  aria-label={`${parameter.label} 지우기`}
-                >
-                  지우기
-                </Button>
-              </Popconfirm>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 

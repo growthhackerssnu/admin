@@ -3,6 +3,7 @@ import { ApiError } from "@/nut/lib/errors";
 import { overviewBody, periodFrom } from "@/nut/lib/respond";
 import {
   createBudgetParameter,
+  DERIVED_PARAMETERS,
   deleteBudgetParameter,
   updateBudgetParameter,
 } from "@/nut/lib/financeRepository";
@@ -13,6 +14,8 @@ function idValue(value: unknown) {
       "BAD_REQUEST",
       "id는 영문 소문자·숫자·하이픈으로 작성해야 합니다.",
     );
+  if (DERIVED_PARAMETERS.some((derived) => derived.id === value))
+    throw new ApiError("BAD_REQUEST", `'${value}'는 자동으로 계산되는 기준이라 쓸 수 없습니다.`);
   return value;
 }
 
@@ -22,10 +25,11 @@ function textValue(value: unknown, field: string) {
   return value.trim();
 }
 
+// 달러 단가·개월 수처럼 소수가 있을 수 있다.
 function numberValue(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
-    throw new ApiError("BAD_REQUEST", "value must be a non-negative number.");
-  return Math.round(value);
+    throw new ApiError("BAD_REQUEST", "0 이상의 숫자를 입력하세요.");
+  return value;
 }
 
 export const POST = withApiHandler(async (req, { member, requestId }) => {
@@ -39,7 +43,8 @@ export const POST = withApiHandler(async (req, { member, requestId }) => {
     label: textValue(body.label, "label"),
     value: numberValue(body.value),
     unit: textValue(body.unit, "unit"),
-    description: textValue(body.description, "description"),
+    description: typeof body.description === "string" ? body.description.trim() : "",
+    category: typeof body.category === "string" && body.category.trim() ? body.category.trim() : "기타",
   });
   return { body: await overviewBody(periodId, member, requestId), status: 201 };
 });
