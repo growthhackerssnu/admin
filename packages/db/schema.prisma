@@ -1769,6 +1769,22 @@ model NutClaim {
   @@schema("nut")
 }
 
+// 회원 환급 계좌(예전 내부운영 시트 '학회원 정보'). 청구서가 Slack으로 들어올 때 청구인의
+// Slack 이메일(없으면 이름)로 찾아 계좌를 채운다. 보기·수정 모두 총무·admin만.
+// 전화번호·생일은 쓰지 않으므로 저장하지 않는다.
+model NutRefundAccount {
+  id          String   @id
+  name        String
+  cohort      String?
+  email       String?  @unique
+  bankAccount String   @map("bank_account")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([name])
+  @@map("refund_accounts")
+  @@schema("nut")
+}
+
 model NutTaxSummary {
   id                   String @id
   periodId             String @map("period_id")

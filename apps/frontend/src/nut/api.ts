@@ -175,3 +175,21 @@ export function createPeriod(input: {
 }) {
   return send("periods", "POST", input);
 }
+
+export type RefundAccountInput = {
+  id?: string;
+  name: string;
+  cohort?: string | null;
+  email?: string | null;
+  bankAccount: string;
+};
+
+export const refundApi = {
+  save: (periodId: string, input: RefundAccountInput) =>
+    send("refund-accounts", input.id ? "PATCH" : "POST", {
+      periodId,
+      ...input,
+    }),
+  remove: (periodId: string, id: string) =>
+    send("refund-accounts", "DELETE", { periodId, id }),
+};

@@ -365,6 +365,7 @@ export async function getFinanceOverview(
     accountingSummaries,
     claims,
     tax,
+    refundAccounts,
   ] = await Promise.all([
     db.nutFinancePeriod.findMany({
       orderBy: { periodStart: "desc" },
@@ -389,6 +390,7 @@ export async function getFinanceOverview(
     db.nutAccountingSummary.findMany({ where: { periodId }, orderBy: { id: "asc" } }),
     db.nutClaim.findMany({ where: { periodId }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] }),
     db.nutTaxSummary.findUnique({ where: { periodId } }),
+    viewer.canEdit ? db.nutRefundAccount.findMany({ orderBy: [{ cohort: "asc" }, { name: "asc" }] }) : Promise.resolve([]),
   ]);
   if (!period)
     throw new Error(`NUT finance period ${periodId} was not found`);
@@ -541,8 +543,19 @@ export async function getFinanceOverview(
     }),
     ledger,
     ...accountingView(accountingSummaries, accountingDetails),
+    refundAccounts: refundAccounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      cohort: account.cohort ?? undefined,
+      email: account.email ?? undefined,
+      bankAccount: account.bankAccount,
+    })),
     claims: claims.map((claim) => {
       const canSeeAccount = viewer.canEdit || claim.memberId === viewer.memberId;
+      // 청구서에 계좌가 없으면 환급 계좌 명단에서 같은 이름을 찾아 보여준다(처리 권한자에게만).
+      const fallback = viewer.canEdit && !claim.bankAccount
+        ? refundAccounts.find((account) => account.name === claim.claimant)?.bankAccount
+        : undefined;
       return {
         id: claim.id,
         date: dateOnly(claim.date),
@@ -554,7 +567,7 @@ export async function getFinanceOverview(
         source: claim.source,
         prepaid: claim.prepaid,
         mine: claim.memberId === viewer.memberId,
-        bankAccount: canSeeAccount ? (claim.bankAccount ?? undefined) : undefined,
+        bankAccount: canSeeAccount ? (claim.bankAccount ?? fallback ?? undefined) : undefined,
         note: claim.note ?? undefined,
         rejectReason: claim.rejectReason ?? undefined,
         reviewedAt: claim.reviewedAt?.toISOString(),
@@ -1134,4 +1147,38 @@ export async function createPeriod(input: {
     await syncBudgetRollups(tx, input.id);
     return input.id;
   });
+}
+
+// ---------- 환급 계좌 ----------
+
+// Slack 청구인의 이메일로 먼저, 없으면 이름으로 찾는다(이름이 같은 사람이 둘이면 찾지 않는다).
+export async function findRefundAccount(email: string | null | undefined, name: string | null | undefined) {
+  if (email) {
+    const byEmail = await prisma.nutRefundAccount.findUnique({ where: { email: email.toLowerCase() } });
+    if (byEmail) return byEmail.bankAccount;
+  }
+  if (!name) return null;
+  const byName = await prisma.nutRefundAccount.findMany({ where: { name }, take: 2 });
+  return byName.length === 1 ? byName[0]!.bankAccount : null;
+}
+
+export async function saveRefundAccount(input: {
+  id?: string;
+  name: string;
+  cohort?: string | null;
+  email?: string | null;
+  bankAccount: string;
+}) {
+  const data = {
+    name: input.name,
+    cohort: input.cohort || null,
+    email: input.email ? input.email.toLowerCase() : null,
+    bankAccount: input.bankAccount,
+  };
+  if (input.id) await prisma.nutRefundAccount.update({ where: { id: input.id }, data });
+  else await prisma.nutRefundAccount.create({ data: { id: `refund-${crypto.randomUUID()}`, ...data } });
+}
+
+export async function deleteRefundAccount(id: string) {
+  await prisma.nutRefundAccount.delete({ where: { id } });
 }

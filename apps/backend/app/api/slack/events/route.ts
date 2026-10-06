@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createClaim, resolvePeriodId } from "@/nut/lib/financeRepository";
+import { createClaim, findRefundAccount, resolvePeriodId } from "@/nut/lib/financeRepository";
 
 // Slack 앱 "GH NUT"(A0C802VMHK2)의 Events API 수신점. 지금은 워크플로 단계 하나만 처리한다:
 //   register_nut_claim — 청구서 워크플로의 양식 답변으로 NUT 청구서를 만든다.
@@ -75,7 +75,8 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
     detail,
     amount,
     bucket: inputs.bucket?.trim() || "미분류",
-    bankAccount: inputs.bank_account?.trim() || null,
+    // 양식에 계좌가 없으면 환급 계좌 명단(NUT '환급 계좌' 탭)에서 채운다.
+    bankAccount: inputs.bank_account?.trim() || (await findRefundAccount(email, name)),
     prepaid: parsePrepaid(inputs.prepaid),
     note: inputs.note?.trim() || null,
     source: "Slack",

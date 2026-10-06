@@ -133,6 +133,14 @@ export interface Claim {
   ledgerEntryId?: string;
 }
 
+export interface RefundAccount {
+  id: string;
+  name: string;
+  cohort?: string;
+  email?: string;
+  bankAccount: string;
+}
+
 export interface PeriodSummary {
   id: string;
   label: string;
@@ -183,5 +191,7 @@ export interface FinanceOverview {
   accountingDetails: AccountingDetail[];
   accountingSummaries: AccountingSummary[];
   claims: Claim[];
+  // 총무·admin에게만 내려온다. 그 외에는 빈 배열.
+  refundAccounts: RefundAccount[];
   tax: TaxSummary;
 }

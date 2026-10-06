@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createClaim = vi.fn(async () => "claim-slack-Fx1");
 vi.mock("@/lib/prisma", () => ({ prisma: { member: { findUnique: vi.fn(async () => null) } } }));
-vi.mock("@/nut/lib/financeRepository", () => ({ createClaim, resolvePeriodId: vi.fn(async () => "2026-2h") }));
+const findRefundAccount = vi.fn(async () => "토스뱅크 1000-0000-0000");
+vi.mock("@/nut/lib/financeRepository", () => ({
+  createClaim,
+  findRefundAccount,
+  resolvePeriodId: vi.fn(async () => "2026-2h"),
+}));
 
 // Slack Web API 흉내: 토큰 "good"만 GH NUT 앱(A0C802VMHK2)이 발급받은 것으로 답한다.
 const calls: string[] = [];
@@ -56,8 +61,17 @@ describe("POST /api/slack/events", () => {
     expect(res.status).toBe(200);
     expect(createClaim).toHaveBeenCalledWith(
       "2026-2h",
-      expect.objectContaining({ id: "claim-slack-Fx1", amount: 23500, prepaid: true, claimant: "홍길동", source: "Slack" }),
+      expect.objectContaining({
+        id: "claim-slack-Fx1",
+        amount: 23500,
+        prepaid: true,
+        claimant: "홍길동",
+        source: "Slack",
+        // 양식에 계좌가 없으면 환급 계좌 명단에서 채운다.
+        bankAccount: "토스뱅크 1000-0000-0000",
+      }),
     );
+    expect(findRefundAccount).toHaveBeenCalledWith(undefined, "홍길동");
     expect(calls).toContain("functions.completeSuccess");
   });
 

@@ -10,15 +10,18 @@ import LedgerView from "./views/LedgerView";
 import ClaimsView from "./views/ClaimsView";
 import BudgetView from "./views/BudgetView";
 import TeamsView from "./views/TeamsView";
+import RefundAccountsView from "./views/RefundAccountsView";
 
-type View = "overview" | "ledger" | "claims" | "budget" | "teams";
+type View = "overview" | "ledger" | "claims" | "budget" | "teams" | "accounts";
 
 function initialView(): View {
   const saved = new URLSearchParams(window.location.search).get(
     "tab",
   ) as View | null;
   return saved &&
-    ["overview", "ledger", "claims", "budget", "teams"].includes(saved)
+    ["overview", "ledger", "claims", "budget", "teams", "accounts"].includes(
+      saved,
+    )
     ? saved
     : "overview";
 }
@@ -123,6 +126,9 @@ export default function App() {
     { id: "claims", label: "청구서", badge: waiting || undefined },
     { id: "budget", label: "예산" },
     { id: "teams", label: "팀별 지원비" },
+    ...(data.viewer.canEdit
+      ? [{ id: "accounts" as const, label: "환급 계좌" }]
+      : []),
   ];
 
   return (
@@ -194,6 +200,9 @@ export default function App() {
               <BudgetView onPeriodCreated={(id) => void load(id)} />
             )}
             {view === "teams" && <TeamsView />}
+            {view === "accounts" && data.viewer.canEdit && (
+              <RefundAccountsView />
+            )}
           </section>
         </div>
       </ConfigProvider>
