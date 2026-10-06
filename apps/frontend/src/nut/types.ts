@@ -293,6 +293,8 @@ export type AttendanceData = {
   periods: Array<{ id: string; label: string }>;
   canEdit: boolean;
   clearedThrough: string | null;
+  // acting이 아니게 된 회원 이름. 합계에서 뺀다.
+  formerNames: string[];
   sessionMinutes: number;
   rules: Array<{ id: string; label: string; points: number; fine: number }>;
   roster: Array<{ name: string; cohort: string | null }>;

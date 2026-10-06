@@ -902,12 +902,30 @@ button.nut-tree__toggle:hover {
 .nut-attendance__cohort + .nut-attendance__cohort {
   margin-top: var(--ds-space-3);
 }
+/* 기수 묶음(출석체크·환급 계좌): 왼쪽 화살표가 접힘/펼침을 보여준다. */
 .nut-attendance__cohort > summary {
+  list-style: none;
   display: flex;
   gap: var(--ds-space-3);
   align-items: baseline;
   padding: var(--ds-space-2) 0;
   cursor: pointer;
+}
+.nut-attendance__cohort > summary::-webkit-details-marker {
+  display: none;
+}
+.nut-attendance__cohort > summary::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+  align-self: center;
+}
+.nut-attendance__cohort[open] > summary::before {
+  transform: rotate(45deg);
 }
 .nut-attendance__cohort > summary span {
   color: var(--nut-muted);

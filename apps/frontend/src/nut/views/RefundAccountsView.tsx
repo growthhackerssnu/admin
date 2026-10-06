@@ -46,28 +46,48 @@ export default function RefundAccountsView() {
           {query ? "찾는 사람이 없습니다." : "등록된 환급 계좌가 없습니다."}
         </p>
       ) : (
-        <div className="nut-panel nut-accounts__table-wrap">
-          <table className="nut-accounts__table">
-            <thead>
-              <tr>
-                <th scope="col">이름</th>
-                <th scope="col">기수</th>
-                <th scope="col">Slack 이메일</th>
-                <th scope="col">환급 계좌</th>
-                <th scope="col">
-                  <span className="nut-visually-hidden">관리</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((account) => (
-                <AccountRow key={account.id} account={account} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        // 기수별로 접고 편다(출석체크 표와 같은 모양).
+        groupByCohort(accounts).map(([cohort, rows]) => (
+          <details key={cohort} className="nut-attendance__cohort" open>
+            <summary>
+              <strong>{cohort}</strong>
+              <span>{rows.length}명</span>
+            </summary>
+            <div className="nut-panel nut-accounts__table-wrap">
+              <table className="nut-accounts__table">
+                <thead>
+                  <tr>
+                    <th scope="col">이름</th>
+                    <th scope="col">기수</th>
+                    <th scope="col">Slack 이메일</th>
+                    <th scope="col">환급 계좌</th>
+                    <th scope="col">
+                      <span className="nut-visually-hidden">관리</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((account) => (
+                    <AccountRow key={account.id} account={account} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        ))
       )}
     </div>
+  );
+}
+
+function groupByCohort(accounts: RefundAccount[]) {
+  const groups = new Map<string, RefundAccount[]>();
+  accounts.forEach((account) => {
+    const cohort = account.cohort || "기수 미상";
+    groups.set(cohort, [...(groups.get(cohort) ?? []), account]);
+  });
+  return [...groups.entries()].sort(
+    ([a], [b]) => (parseInt(a, 10) || 999) - (parseInt(b, 10) || 999),
   );
 }
 

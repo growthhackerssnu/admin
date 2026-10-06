@@ -1,3 +1,4 @@
+import { PersonLink } from "../../lib/PersonLink";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { AppTag as Tag } from "@/components/ui/app-tag";
 import { useCallback, useEffect, useState } from "react";
@@ -256,7 +257,9 @@ export function AdminGhbotTokens() {
       key: "member",
       render: (_, row) => (
         <>
-          <div>{row.displayName}</div>
+          <div>
+            <PersonLink name={row.displayName} cohort={row.cohort} />
+          </div>
           <Typography.Text type="secondary">{row.email}</Typography.Text>
         </>
       ),

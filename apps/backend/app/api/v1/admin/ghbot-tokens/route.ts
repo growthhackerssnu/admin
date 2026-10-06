@@ -16,7 +16,7 @@ export const GET = withApiHandler(async (_req, { member, requestId }) => {
   requireAdmin(member);
   const members = await prisma.member.findMany({
     where: { role: "acting", active: true },
-    orderBy: [{ displayName: "asc" }],
+    orderBy: [{ displayName: "asc" }],  // 기수 순 정렬은 아래에서(기수가 people_directory에 있다)
     include: {
       ghbotTokens: {
         where: { revokedAt: null },
@@ -29,7 +29,14 @@ export const GET = withApiHandler(async (_req, { member, requestId }) => {
   return {
     body: successBody(
       {
-        items: members.map((target) => {
+        // 기수 오름차순, 같은 기수는 이름순. 기수를 모르는 회원은 맨 뒤.
+        items: [...members]
+          .sort(
+            (a, b) =>
+              (Number(a.claimedPersonEntry?.cohort) || 999) - (Number(b.claimedPersonEntry?.cohort) || 999) ||
+              a.displayName.localeCompare(b.displayName, "ko"),
+          )
+          .map((target) => {
           const token = target.ghbotTokens[0];
           return {
             memberId: target.id,

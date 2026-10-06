@@ -58,18 +58,31 @@ function idempotencyKey() {
 
 // --- 가입/OTP (로그인 전, 토큰 불필요) ---
 
-export function createSignupRequest(input: { cohort: string; name: string; desiredEmail: string }) {
-  return request<{ signupRequestId: string; sentTo: string; expiresAt: string }>(
-    "/api/auth/signup-requests",
-    { method: "POST", body: JSON.stringify(input) },
-  );
+export function createSignupRequest(input: {
+  cohort: string;
+  name: string;
+  desiredEmail: string;
+}) {
+  return request<{
+    signupRequestId: string;
+    sentTo: string;
+    expiresAt: string;
+  }>("/api/auth/signup-requests", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export function verifySignupRequest(signupRequestId: string, otp: string) {
-  return request<{ memberId: string; email: string; role: string; displayName: string }>(
-    `/api/auth/signup-requests/${signupRequestId}/verify`,
-    { method: "POST", body: JSON.stringify({ otp }) },
-  );
+  return request<{
+    memberId: string;
+    email: string;
+    role: string;
+    displayName: string;
+  }>(`/api/auth/signup-requests/${signupRequestId}/verify`, {
+    method: "POST",
+    body: JSON.stringify({ otp }),
+  });
 }
 
 // --- 내 정보 (로그인 직후 어디로 보낼지 판단용) ---
@@ -117,7 +130,9 @@ export interface AdminMember {
 
 // role과 운영팀 직책은 항상 같이 바뀐다 — acting이면 직책이 필수고, alumni가
 // 되면 직책은 사라진다. 그 규칙을 타입으로 그대로 옮긴다.
-export type RoleChange = { role: "acting"; opsRole: OpsRole } | { role: "alumni" };
+export type RoleChange =
+  | { role: "acting"; opsRole: OpsRole }
+  | { role: "alumni" };
 
 export function listAdminMembers(token: string) {
   return request<{ items: AdminMember[]; nextCursor: string | null }>(
@@ -126,34 +141,58 @@ export function listAdminMembers(token: string) {
   );
 }
 
-export function changeMemberRole(token: string, memberIds: string[], change: RoleChange) {
-  return request<{ items: { id: string; role: string; opsRole: OpsRole | null }[] }>(
-    "/api/v1/admin/members/role",
+export function changeMemberRole(
+  token: string,
+  memberIds: string[],
+  change: RoleChange,
+) {
+  return request<{
+    items: { id: string; role: string; opsRole: OpsRole | null }[];
+  }>("/api/v1/admin/members/role", {
+    method: "PATCH",
+    token,
+    headers: { "Idempotency-Key": idempotencyKey() },
+    body: JSON.stringify({ memberIds, ...change }),
+  });
+}
+
+// 새 학회원 등록(admin): 그핵드인 노션 페이지와 acting 회원을 같이 만든다.
+export function addMember(
+  token: string,
+  input: { name: string; cohort: number; email: string },
+) {
+  return request<{ id: string; notionPageId: string }>(
+    "/api/v1/admin/members",
     {
-      method: "PATCH",
+      method: "POST",
       token,
-      headers: { "Idempotency-Key": idempotencyKey() },
-      body: JSON.stringify({ memberIds, ...change }),
+      body: JSON.stringify(input),
     },
   );
 }
 
 export function deactivateMembers(token: string, memberIds: string[]) {
-  return request<{ items: { id: string; active: boolean }[] }>("/api/v1/admin/members/deactivate", {
-    method: "POST",
-    token,
-    headers: { "Idempotency-Key": idempotencyKey() },
-    body: JSON.stringify({ memberIds }),
-  });
+  return request<{ items: { id: string; active: boolean }[] }>(
+    "/api/v1/admin/members/deactivate",
+    {
+      method: "POST",
+      token,
+      headers: { "Idempotency-Key": idempotencyKey() },
+      body: JSON.stringify({ memberIds }),
+    },
+  );
 }
 
 export function reactivateMembers(token: string, memberIds: string[]) {
-  return request<{ items: { id: string; active: boolean }[] }>("/api/v1/admin/members/reactivate", {
-    method: "POST",
-    token,
-    headers: { "Idempotency-Key": idempotencyKey() },
-    body: JSON.stringify({ memberIds }),
-  });
+  return request<{ items: { id: string; active: boolean }[] }>(
+    "/api/v1/admin/members/reactivate",
+    {
+      method: "POST",
+      token,
+      headers: { "Idempotency-Key": idempotencyKey() },
+      body: JSON.stringify({ memberIds }),
+    },
+  );
 }
 
 // --- 관리자: GH Bot 접근 토큰 ---
@@ -175,27 +214,41 @@ export interface GhbotTokenMember {
 }
 
 export function listGhbotTokenMembers(token: string) {
-  return request<{ items: GhbotTokenMember[] }>("/api/v1/admin/ghbot-tokens", { token });
+  return request<{ items: GhbotTokenMember[] }>("/api/v1/admin/ghbot-tokens", {
+    token,
+  });
 }
 
 // 원문은 이 응답에서만 제공된다. 호출자는 즉시 표시하고 상태에는 저장하지 않는다.
 export function issueGhbotToken(token: string, memberId: string) {
-  return request<{ token: string; tokenId: string; prefix: string; issuedAt: string }>(
-    "/api/v1/admin/ghbot-tokens",
-    { method: "POST", token, body: JSON.stringify({ memberId }) },
-  );
+  return request<{
+    token: string;
+    tokenId: string;
+    prefix: string;
+    issuedAt: string;
+  }>("/api/v1/admin/ghbot-tokens", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ memberId }),
+  });
 }
 
 export function revokeGhbotToken(token: string, tokenId: string) {
-  return request<{ id: string; revokedAt: string }>(`/api/v1/admin/ghbot-tokens/${tokenId}/revoke`, {
-    method: "POST",
-    token,
-    headers: { "Idempotency-Key": idempotencyKey() },
-    body: JSON.stringify({}),
-  });
+  return request<{ id: string; revokedAt: string }>(
+    `/api/v1/admin/ghbot-tokens/${tokenId}/revoke`,
+    {
+      method: "POST",
+      token,
+      headers: { "Idempotency-Key": idempotencyKey() },
+      body: JSON.stringify({}),
+    },
+  );
 }
 
 // 목록에는 마스킹된 접두사만 포함한다. 이 요청은 관리자가 명시적으로 복사할 때만 쓴다.
 export function getGhbotTokenSecret(token: string, tokenId: string) {
-  return request<{ token: string }>(`/api/v1/admin/ghbot-tokens/${tokenId}/secret`, { token });
+  return request<{ token: string }>(
+    `/api/v1/admin/ghbot-tokens/${tokenId}/secret`,
+    { token },
+  );
 }

@@ -3,6 +3,7 @@ import {
   Alert,
   Input,
   InputNumber,
+  Modal,
   Popconfirm,
   Popover,
   Segmented,
@@ -16,6 +17,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Settings } from "lucide-react";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { PersonLink } from "../lib/PersonLink";
 import { attendanceApi, type AttendanceInput } from "../nut/api";
@@ -38,6 +40,7 @@ export default function AttendancePage() {
   const [data, setData] = useState<AttendanceData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
     setData(null);
@@ -121,11 +124,36 @@ export default function AttendancePage() {
             {data.period.end.replaceAll("-", ".")}
           </span>
         </div>
+        <Button
+          type="text"
+          icon={<Settings size={18} />}
+          aria-label="벌점·벌금 기준"
+          title="벌점·벌금 기준"
+          onClick={() => setRulesOpen(true)}
+        />
       </header>
+      <Modal
+        title="벌점·벌금 기준"
+        open={rulesOpen}
+        onCancel={() => setRulesOpen(false)}
+        footer={null}
+        width={600}
+      >
+        <Rules
+          data={data}
+          canEdit={canEdit}
+          onSave={(key, value, label) =>
+            save(
+              () => attendanceApi.saveRule(data.period.id, key, value),
+              `${label} 기준을 바꿨습니다. 벌점이 다시 계산됐습니다.`,
+            )
+          }
+        />
+      </Modal>
       <p className="nut-claims__intro">
         Slack 출석핑 워크플로의 출석체크·'지각했어용' 답변이 여기 쌓입니다. 지각
-        비율은 세션 {data.sessionMinutes}분 기준이고, 벌점·벌금 기준은 맨
-        아래에서 바꿉니다.
+        비율은 세션 {data.sessionMinutes}분 기준이고, 벌점·벌금 기준은 오른쪽 위
+        톱니바퀴에서 봅니다.
         {canEdit
           ? " 사유가 일부만 인정되면 기록을 눌러 '부분 사유'로 바꾸세요."
           : " 수정은 회장단·총무·관리자만 할 수 있습니다."}
@@ -209,16 +237,6 @@ export default function AttendancePage() {
           </ul>
         )}
       </section>
-      <Rules
-        data={data}
-        canEdit={canEdit}
-        onSave={(key, value, label) =>
-          save(
-            () => attendanceApi.saveRule(data.period.id, key, value),
-            `${label} 기준을 바꿨습니다. 벌점이 다시 계산됐습니다.`,
-          )
-        }
-      />
     </div>
   );
 }
@@ -234,16 +252,12 @@ function Rules({
   onSave: (key: string, value: number, label: string) => Promise<boolean>;
 }) {
   return (
-    <section className="nut-panel" aria-labelledby="attendance-rules">
-      <header className="nut-panel__head">
-        <div>
-          <h2 id="attendance-rules">벌점·벌금 기준</h2>
-          <p className="nut-panel__sub">
-            이 반기에만 적용됩니다. 사유(전부 인정)는 벌점이 없습니다. 지각
-            비율은 지각 분 ÷ 세션 길이입니다.
-          </p>
-        </div>
-      </header>
+    <section aria-label="벌점·벌금 기준">
+      <p className="nut-panel__sub">
+        이 반기에만 적용됩니다. 사유(전부 인정)는 벌점이 없습니다. 지각 비율은
+        지각 분 ÷ 세션 길이입니다.
+        {canEdit ? "" : " 수정은 회장단·총무·관리자만 할 수 있습니다."}
+      </p>
       <table className="nut-headcount nut-attendance__table">
         <thead>
           <tr>
@@ -370,6 +384,7 @@ function Summary({
   // 벌점 열 머리를 누르면 많은 순 ↔ 적은 순으로 바뀐다.
   const [order, setOrder] = useState<"desc" | "asc">("desc");
   const groups = useMemo(() => {
+    const former = new Set(data.formerNames);
     const byName = new Map<string, PersonRow>(
       data.roster.map((person) => [
         person.name,
@@ -377,7 +392,8 @@ function Summary({
       ]),
     );
     data.records.forEach((record) => {
-      if (record.cleared) return;
+      // 초기화 전 기록과 acting이 아니게 된 회원의 기록은 합계에 넣지 않는다.
+      if (record.cleared || former.has(record.name)) return;
       const row = byName.get(record.name) ?? {
         name: record.name,
         cohort: null,
@@ -408,7 +424,11 @@ function Summary({
       }));
   }, [data, order]);
   const totalFine = data.records.reduce(
-    (sum, record) => sum + (record.cleared ? 0 : record.penalty.fine),
+    (sum, record) =>
+      sum +
+      (record.cleared || data.formerNames.includes(record.name)
+        ? 0
+        : record.penalty.fine),
     0,
   );
   return (
@@ -624,7 +644,6 @@ function RecordRow({
         <span>
           {record.cleared ? "초기화됨 · " : ""}
           {dateLabel(record.date)}
-          {record.project ? ` · ${record.project}` : ""}
           {record.note ? ` · ${record.note}` : ""}
           {record.source === "Slack" ? " · Slack" : ""}
         </span>
@@ -753,15 +772,6 @@ function RecordForm({
           />
         </label>
       )}
-      <label>
-        프로젝트·세션
-        <Input
-          value={value.project ?? ""}
-          onChange={(event) =>
-            setValue({ ...value, project: event.target.value })
-          }
-        />
-      </label>
       <label className="nut-inline-form__wide">
         메모
         <Input

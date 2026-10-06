@@ -85,7 +85,9 @@ export async function saveRule(periodId: string, key: string, value: number) {
 
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 
-// 반기 안의 기록과, 기록이 없는 사람도 0점으로 보이도록 환급 계좌 명단(= 학회원 명단)을 돌려준다.
+// 반기 안의 기록과 명단을 돌려준다. 명단은 지금 acting인 회원(기수 = 그핵드인 명단의 기수)이라
+// 19기가 alumni가 되면 20기만 남는다. 기록이 없는 사람도 0점으로 보인다.
+// formerNames: acting이 아니게 된 회원 이름. 화면이 그 사람의 기록을 합계에서 뺀다.
 // 출석체크는 NUT와 같은 반기를 쓴다. 화면 위쪽 반기 선택에 쓰도록 반기 목록도 같이 준다.
 export async function getAttendance(periodId: string, canEdit: boolean) {
   const period = await prisma.nutFinancePeriod.findUniqueOrThrow({ where: { id: periodId } });
@@ -95,7 +97,10 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
       where: { date: { gte: period.periodStart, lte: period.periodEnd } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     }),
-    prisma.nutRefundAccount.findMany({ select: { name: true, cohort: true }, orderBy: [{ cohort: "asc" }, { name: "asc" }] }),
+    prisma.member.findMany({
+      where: { role: { not: "admin" } },
+      select: { displayName: true, role: true, active: true, claimedPersonEntry: { select: { cohort: true } } },
+    }),
     getRules(periodId),
     prisma.nutAttendanceReset.findFirst({ orderBy: { createdAt: "desc" } }),
   ]);
@@ -104,11 +109,18 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
     period: { id: period.id, label: period.label, start: dateOnly(period.periodStart), end: dateOnly(period.periodEnd) },
     periods,
     canEdit,
+    roster: roster
+      .filter((member) => member.role === "acting" && member.active)
+      .map((member) => ({
+        name: member.displayName,
+        cohort: member.claimedPersonEntry ? `${member.claimedPersonEntry.cohort}기` : null,
+      }))
+      .sort((a, b) => (parseInt(a.cohort ?? "", 10) || 999) - (parseInt(b.cohort ?? "", 10) || 999) || a.name.localeCompare(b.name, "ko")),
+    formerNames: roster.filter((member) => member.role !== "acting" || !member.active).map((member) => member.displayName),
     // 이 날짜까지의 기록은 초기화돼서 벌점·벌금 합계에 넣지 않는다(기록은 남는다).
     clearedThrough,
     sessionMinutes: rules.sessionMinutes,
     rules: RULES.map(({ id, label }) => ({ id, label, ...rules.rates[id] })),
-    roster,
     records: records.map((record) => {
       const classified = { type: record.type as AttendanceType, excuse: record.excuse as Excuse, minutesLate: record.minutesLate };
       return {

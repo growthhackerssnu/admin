@@ -6,6 +6,8 @@ import { Navigate } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
+  Input,
+  InputNumber,
   Modal,
   Segmented,
   Select,
@@ -18,6 +20,7 @@ import type { ColumnsType } from "antd/es/table";
 import { AppShell } from "@/components/ui/app-shell";
 import { AdminNav } from "../components/AdminNav";
 import {
+  addMember,
   ApiClientError,
   changeMemberRole,
   deactivateMembers,
@@ -99,6 +102,12 @@ export function AdminMembers() {
   const [view, setView] = useState<"all" | "active" | "inactive">("all");
   const [opsRoleModalOpen, setOpsRoleModalOpen] = useState(false);
   const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRole>();
+  const [adding, setAdding] = useState(false);
+  const [newMember, setNewMember] = useState<{
+    name: string;
+    cohort: number | null;
+    email: string;
+  }>({ name: "", cohort: null, email: "" });
 
   const token = session?.access_token;
 
@@ -370,6 +379,12 @@ export function AdminMembers() {
             ]}
           />
 
+          <div style={{ marginBottom: 16 }}>
+            <Button type="primary" onClick={() => setAdding(true)}>
+              회원 추가
+            </Button>
+          </div>
+
           {selectedIds.length > 0 && (
             <div
               className="actions"
@@ -438,6 +453,76 @@ export function AdminMembers() {
             />
           )}
         </div>
+
+        <Modal
+          title="회원 추가"
+          open={adding}
+          onCancel={() => setAdding(false)}
+          okText="추가"
+          cancelText="취소"
+          okButtonProps={{
+            disabled:
+              busy ||
+              !newMember.name.trim() ||
+              !newMember.cohort ||
+              !newMember.email.trim(),
+          }}
+          onOk={async () => {
+            setBusy(true);
+            try {
+              await addMember(token!, {
+                name: newMember.name.trim(),
+                cohort: newMember.cohort!,
+                email: newMember.email.trim(),
+              });
+              message.success(
+                `${newMember.name.trim()}님을 acting 회원으로 추가하고 그핵드인 노션 페이지를 만들었습니다.`,
+              );
+              setAdding(false);
+              setNewMember({ name: "", cohort: null, email: "" });
+              await load();
+            } catch (e) {
+              message.error(
+                e instanceof ApiClientError
+                  ? e.message
+                  : "회원을 추가하지 못했습니다.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <p className="muted">
+            acting 회원으로 등록하고 그핵드인(노션 People DB)에 프로필 페이지를
+            만듭니다. 운영팀 직책은 추가한 뒤 지정하세요.
+          </p>
+          <Space direction="vertical" style={{ width: "100%" }}>
+            <Input
+              placeholder="이름"
+              value={newMember.name}
+              onChange={(event) =>
+                setNewMember({ ...newMember, name: event.target.value })
+              }
+            />
+            <InputNumber
+              style={{ width: "100%" }}
+              placeholder="기수 (예: 21)"
+              min={1}
+              precision={0}
+              addonAfter="기"
+              value={newMember.cohort}
+              onChange={(cohort) => setNewMember({ ...newMember, cohort })}
+            />
+            <Input
+              type="email"
+              placeholder="Slack 이메일"
+              value={newMember.email}
+              onChange={(event) =>
+                setNewMember({ ...newMember, email: event.target.value })
+              }
+            />
+          </Space>
+        </Modal>
 
         <Modal
           title={allSelectedActing ? "운영팀 직책 변경" : "acting으로 변경"}
