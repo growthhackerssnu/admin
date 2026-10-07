@@ -12,7 +12,8 @@ import { normalizeName } from "@/portal/lib/normalize";
 //
 // 요청 검증: 서명 비밀값 대신 이벤트에 딸려오는 단기 봇 토큰을 Slack에 확인한다
 // (auth.test → bots.info로 이 앱이 발급받은 토큰인지). 위조 요청은 유효한 토큰을 가질 수 없다.
-// Slack은 3초 안에 응답이 없으면 같은 이벤트를 다시 보낸다(Cloud Run 콜드 스타트 때 생길 수 있다).
+// Slack은 3초 안에 응답이 없으면 같은 이벤트를 다시 보내거나 단계를 실패 처리한다(Cloud Run 콜드 스타트 때 생긴다).
+// 그래서 Cloud Scheduler 작업 admin-backend-keep-warm(asia-northeast3)이 5분마다 /api/health를 두드려 인스턴스를 데워 둔다.
 // 청구서·출석 기록 id를 워크플로 실행 id로 만들어서 재전송이 와도 한 건만 생긴다.
 const APP_ID = "A0C802VMHK2";
 
@@ -192,13 +193,18 @@ export async function POST(req: Request) {
   }
 
   const executionId = event.function_execution_id!;
+  // 완료 보고가 거절되면(예: 3초를 넘겨 Slack이 이미 단계를 실패 처리함) 기록은 됐는데 워크플로는 실패로 보인다.
+  // 그 흔적이 남도록 로그에 적는다.
+  const report = async (method: string, body: Record<string, unknown>) => {
+    const result = await slack(method, token!, { function_execution_id: executionId, ...body });
+    if (!result.ok) console.warn(`[slack] ${callbackId} ${executionId} ${method}: ${result.error}`);
+  };
   try {
     const outputs = await steps[callbackId]!(executionId, event.inputs ?? {}, token!);
-    await slack("functions.completeSuccess", token!, { function_execution_id: executionId, outputs });
+    await report("functions.completeSuccess", { outputs });
   } catch (error) {
     console.error(`[slack] ${callbackId} failed`, error);
-    await slack("functions.completeError", token!, {
-      function_execution_id: executionId,
+    await report("functions.completeError", {
       error: error instanceof Error ? error.message : "NUT에 기록하지 못했습니다.",
     });
   }
