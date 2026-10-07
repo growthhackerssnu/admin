@@ -1,0 +1,68 @@
+/* 회원 관리 표의 제자리 편집 칸(노션처럼 칸을 눌러 바로 고친다). */
+.inline-edit-cell {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  max-width: 100%;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.inline-edit-cell:hover,
+.inline-edit-cell-open {
+  background: var(--muted, rgba(55, 53, 47, 0.06));
+}
+
+.inline-edit-cell:focus-visible {
+  outline: 2px solid var(--ds-surface-selected-border, #c5d4f1);
+  outline-offset: 1px;
+}
+
+/* 권한·상태 칸에서 열리는 선택 메뉴 */
+.inline-edit-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  margin: -4px;
+}
+
+.inline-edit-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inline-edit-menu-item:hover:not(:disabled) {
+  background: var(--muted, rgba(55, 53, 47, 0.06));
+}
+
+.inline-edit-menu-item:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* 운영팀 칸에서 열리는 편집기 */
+.inline-ops-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 300px;
+  max-width: calc(100vw - 48px);
+}
+
+.inline-ops-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
