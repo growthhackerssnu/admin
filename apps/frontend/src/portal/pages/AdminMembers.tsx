@@ -96,6 +96,9 @@ type OpsRoleDraft = {
   initialTeams: OpsRole[];
 };
 
+// 운영팀 필터의 "미지정"(acting인데 직책·팀이 없는 사람).
+const UNASSIGNED = "unassigned";
+
 // 직책 목록 맨 위의 "직책 없음" — 고르면 지금 직책을 뺀다.
 const NO_OFFICE = "none";
 
@@ -235,6 +238,8 @@ export function AdminMembers() {
   const [view, setView] = useState<"all" | "active" | "inactive">("all");
   // 기수 필터(여럿 고르면 그중 하나). 비어 있으면 전체.
   const [cohortFilter, setCohortFilter] = useState<string[]>([]);
+  // 운영팀 필터(여럿 고르면 그중 하나라도 가진 사람). UNASSIGNED는 직책·팀이 없는 acting.
+  const [opsFilter, setOpsFilter] = useState<string[]>([]);
   // 표 정렬은 여기서 들고 있는다 — 저장 후 명단을 다시 불러와도 정렬이 풀리지 않게.
   const [sort, setSort] = useState<SorterResult<AdminMember>>({});
   const [opsRoleModalOpen, setOpsRoleModalOpen] = useState(false);
@@ -369,8 +374,35 @@ export function AdminMembers() {
       value: cohort,
       label: cohort ? `${cohort}기` : "기수 없음",
     }));
+  const opsFilterOptions = [
+    ...OFFICE_GROUPS.map((group) => ({
+      label: group.label,
+      options: group.roles.map((role) => ({
+        value: role,
+        label: OPS_ROLE_LABEL[role],
+      })),
+    })),
+    {
+      label: "팀원",
+      options: TEAM_ROLES.map((role) => ({
+        value: role,
+        label: OPS_ROLE_LABEL[role],
+      })),
+    },
+    { value: UNASSIGNED, label: "미지정 (acting인데 직책·팀 없음)" },
+  ];
   const visibleMembers = (members ?? []).filter((m) => {
     if (cohortFilter.length > 0 && !cohortFilter.includes(m.cohort ?? ""))
+      return false;
+    if (
+      opsFilter.length > 0 &&
+      !m.opsRoles.some((r) => opsFilter.includes(r.opsRole)) &&
+      !(
+        opsFilter.includes(UNASSIGNED) &&
+        m.role === "acting" &&
+        m.opsRoles.length === 0
+      )
+    )
       return false;
     if (view === "active") return m.active;
     if (view === "inactive") return !m.active;
@@ -582,6 +614,8 @@ export function AdminMembers() {
     {
       title: "회원",
       key: "member",
+      sorter: (a, b) => a.displayName.localeCompare(b.displayName, "ko"),
+      sortOrder: sortOrderOf("member"),
       render: (_, m) => (
         <div>
           <div>
@@ -779,6 +813,18 @@ export function AdminMembers() {
                 setSelectedIds([]);
               }}
               options={cohortOptions}
+            />
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ minWidth: 200 }}
+              placeholder="운영팀 전체"
+              value={opsFilter}
+              onChange={(next: string[]) => {
+                setOpsFilter(next);
+                setSelectedIds([]);
+              }}
+              options={opsFilterOptions}
             />
           </Space>
 
