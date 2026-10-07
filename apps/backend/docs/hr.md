@@ -26,6 +26,14 @@
 | `POST /api/v1/admin/edit-requests/:id/approve` | (admin·PR 팀) 승인 — **Notion 페이지를 실제로 수정한다**(단방향) |
 | `POST /api/v1/admin/edit-requests/:id/reject` | (admin·PR 팀) 반려, 사유 필요 |
 
+## Slack 알림·버튼
+
+수정 요청이 들어오면 그핵드인 Slack 앱(`slack-app-ghedin`)이 #pr-알럼-업데이트에 알림을 올린다(`src/hr/lib/slack.ts`). 알림의 **승인**(확인 창 후 바로 Notion 반영)·**반려**(사유 모달) 버튼은 `POST /api/slack/ghedin/interactions`가 받아 승인 큐와 같은 `approveEditRequest`/`rejectEditRequest`를 부른다 — 결과가 어드민 화면에 그대로 보이고, 메시지의 버튼은 "승인됨/반려됨 · 처리한 사람"으로 바뀐다.
+
+- 누른 사람은 Slack 계정 이메일로 회원을 찾는다. 권한은 승인 큐와 같다(admin·PR 팀, 본인 요청 불가). 안 되면 누른 사람에게만 보이는 메시지로 알린다.
+- 어드민 화면에서 먼저 처리된 요청의 버튼을 누르면 메시지를 지금 상태로 맞춘다(화면에서 처리해도 Slack 메시지가 바로 바뀌지는 않는다).
+- 요청 검증은 Signing Secret 서명으로 한다. 환경 변수 `SLACK_GHEDIN_BOT_TOKEN`, `SLACK_GHEDIN_SIGNING_SECRET`. 봇 토큰이 없으면 예전 워크플로 웹후크(`SLACK_EDIT_REQUEST_WEBHOOK_URL`, 버튼 없음)로 보낸다.
+
 ## 데이터 흐름
 
 - 원본은 Notion People DB다. `src/hr/lib/peopleCache.ts`가 `hr.people_cache`에 목록을 캐시하고 TTL(5분)이 지나면 Notion에서 다시 채운다. 20기는 임시로 제외(`EXCLUDED_COHORT`).
