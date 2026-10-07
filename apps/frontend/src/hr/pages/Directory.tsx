@@ -42,7 +42,7 @@ import { signOut } from "../../lib/supabase";
 import "./Directory.css";
 
 // 디렉토리(/hr) — 로그인 후 기본 화면. ARCHITECTURE.md §12.2 와이어프레임 그대로:
-// 실시간 검색 + 체크박스 패싯 필터(기수/직무계열/소속팀) + 4열 고정 그리드
+// 실시간 검색 + 체크박스 패싯 필터(기수/직무계열/학과/소속팀) + 4열 고정 그리드
 // (데스크톱 전용) + "내 프로필" 카드 고정(그리드에선 본인 제외).
 export function Directory() {
   const session = useSession();
@@ -54,6 +54,7 @@ export function Directory() {
   const [search, setSearch] = useState("");
   const [cohorts, setCohorts] = useState<Set<string>>(new Set());
   const [jobFields, setJobFields] = useState<Set<string>>(new Set());
+  const [departments, setDepartments] = useState<Set<string>>(new Set());
   const [teams, setTeams] = useState<Set<string>>(new Set());
   // 접어둔 기수 목록. "펼친 기수"가 아니라 "접은 기수"를 기억해서, 필터로 새로
   // 나타나는 기수는 항상 기본(펼침)으로 보이게 한다. 표시 전용 상태라 필터와 무관.
@@ -119,18 +120,22 @@ export function Directory() {
 
   const filtered = useMemo(() => {
     return gridSource
-      .filter((p) => matchesFilters(p, { search, cohorts, jobFields, teams }))
+      .filter((p) =>
+        matchesFilters(p, { search, cohorts, jobFields, departments, teams }),
+      )
       .sort(comparePeople);
-  }, [gridSource, search, cohorts, jobFields, teams]);
+  }, [gridSource, search, cohorts, jobFields, departments, teams]);
 
   // 화면 표시용으로만 기수별로 묶는다(필터·정렬 결과는 그대로).
   const cohortGroups = useMemo(() => groupByCohort(filtered), [filtered]);
 
-  const activeFilterCount = cohorts.size + jobFields.size + teams.size;
+  const activeFilterCount =
+    cohorts.size + jobFields.size + departments.size + teams.size;
 
   function resetFilters() {
     setCohorts(new Set());
     setJobFields(new Set());
+    setDepartments(new Set());
     setTeams(new Set());
   }
 
@@ -141,7 +146,9 @@ export function Directory() {
     <Collapse
       ghost
       size="small"
-      defaultActiveKey={defaultOpen ? ["cohort", "jobField", "team"] : []}
+      defaultActiveKey={
+        defaultOpen ? ["cohort", "jobField", "department", "team"] : []
+      }
       items={[
         facetItem("cohort", "기수", facets.cohorts, cohorts, setCohorts),
         facetItem(
@@ -150,6 +157,13 @@ export function Directory() {
           facets.jobFields,
           jobFields,
           setJobFields,
+        ),
+        facetItem(
+          "department",
+          "학과",
+          facets.departments,
+          departments,
+          setDepartments,
         ),
         facetItem("team", "소속팀", facets.teams, teams, setTeams),
       ].filter((item) => item !== null)}

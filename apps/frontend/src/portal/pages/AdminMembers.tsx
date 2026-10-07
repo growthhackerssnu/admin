@@ -18,6 +18,7 @@ import {
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import type { SorterResult } from "antd/es/table/interface";
 import { AppShell } from "@/components/ui/app-shell";
 import { AdminNav } from "../components/AdminNav";
 import {
@@ -104,6 +105,10 @@ export function AdminMembers() {
   const [busy, setBusy] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [view, setView] = useState<"all" | "active" | "inactive">("all");
+  // 기수 필터(여럿 고르면 그중 하나). 비어 있으면 전체.
+  const [cohortFilter, setCohortFilter] = useState<string[]>([]);
+  // 표 정렬은 여기서 들고 있는다 — 저장 후 명단을 다시 불러와도 정렬이 풀리지 않게.
+  const [sort, setSort] = useState<SorterResult<AdminMember>>({});
   const [opsRoleModalOpen, setOpsRoleModalOpen] = useState(false);
   const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRoleDraft>({
     office: undefined,
@@ -218,11 +223,23 @@ export function AdminMembers() {
     active: members?.filter((m) => m.active).length ?? 0,
     inactive: members?.filter((m) => !m.active).length ?? 0,
   };
+  const cohortOptions = [
+    ...new Set((members ?? []).map((m) => m.cohort ?? "")),
+  ]
+    .sort((a, b) => (Number(b) || -1) - (Number(a) || -1))
+    .map((cohort) => ({
+      value: cohort,
+      label: cohort ? `${cohort}기` : "기수 없음",
+    }));
   const visibleMembers = (members ?? []).filter((m) => {
+    if (cohortFilter.length > 0 && !cohortFilter.includes(m.cohort ?? ""))
+      return false;
     if (view === "active") return m.active;
     if (view === "inactive") return !m.active;
     return true;
   });
+  const sortOrderOf = (key: string) =>
+    sort.columnKey === key ? (sort.order ?? null) : null;
 
   // 선택한 사람이 전부 이미 acting이면 이 버튼은 "직책만 바꾸는" 동작이 된다.
   const allSelectedActing =
@@ -321,9 +338,11 @@ export function AdminMembers() {
   const columns: ColumnsType<AdminMember> = [
     {
       title: "기수",
+      key: "cohort",
       dataIndex: "cohort",
       width: 90,
       sorter: (a, b) => (Number(a.cohort) || 0) - (Number(b.cohort) || 0),
+      sortOrder: sortOrderOf("cohort"),
       render: (cohort: string | null) => cohort ?? "—",
     },
     {
@@ -419,19 +438,32 @@ export function AdminMembers() {
         )}
 
         <div className="surface">
-          <Segmented
-            style={{ marginBottom: 16 }}
-            value={view}
-            onChange={(v) => {
-              setView(v as typeof view);
-              setSelectedIds([]);
-            }}
-            options={[
-              { label: `전체 (${viewCounts.all})`, value: "all" },
-              { label: `활성 (${viewCounts.active})`, value: "active" },
-              { label: `비활성 (${viewCounts.inactive})`, value: "inactive" },
-            ]}
-          />
+          <Space wrap style={{ marginBottom: 16 }}>
+            <Segmented
+              value={view}
+              onChange={(v) => {
+                setView(v as typeof view);
+                setSelectedIds([]);
+              }}
+              options={[
+                { label: `전체 (${viewCounts.all})`, value: "all" },
+                { label: `활성 (${viewCounts.active})`, value: "active" },
+                { label: `비활성 (${viewCounts.inactive})`, value: "inactive" },
+              ]}
+            />
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ minWidth: 180 }}
+              placeholder="기수 전체"
+              value={cohortFilter}
+              onChange={(next: string[]) => {
+                setCohortFilter(next);
+                setSelectedIds([]);
+              }}
+              options={cohortOptions}
+            />
+          </Space>
 
           <div style={{ marginBottom: 16 }}>
             <Button type="primary" onClick={() => setAdding(true)}>
@@ -489,14 +521,20 @@ export function AdminMembers() {
             </div>
           )}
 
-          {loading ? (
+          {/* 처음 불러올 때만 스켈레톤. 저장 후 다시 불러올 땐 표를 그대로 두고 로딩만 표시한다 —
+              표를 빼면 정렬·스크롤이 처음으로 돌아간다. */}
+          {!members ? (
             <Skeleton active paragraph={{ rows: 8 }} />
           ) : (
             <Table
               rowKey="id"
+              loading={loading}
               dataSource={visibleMembers}
               columns={columns}
               pagination={false}
+              onChange={(_pagination, _filters, sorter) => {
+                if (!Array.isArray(sorter)) setSort(sorter);
+              }}
               // 좁은 화면에선 표를 가로로 밀어서 본다(승인 큐와 같은 방식).
               scroll={{ x: "max-content" }}
               rowSelection={{

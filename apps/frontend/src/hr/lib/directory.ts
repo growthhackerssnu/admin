@@ -39,6 +39,7 @@ export type FacetOption = { key: string; label: string; count: number };
 export type Facets = {
   cohorts: FacetOption[];
   jobFields: FacetOption[];
+  departments: FacetOption[];
   teams: FacetOption[];
 };
 
@@ -64,15 +65,18 @@ export function computeFacets(people: PersonSummary[]): Facets {
   // 직무 계열은 다중 선택이라 소속팀처럼 값마다 한 번씩 센다(여러 계열인 사람은
   // 각 계열에 모두 포함), 값이 없으면 "값 없음".
   const jobFieldCounts = countBy(people.flatMap((p) => (p.jobField.length > 0 ? p.jobField : [NONE_KEY])));
+  // 학과도 복수전공이 많아 직무 계열처럼 값마다 센다.
+  const departmentCounts = countBy(people.flatMap((p) => (p.department.length > 0 ? p.department : [NONE_KEY])));
   const teamCounts = countBy(people.flatMap((p) => (p.team.length > 0 ? p.team : [NONE_KEY])));
 
   return {
     // 기수만 숫자 내림차순(최신 기수 먼저, 디렉토리 기본 정렬과 같은 방향) —
-    // 나머지 두 카테고리는 count 내림차순이 더 유용하다(자주 고르는 값이 위로).
+    // 나머지 카테고리는 count 내림차순이 더 유용하다(자주 고르는 값이 위로).
     cohorts: [...cohortCounts.entries()]
       .map(([key, count]) => ({ key, label: `${key}기`, count }))
       .sort((a, b) => Number(b.key) - Number(a.key)),
     jobFields: toSortedOptions(jobFieldCounts, (key) => (key === NONE_KEY ? NONE_LABEL : key)),
+    departments: toSortedOptions(departmentCounts, (key) => (key === NONE_KEY ? NONE_LABEL : key)),
     teams: toSortedOptions(teamCounts, (key) => (key === NONE_KEY ? NONE_LABEL : key)),
   };
 }
@@ -81,6 +85,7 @@ export type DirectoryFilters = {
   search: string;
   cohorts: Set<string>;
   jobFields: Set<string>;
+  departments: Set<string>;
   teams: Set<string>;
 };
 
@@ -95,6 +100,11 @@ export function matchesFilters(person: PersonSummary, filters: DirectoryFilters)
   if (filters.jobFields.size > 0) {
     const personJobFields = person.jobField.length > 0 ? person.jobField : [NONE_KEY];
     if (!personJobFields.some((j) => filters.jobFields.has(j))) return false;
+  }
+
+  if (filters.departments.size > 0) {
+    const personDepartments = person.department.length > 0 ? person.department : [NONE_KEY];
+    if (!personDepartments.some((d) => filters.departments.has(d))) return false;
   }
 
   if (filters.teams.size > 0) {

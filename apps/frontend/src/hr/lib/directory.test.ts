@@ -18,7 +18,13 @@ function person(overrides: Partial<PersonSummary>): PersonSummary {
   };
 }
 
-const noFilters = { search: "", cohorts: new Set<string>(), jobFields: new Set<string>(), teams: new Set<string>() };
+const noFilters = {
+  search: "",
+  cohorts: new Set<string>(),
+  jobFields: new Set<string>(),
+  departments: new Set<string>(),
+  teams: new Set<string>(),
+};
 
 describe("직무 계열 다중 선택 패싯", () => {
   const people = [
@@ -40,6 +46,26 @@ describe("직무 계열 다중 선택 패싯", () => {
   it("'값 없음' 필터는 빈 배열인 사람만", () => {
     const filters = { ...noFilters, jobFields: new Set([NONE_KEY]) };
     expect(people.filter((p) => matchesFilters(p, filters)).map((p) => p.notionPageId)).toEqual(["c"]);
+  });
+});
+
+describe("학과 다중 선택 패싯(직무 계열과 같은 규칙)", () => {
+  const people = [
+    person({ notionPageId: "a", department: ["경영학과", "컴퓨터공학부"] }),
+    person({ notionPageId: "b", department: ["경영학과"] }),
+    person({ notionPageId: "c", department: [] }),
+  ];
+
+  it("복수전공은 각 학과에 모두 센다, 값 없으면 '값 없음'", () => {
+    const counts = Object.fromEntries(computeFacets(people).departments.map((o) => [o.key, o.count]));
+    expect(counts).toEqual({ 경영학과: 2, 컴퓨터공학부: 1, [NONE_KEY]: 1 });
+  });
+
+  it("체크한 학과 중 하나라도 가지면 포함하고, 다른 패싯과는 AND", () => {
+    const filters = { ...noFilters, departments: new Set(["컴퓨터공학부", NONE_KEY]) };
+    expect(people.filter((p) => matchesFilters(p, filters)).map((p) => p.notionPageId)).toEqual(["a", "c"]);
+    const both = { ...filters, cohorts: new Set(["20"]) };
+    expect(people.filter((p) => matchesFilters(p, both))).toEqual([]);
   });
 });
 
