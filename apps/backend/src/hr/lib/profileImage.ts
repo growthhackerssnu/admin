@@ -69,7 +69,11 @@ export async function uploadProfileImage(
   if (!original.ok) throw new Error(`이미지 다운로드 실패: HTTP ${original.status}`);
   const originalBuffer = Buffer.from(await original.arrayBuffer());
 
+  // .rotate(): 폰 사진은 픽셀은 가로로 둔 채 EXIF Orientation 태그로 "세워서 보라"고만
+  // 적어 두는 경우가 많다. sharp는 출력할 때 EXIF를 버리므로, 그 전에 태그대로 픽셀을
+  // 실제로 돌려 두지 않으면 사진이 옆으로 누운 채 저장된다.
   const resized = await sharp(originalBuffer)
+    .rotate()
     .resize(RESIZE_SIZE, RESIZE_SIZE, { fit: "cover" })
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer();
