@@ -32,7 +32,7 @@
 
 - 누른 사람은 Slack 계정 이메일로 회원을 찾는다. 권한은 승인 큐와 같다(admin·PR 팀, 본인 요청 불가). 안 되면 누른 사람에게만 보이는 메시지로 알린다.
 - 어드민 화면에서 먼저 처리된 요청의 버튼을 누르면 메시지를 지금 상태로 맞춘다(화면에서 처리해도 Slack 메시지가 바로 바뀌지는 않는다).
-- 요청 검증은 Signing Secret 서명으로 한다. 환경 변수 `SLACK_GHEDIN_BOT_TOKEN`, `SLACK_GHEDIN_SIGNING_SECRET`. 봇 토큰이 없으면 예전 워크플로 웹후크(`SLACK_EDIT_REQUEST_WEBHOOK_URL`, 버튼 없음)로 보낸다.
+- 요청 검증은 Signing Secret 서명으로 한다. 환경 변수 `SLACK_GHEDIN_BOT_TOKEN`, `SLACK_GHEDIN_SIGNING_SECRET`. 봇 토큰이 없으면 알림을 보내지 않는다.
 
 ## 데이터 흐름
 

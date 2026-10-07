@@ -5,7 +5,7 @@
 // 필요한 환경 변수(둘 다 api.slack.com/apps → 그핵드인):
 //   SLACK_GHEDIN_BOT_TOKEN      OAuth & Permissions → Bot User OAuth Token(xoxb-)
 //   SLACK_GHEDIN_SIGNING_SECRET Basic Information → Signing Secret
-// 봇 토큰이 없으면 예전처럼 SLACK_EDIT_REQUEST_WEBHOOK_URL(워크플로 웹후크, 버튼 없음)로 보낸다.
+// 봇 토큰이 없으면 알림을 보내지 않는다.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { memberWithOpsRoles, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
@@ -178,19 +178,8 @@ export async function summarizeEditRequest(editRequestId: string): Promise<EditR
 export async function notifyEditRequest(editRequestId: string) {
   const summary = await summarizeEditRequest(editRequestId);
   if (!summary) return;
-  if (process.env.SLACK_GHEDIN_BOT_TOKEN) {
-    await slackApi("chat.postMessage", { channel: EDIT_REQUEST_CHANNEL_ID, ...pendingMessage(summary) }).catch((error) =>
-      console.error("[slack:ghedin] edit request notify failed", error),
-    );
-    return;
-  }
-  const url = process.env.SLACK_EDIT_REQUEST_WEBHOOK_URL;
-  if (!url) return;
-  const text = `${PR_TEAM_MENTION} :pencil2: *${summary.name}*님이 그핵드인 프로필 수정을 요청했습니다.\n바뀐 항목: ${summary.changed.join(", ")}\n<${QUEUE_URL}|승인 큐 열기>`;
-  await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-    signal: AbortSignal.timeout(3000),
-  }).catch((error) => console.error("[slack] edit request notify failed", error));
+  if (!process.env.SLACK_GHEDIN_BOT_TOKEN) return;
+  await slackApi("chat.postMessage", { channel: EDIT_REQUEST_CHANNEL_ID, ...pendingMessage(summary) }).catch((error) =>
+    console.error("[slack:ghedin] edit request notify failed", error),
+  );
 }
