@@ -12,8 +12,9 @@ const memberIds = z.array(z.string().min(1)).min(1, "최소 한 명은 선택해
 //
 // acting으로 둘 때:
 //   teams  — 팀원 목록. 선택한 사람들의 팀원 목록을 이걸로 바꾼다(빈 배열이면 팀원 없음).
-//   office — 직책과 그 운영팀 기수. 생략하면 각자 지금 직책을 그대로 둔다(여럿을 골라
-//            팀원만 바꿀 때). null이면 직책을 뺀다. 직책을 주는 건 한 명을 골랐을 때만.
+//   office — 직책. 생략하면 각자 지금 직책을 그대로 둔다(여럿을 골라 팀원만 바꿀 때).
+//            null이면 직책을 뺀다. 직책을 주는 건 한 명을 골랐을 때만. 직책의 기수는 받지
+//            않는다 — 19기는 19기 회장만 될 수 있어서, 그 사람의 기수(그핵드인 명단)를 쓴다.
 // "그 직책·기수를 이미 다른 사람이 갖고 있는지" 같은 사람 관련 규칙은 라우트에서
 // 검사한다 — 누가 갖고 있는지 알려주려면 DB를 봐야 한다.
 const officeRole = z.enum(OFFICE_ROLES as [OpsRole, ...OpsRole[]], {
@@ -30,16 +31,7 @@ export const bulkRoleChangeSchema = z.discriminatedUnion("role", [
     teams: z
       .array(teamRole, { required_error: "팀원 목록을 보내야 합니다(없으면 빈 배열)." })
       .refine((teams) => new Set(teams).size === teams.length, "같은 팀이 두 번 들어 있습니다."),
-    office: z
-      .object({
-        opsRole: officeRole,
-        cohort: z.coerce
-          .number({ invalid_type_error: "직책의 기수를 숫자로 입력하세요." })
-          .int("직책의 기수를 숫자로 입력하세요.")
-          .min(1, "직책의 기수를 숫자로 입력하세요."),
-      })
-      .nullable()
-      .optional(),
+    office: officeRole.nullable().optional(),
   }),
   z.object({
     memberIds,

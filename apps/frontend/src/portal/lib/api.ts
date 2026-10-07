@@ -117,7 +117,7 @@ export type OpsRole =
   | "pr_member"
   | "edu_member";
 
-/** 직책이면 cohort가 그 직책의 운영팀 기수(옛 데이터라 모르면 null), 팀원이면 null. */
+/** 직책이면 cohort가 그 사람의 기수(19기 회장 — 그핵드인 명단에 없으면 null), 팀원이면 null. */
 export interface OpsRoleAssignment {
   opsRole: OpsRole;
   cohort: number | null;
@@ -139,11 +139,12 @@ export interface AdminMember {
 // role과 운영팀 직책은 같이 바뀐다 — alumni가 되면 직책은 사라진다.
 // acting: teams로 팀원 목록을 바꾸고, office는 생략하면 각자 지금 직책을 그대로 둔다
 // (여럿을 골라 팀원만 바꿀 때), null이면 뺀다. 직책을 주는 건 한 명을 골랐을 때만.
+// 직책의 기수는 보내지 않는다 — 서버가 그 사람의 기수로 채운다(19기는 19기 회장만).
 export type RoleChange =
   | {
       role: "acting";
       teams: OpsRole[];
-      office?: { opsRole: OpsRole; cohort: number } | null;
+      office?: OpsRole | null;
     }
   | { role: "alumni" };
 

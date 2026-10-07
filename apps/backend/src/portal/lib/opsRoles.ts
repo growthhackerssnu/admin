@@ -66,7 +66,7 @@ export function opsRoleLabel(role: OpsRole): string {
   return OPS_ROLE_LABEL[role];
 }
 
-// "19기 회장"처럼 보여줄 이름. 기수를 모르는 옛 직책은 이름만.
+// "19기 회장"처럼 보여줄 이름. 직책의 기수는 그 사람의 기수다. 기수를 모르면 이름만.
 export function opsRoleTitle(role: { opsRole: OpsRole; cohort: number | null }): string {
   return role.cohort ? `${role.cohort}기 ${OPS_ROLE_LABEL[role.opsRole]}` : OPS_ROLE_LABEL[role.opsRole];
 }

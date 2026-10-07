@@ -7,11 +7,11 @@
 //
 // acting으로 등록할 때는 운영팀 직책까지 같이 받는다 — 어드민 화면과 같은 규칙이다
 // (acting은 직책이나 팀 하나 이상, alumni·admin은 없음). 직책(임원·팀장)은 하나까지,
-// 팀원은 쉼표로 여러 팀을 줄 수 있고, 직책을 주면 그 운영팀 기수도 받는다.
+// 팀원은 쉼표로 여러 팀을 줄 수 있다. 직책의 기수는 그 사람의 기수(그핵드인 명단)다.
 //
-// 사용법: npm run members:add -- person@ghsnu.com "표시 이름" [admin|acting|alumni] [직책,팀원,...] [직책 기수]
-//   예:   npm run members:add -- a@ghsnu.com "김지연" acting hr_lead 19
-//         npm run members:add -- b@ghsnu.com "이도윤" acting treasurer,external_member,edu_member 19
+// 사용법: npm run members:add -- person@ghsnu.com "표시 이름" [admin|acting|alumni] [직책,팀원,...]
+//   예:   npm run members:add -- a@ghsnu.com "김지연" acting hr_lead
+//         npm run members:add -- b@ghsnu.com "이도윤" acting treasurer,external_member,edu_member
 //         npm run members:add -- c@ghsnu.com "박서준" acting pr_member
 import { PrismaClient, type OpsRole, type Role } from "@/generated/prisma";
 import { isOfficeOpsRole, opsRoleLabel, opsRoleTitle, OPS_ROLES } from "@/portal/lib/opsRoles";
@@ -37,10 +37,10 @@ function fail(message: string): never {
 }
 
 async function main() {
-  const [email, displayName, roleArg = "acting", opsRolesArg, cohortArg] = process.argv.slice(2);
+  const [email, displayName, roleArg = "acting", opsRolesArg] = process.argv.slice(2);
 
   if (!email || !displayName) {
-    fail('사용법: npm run members:add -- person@ghsnu.com "표시 이름" [admin|acting|alumni] [직책,팀원,...] [직책 기수]');
+    fail('사용법: npm run members:add -- person@ghsnu.com "표시 이름" [admin|acting|alumni] [직책,팀원,...]');
   }
   if (!isValidRole(roleArg)) fail(`role은 ${VALID_ROLES.join("/")} 중 하나여야 합니다.`);
   const role = roleArg;
@@ -54,10 +54,9 @@ async function main() {
     const values = names as OpsRole[];
     const offices = values.filter(isOfficeOpsRole);
     if (offices.length > 1) fail("직책(임원·팀장)은 한 사람이 하나만 가질 수 있습니다. 나머지는 팀원으로 주세요.");
-    const cohort = cohortArg ? Number(cohortArg) : null;
-    if (offices.length === 1 && !(cohort && Number.isInteger(cohort) && cohort > 0)) {
-      fail(`${opsRoleLabel(offices[0]!)} 직책에는 운영팀 기수가 필요합니다(마지막 인자, 예: 19).`);
-    }
+    // 19기는 19기 회장만 될 수 있다 — 그핵드인 명단의 기수를 쓴다. 명단에 없으면 모른다(null).
+    const entry = await prisma.peopleDirectory.findFirst({ where: { claimedBy: { email } } });
+    const cohort = Number(entry?.cohortNormalized) || null;
     opsRoles = values.map((opsRole) => ({ opsRole, cohort: isOfficeOpsRole(opsRole) ? cohort : null }));
   } else if (opsRolesArg) {
     fail(`운영팀 직책은 acting에게만 지정할 수 있습니다(${role}에게는 붙지 않습니다).`);

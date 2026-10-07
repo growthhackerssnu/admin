@@ -31,7 +31,7 @@
 |---|---|
 | `GET /api/v1/me` | `{userId, email, displayName, role, redirectPath}`. (hr의 "내 정보"는 별도 경로 `GET /api/v1/people/me`) `redirectPath`는 role로 고정 결정(admin→`/admin`, acting→`/dh`, alumni→`/hr`) — 프론트가 로그인 직후 이 값으로만 리다이렉트하면 된다 |
 | `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, opsRoles(`[{opsRole, cohort}]`, 직책 → 팀원 순), active, createdAt, lastLoginAt |
-| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", teams, office?}` 또는 `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. `teams`는 팀원 목록(교체), `office`는 `{opsRole, cohort}`(한 명일 때만)·`null`(뺀다)·생략(각자 지금 직책 유지). admin 대상 포함 시 전체 거부 |
+| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", teams, office?}` 또는 `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. `teams`는 팀원 목록(교체), `office`는 직책 이름(한 명일 때만, 기수는 그 사람의 기수)·`null`(뺀다)·생략(각자 지금 직책 유지). admin 대상 포함 시 전체 거부 |
 | `POST /api/v1/admin/members/deactivate` | (admin 전용) `{memberIds}` — 일괄 비활성화("삭제", 실제 행은 안 지움). admin 대상·본인 계정 거부 |
 | `POST /api/v1/admin/members/reactivate` | (admin 전용) `{memberIds}` — 비활성화를 되돌림 |
 
@@ -48,15 +48,15 @@
 | 팀원 | `external_member`, `hr_member`, `pr_member`, `edu_member` | 여러 명, 한 사람이 여러 팀 |
 
 - **한 사람은 직책을 하나만** 가진다. 팀원은 직책과 함께, 여러 팀을 동시에 할 수 있다(예: 총무이면서 대외협력·에듀 팀원, 회장이면서 PR 팀원).
-- **같은 직책은 운영팀 기수마다 한 명**이다. 인수인계 기간엔 19기 회장과 20기 회장이 함께 있을 수 있다. 직책은 기수(`cohort`)와 함께 지정한다.
+- **같은 직책은 기수마다 한 명**이다. 인수인계 기간엔 19기 회장과 20기 회장이 함께 있을 수 있다. 직책의 기수(`cohort`)는 따로 받지 않고 그 사람의 기수(그핵드인 명단)를 쓴다 — 19기는 19기 회장만 될 수 있다.
 
 두 규칙은 DB의 부분 유니크 인덱스(`member_ops_roles_one_office_key`, `member_ops_roles_office_cohort_key`)와 API 양쪽에서 막는다. 비활성(`active: false`) 회원도 자리를 차지한다(비활성화는 role을 바꾸지 않기 때문이다).
 
-예전 `members.ops_role`(1인 1직책)에서 옮겨온 직책 중 그핵드인 명단에서 기수를 찾지 못한 것은 기수가 `null`이고 화면에 "기수 미지정"으로 보인다 — 직책 변경에서 기수를 채운다. `members.ops_role` 컬럼은 이제 읽지 않으며 다음 마이그레이션에서 지운다.
+예전 `members.ops_role`(1인 1직책)에서 옮겨온 직책 중 그핵드인 명단에서 기수를 찾지 못한 것은 기수가 `null`이다(기수 없이 직책 이름만 보인다). 기수를 모르는 같은 직책은 한 명만 둘 수 있다. `members.ops_role` 컬럼은 이제 읽지 않으며 다음 마이그레이션에서 지운다.
 
 ## 접근 제어
 
-화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, CLI(`npm run members:add -w apps/backend`)로 수동 등록한다(`acting`으로 등록할 때는 운영팀 직책 인자가 필수 — `... acting hr_lead 19`, 여럿은 쉼표로 `... acting treasurer,external_member 19`). `admin`으로의 승격은 API로 불가 — CLI로만.
+화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, CLI(`npm run members:add -w apps/backend`)로 수동 등록한다(`acting`으로 등록할 때는 운영팀 직책 인자가 필수 — `... acting hr_lead`, 여럿은 쉼표로 `... acting treasurer,external_member`). `admin`으로의 승격은 API로 불가 — CLI로만.
 
 ## CORS
 

@@ -79,9 +79,9 @@ function opsRoleTitle(role: OpsRoleAssignment) {
     : OPS_ROLE_LABEL[role.opsRole];
 }
 
+// 직책의 기수는 고르지 않는다 — 19기는 19기 회장만 될 수 있어서 서버가 그 사람의 기수로 채운다.
 type OpsRoleDraft = {
   office: OpsRole | undefined;
-  cohort: number | null;
   teams: OpsRole[];
 };
 
@@ -104,7 +104,6 @@ export function AdminMembers() {
   const [opsRoleModalOpen, setOpsRoleModalOpen] = useState(false);
   const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRoleDraft>({
     office: undefined,
-    cohort: null,
     teams: [],
   });
   const [adding, setAdding] = useState(false);
@@ -230,7 +229,7 @@ export function AdminMembers() {
   const singleSelected =
     selectedMembers.length === 1 ? selectedMembers[0] : undefined;
 
-  // 직책마다 지금 누가(몇 기로) 맡고 있는지. 같은 직책이라도 기수가 다르면 지정할 수
+  // 직책마다 지금 누가(몇 기가) 맡고 있는지. 같은 직책이라도 기수가 다르면 지정할 수
   // 있어서(인수인계) 막지 않고 보여주기만 한다 — 같은 기수면 서버가 422로 거절한다.
   const officeHolders = new Map<OpsRole, string[]>();
   for (const m of members ?? []) {
@@ -248,7 +247,6 @@ export function AdminMembers() {
       const office = singleSelected.opsRoles.find((r) => OFFICE_ROLES.has(r.opsRole));
       setOpsRoleDraft({
         office: office?.opsRole,
-        cohort: office?.cohort ?? (Number(singleSelected.cohort) || null),
         teams: singleSelected.opsRoles
           .filter((r) => !OFFICE_ROLES.has(r.opsRole))
           .map((r) => r.opsRole),
@@ -256,7 +254,6 @@ export function AdminMembers() {
     } else {
       setOpsRoleDraft({
         office: undefined,
-        cohort: null,
         teams: TEAM_ROLES.filter((team) =>
           selectedMembers.every((m) => m.opsRoles.some((r) => r.opsRole === team)),
         ),
@@ -273,15 +270,11 @@ export function AdminMembers() {
       : selectedMembers.some(
           (m) => !m.opsRoles.some((r) => OFFICE_ROLES.has(r.opsRole)),
         ));
-  const draftInvalid =
-    draftLeavesSomeoneEmpty ||
-    (singleSelected !== undefined &&
-      opsRoleDraft.office !== undefined &&
-      !opsRoleDraft.cohort);
+  const draftInvalid = draftLeavesSomeoneEmpty;
 
   function submitOpsRole() {
     if (draftInvalid) return;
-    const { office, cohort, teams } = opsRoleDraft;
+    const { office, teams } = opsRoleDraft;
     setOpsRoleModalOpen(false);
     void withBusyReload(
       () =>
@@ -290,7 +283,7 @@ export function AdminMembers() {
           teams,
           // 여럿을 골랐으면 office를 보내지 않는다 = 각자 지금 직책을 그대로 둔다.
           ...(singleSelected
-            ? { office: office && cohort ? { opsRole: office, cohort } : null }
+            ? { office: office ?? null }
             : {}),
         }),
       allSelectedActing
@@ -353,7 +346,7 @@ export function AdminMembers() {
         return (
           <Space size={[4, 4]} wrap>
             {opsRoles.map((r) =>
-              // 기수를 모르는 직책은 옛 데이터를 옮겨온 것이다 — 직책 변경에서 기수를 채운다.
+              // 직책의 기수는 그 사람의 기수다. 그핵드인 명단에 기수가 없는 사람이면 모른다.
               OFFICE_ROLES.has(r.opsRole) && !r.cohort ? (
                 <Tag key={r.opsRole} color="orange">
                   {OPS_ROLE_LABEL[r.opsRole]} · 기수 미지정
@@ -585,47 +578,33 @@ export function AdminMembers() {
         >
           <p className="muted">
             직책(임원·팀장)은 한 사람이 하나만, 팀원은 여러 팀을 함께 할 수
-            있습니다. 같은 직책은 기수마다 한 명이라 인수인계 기간엔 두 기수가
-            함께 맡을 수 있습니다.
+            있습니다. 직책은 그 사람의 기수로 지정되고(19기 → 19기 회장), 같은
+            직책은 기수마다 한 명이라 인수인계 기간엔 두 기수가 함께 맡을 수
+            있습니다.
           </p>
           <Space direction="vertical" style={{ width: "100%" }} size="middle">
             {singleSelected ? (
-              <Space.Compact style={{ width: "100%" }}>
-                <Select
-                  style={{ flex: 1 }}
-                  allowClear
-                  placeholder="직책 없음"
-                  value={opsRoleDraft.office}
-                  onChange={(office?: OpsRole) =>
-                    setOpsRoleDraft({ ...opsRoleDraft, office })
-                  }
-                  options={OFFICE_GROUPS.map((group) => ({
-                    label: group.label,
-                    options: group.roles.map((role) => {
-                      const holders = officeHolders.get(role);
-                      return {
-                        value: role,
-                        label: holders
-                          ? `${OPS_ROLE_LABEL[role]} (${holders.join(", ")})`
-                          : OPS_ROLE_LABEL[role],
-                      };
-                    }),
-                  }))}
-                />
-                {opsRoleDraft.office && (
-                  <InputNumber
-                    style={{ width: 120 }}
-                    placeholder="기수"
-                    min={1}
-                    precision={0}
-                    addonAfter="기"
-                    value={opsRoleDraft.cohort}
-                    onChange={(cohort) =>
-                      setOpsRoleDraft({ ...opsRoleDraft, cohort })
-                    }
-                  />
-                )}
-              </Space.Compact>
+              <Select
+                style={{ width: "100%" }}
+                allowClear
+                placeholder="직책 없음"
+                value={opsRoleDraft.office}
+                onChange={(office?: OpsRole) =>
+                  setOpsRoleDraft({ ...opsRoleDraft, office })
+                }
+                options={OFFICE_GROUPS.map((group) => ({
+                  label: group.label,
+                  options: group.roles.map((role) => {
+                    const holders = officeHolders.get(role);
+                    return {
+                      value: role,
+                      label: holders
+                        ? `${OPS_ROLE_LABEL[role]} (${holders.join(", ")})`
+                        : OPS_ROLE_LABEL[role],
+                    };
+                  }),
+                }))}
+              />
             ) : (
               <Typography.Text type="secondary">
                 {selectedIds.length}명을 골랐습니다. 직책(임원·팀장)은 한 명씩

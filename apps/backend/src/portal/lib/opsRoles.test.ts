@@ -46,11 +46,11 @@ describe("승인 큐 권한", () => {
 });
 
 describe("PATCH /admin/members/role 입력", () => {
-  it("accepts one office with its 기수 plus several teams", () => {
+  it("accepts one office plus several teams", () => {
     const parsed = bulkRoleChangeSchema.safeParse({
       memberIds: ["m1"],
       role: "acting",
-      office: { opsRole: "treasurer", cohort: 19 },
+      office: "treasurer",
       teams: ["external_member", "edu_member"],
     });
     expect(parsed.success).toBe(true);
@@ -61,10 +61,9 @@ describe("PATCH /admin/members/role 입력", () => {
     expect(parsed.success && parsed.data.role === "acting" && parsed.data.office).toBeUndefined();
   });
 
-  it("rejects an office without 기수, a team given as the office, and duplicate teams", () => {
+  it("rejects a team given as the office, an office given as a team, and duplicate teams", () => {
     const base = { memberIds: ["m1"], role: "acting", teams: [] };
-    expect(bulkRoleChangeSchema.safeParse({ ...base, office: { opsRole: "president" } }).success).toBe(false);
-    expect(bulkRoleChangeSchema.safeParse({ ...base, office: { opsRole: "pr_member", cohort: 19 } }).success).toBe(false);
+    expect(bulkRoleChangeSchema.safeParse({ ...base, office: "pr_member" }).success).toBe(false);
     expect(bulkRoleChangeSchema.safeParse({ ...base, teams: ["president"] }).success).toBe(false);
     expect(bulkRoleChangeSchema.safeParse({ ...base, teams: ["pr_member", "pr_member"] }).success).toBe(false);
   });

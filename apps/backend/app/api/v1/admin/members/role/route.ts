@@ -36,7 +36,10 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
   const { memberIds } = change;
 
   const result = await withIdempotency(req, member, "PATCH /admin/members/role", change, async (tx) => {
-    const targets = await tx.member.findMany({ where: { id: { in: memberIds } }, include: { opsRoles: true } });
+    const targets = await tx.member.findMany({
+      where: { id: { in: memberIds } },
+      include: { opsRoles: true, claimedPersonEntry: { select: { cohortNormalized: true } } },
+    });
     if (targets.length !== memberIds.length) {
       throw new ApiError("NOT_FOUND", "존재하지 않는 회원이 포함되어 있습니다.");
     }
@@ -46,7 +49,10 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
 
     let rows: { memberId: string; opsRole: OpsRole; cohort: number | null }[] = [];
     if (change.role === "acting") {
-      const { office, teams } = change;
+      const { teams } = change;
+      // 직책의 기수는 그 사람의 기수다(19기는 19기 회장만). 그핵드인 명단에 없으면 모른다(null).
+      const officeCohort = Number(targets[0]?.claimedPersonEntry?.cohortNormalized) || null;
+      const office = change.office ? { opsRole: change.office, cohort: officeCohort } : change.office;
       if (office) {
         const title = opsRoleTitle(office);
         if (memberIds.length > 1) {
@@ -57,6 +63,7 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
         // 같은 직책·같은 기수는 한 명이다. DB에도 부분 유니크 인덱스가 있지만
         // (member_ops_roles_office_cohort_key) 거기서 걸리면 "왜 안 되는지"를 알 수 없어서,
         // 먼저 확인해서 지금 그 자리인 사람을 문구에 담는다. 다른 기수의 같은 직책은 괜찮다(인수인계).
+        // 기수를 모르면(null) 기수를 모르는 같은 직책끼리 부딪힌다(member_ops_roles_office_unknown_cohort_key).
         const holder = await tx.memberOpsRole.findFirst({
           where: { opsRole: office.opsRole, cohort: office.cohort, memberId: { notIn: memberIds } },
           include: { member: true },
