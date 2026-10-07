@@ -96,17 +96,18 @@ type OpsRoleDraft = {
   initialTeams: OpsRole[];
 };
 
+// 직책 목록 맨 위의 "직책 없음" — 고르면 지금 직책을 뺀다.
+const NO_OFFICE = "none";
+
 // 직책 선택 + 팀원 체크. 대화상자(일괄)와 표 칸 편집기(한 명)가 같이 쓴다.
 // showOffice가 false면 팀원만(여럿을 골랐을 때 — 직책은 한 명씩 지정한다).
 function OpsRoleFields({
   draft,
   onChange,
-  holders,
   showOffice,
 }: {
   draft: OpsRoleDraft;
   onChange: (next: OpsRoleDraft) => void;
-  holders: Map<OpsRole, string[]>;
   showOffice: boolean;
 }) {
   return (
@@ -116,27 +117,28 @@ function OpsRoleFields({
           <div className="meta" style={{ marginBottom: 4 }}>
             직책
           </div>
-          <Select
+          <Select<OpsRole | typeof NO_OFFICE>
             style={{ width: "100%" }}
-            allowClear
-            placeholder="직책 없음"
             // 목록을 편집기 안에 띄운다 — 바깥(body)에 띄우면 고르는 순간 칸 편집기가
             // 바깥을 누른 걸로 알고 닫힌다.
             getPopupContainer={(node) => node.parentElement ?? document.body}
-            value={draft.office}
-            onChange={(office?: OpsRole) => onChange({ ...draft, office })}
-            options={OFFICE_GROUPS.map((group) => ({
-              label: group.label,
-              options: group.roles.map((role) => {
-                const who = holders.get(role);
-                return {
+            value={draft.office ?? NO_OFFICE}
+            onChange={(office) =>
+              onChange({
+                ...draft,
+                office: office === NO_OFFICE ? undefined : office,
+              })
+            }
+            options={[
+              { value: NO_OFFICE, label: "직책 없음" },
+              ...OFFICE_GROUPS.map((group) => ({
+                label: group.label,
+                options: group.roles.map((role) => ({
                   value: role,
-                  label: who
-                    ? `${OPS_ROLE_LABEL[role]} (${who.join(", ")})`
-                    : OPS_ROLE_LABEL[role],
-                };
-              }),
-            }))}
+                  label: OPS_ROLE_LABEL[role],
+                })),
+              })),
+            ]}
           />
         </div>
       )}
@@ -386,22 +388,6 @@ export function AdminMembers() {
   const singleSelected =
     selectedMembers.length === 1 ? selectedMembers[0] : undefined;
 
-  // 직책마다 지금 누가(몇 기가) 맡고 있는지(편집 중인 사람 본인은 뺀다). 같은 직책이라도
-  // 기수가 다르면 지정할 수 있어서(인수인계) 막지 않고 보여주기만 한다 — 같은 기수면 서버가
-  // 422로 거절한다.
-  function officeHoldersExcept(memberId: string | undefined) {
-    const holders = new Map<OpsRole, string[]>();
-    for (const m of members ?? []) {
-      if (m.id === memberId) continue;
-      for (const r of m.opsRoles) {
-        if (!OFFICE_ROLES.has(r.opsRole)) continue;
-        const who = `${r.cohort ? `${r.cohort}기 ` : ""}${m.displayName}${m.active ? "" : " · 비활성"}`;
-        holders.set(r.opsRole, [...(holders.get(r.opsRole) ?? []), who]);
-      }
-    }
-    return holders;
-  }
-
   function openOpsRoleModal() {
     // 한 명만 골랐으면 그 사람의 지금 직책·팀에서 시작한다. 여럿이면 모두가 함께 속한 팀에서.
     if (singleSelected) {
@@ -649,12 +635,12 @@ export function AdminMembers() {
               <OpsRoleFields
                 draft={inlineDraft}
                 onChange={setInlineDraft}
-                holders={officeHoldersExcept(m.id)}
                 showOffice
               />
               {!inlineDraft.office && inlineDraft.teams.length === 0 && (
                 <Typography.Text type="warning">
                   acting 회원에게는 직책이나 팀이 하나 이상 있어야 합니다.
+                  운영팀에서 빠지는 거라면 권한을 alumni로 바꾸세요.
                 </Typography.Text>
               )}
               <div className="inline-ops-editor-footer">
@@ -973,12 +959,12 @@ export function AdminMembers() {
             <OpsRoleFields
               draft={opsRoleDraft}
               onChange={setOpsRoleDraft}
-              holders={officeHoldersExcept(singleSelected?.id)}
               showOffice={singleSelected !== undefined}
             />
             {draftLeavesSomeoneEmpty && (
               <Typography.Text type="warning">
                 acting 회원에게는 직책이나 팀이 하나 이상 있어야 합니다.
+                운영팀에서 빠지는 거라면 권한을 alumni로 바꾸세요.
               </Typography.Text>
             )}
           </Space>
