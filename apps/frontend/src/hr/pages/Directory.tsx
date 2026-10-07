@@ -109,22 +109,15 @@ export function Directory() {
     [people, me],
   );
 
-  // "내 프로필" 카드가 위에 고정으로 따로 뜨므로, 그리드에선 본인을 제외한다
-  // (같은 사람이 화면에 중복으로 보이는 걸 방지, §12.2).
-  const gridSource = useMemo(
-    () => (people ?? []).filter((p) => p.notionPageId !== me?.notionPageId),
-    [people, me],
-  );
-
   const facets = useMemo(() => computeFacets(people ?? []), [people]);
 
   const filtered = useMemo(() => {
-    return gridSource
+    return (people ?? [])
       .filter((p) =>
         matchesFilters(p, { search, cohorts, jobFields, departments, teams }),
       )
       .sort(comparePeople);
-  }, [gridSource, search, cohorts, jobFields, departments, teams]);
+  }, [people, search, cohorts, jobFields, departments, teams]);
 
   // 화면 표시용으로만 기수별로 묶는다(필터·정렬 결과는 그대로).
   const cohortGroups = useMemo(() => groupByCohort(filtered), [filtered]);

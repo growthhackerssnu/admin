@@ -8,7 +8,7 @@
 
 | 경로 | 파일 | 내용 |
 |---|---|---|
-| `/hr` | `pages/Directory.tsx` | 디렉토리. 실시간 검색 + 기수/직무계열/소속팀 패싯 필터, "내 프로필" 카드 고정(그리드에선 본인 제외) |
+| `/hr` | `pages/Directory.tsx` | 디렉토리. 실시간 검색 + 기수/직무계열/소속팀 패싯 필터, "내 프로필" 카드 고정(그리드에도 본인이 함께 나온다) |
 | `/hr/people/:notionPageId` | `pages/ProfileDetail.tsx` | 프로필 상세. 본인 프로필이면 같은 화면에서 편집 모드로 전환해 수정 요청을 제출한다 |
 | `/hr/requests` | `pages/MyRequests.tsx` | 내가 낸 수정 요청 이력(상태 무관), 반려 사유 포함. admin에게는 탭을 숨긴다 |
 | `/hr/admin` | `pages/AdminQueue.tsx` | 수정 요청 승인 큐. admin만. 승인하면 Notion 페이지가 실제로 바뀐다 |
