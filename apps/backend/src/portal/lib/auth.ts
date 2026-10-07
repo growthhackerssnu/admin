@@ -1,6 +1,7 @@
 import type { Member } from "@/generated/prisma";
 import { createGetAuthenticatedMember, getSupabaseAuthClient } from "@dhbot/auth";
 import { prisma } from "@/lib/prisma";
+import { memberWithOpsRoles, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { ApiError } from "./errors";
 
 // 인증 정책(검사 순서, 거부 조건, 최근 접속 갱신 시점)은 @dhbot/auth에 한 벌만
@@ -11,10 +12,10 @@ import { ApiError } from "./errors";
 // alumni)를 상대한다 — dh 도메인(src/dh/lib/auth.ts)과 달리 alumni를 막지 않는다(deny 없음).
 // alumni도 로그인해서 /me로 자기 role을 알아야 어디로 갈지(hr) 정할 수 있고,
 // admin 화면의 명단에도 alumni가 나와야 한다.
-export const getAuthenticatedMember = createGetAuthenticatedMember<Member>({
-  findByEmail: (email) => prisma.member.findUnique({ where: { email } }),
+export const getAuthenticatedMember = createGetAuthenticatedMember<MemberWithOpsRoles>({
+  findByEmail: (email) => prisma.member.findUnique({ where: { email }, include: memberWithOpsRoles }),
   markLogin: (id, supabaseUserId) =>
-    prisma.member.update({ where: { id }, data: { supabaseUserId, lastLoginAt: new Date() } }),
+    prisma.member.update({ where: { id }, data: { supabaseUserId, lastLoginAt: new Date() }, include: memberWithOpsRoles }),
   toError: (code, message) => new ApiError(code, message),
   getSupabaseClient: getSupabaseAuthClient,
   messages: {

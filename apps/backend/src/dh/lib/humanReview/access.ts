@@ -1,16 +1,18 @@
-import type { Member, Prisma } from "@/generated/prisma";
+import type { Prisma } from "@/generated/prisma";
 import { ApiError } from "@/dh/lib/errors";
+import { hasOpsRole, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
+
+type Member = Pick<MemberWithOpsRoles, "id" | "role" | "opsRoles">;
 
 export function requireExternalReader(member: Member) {
   if (
     member.role !== "admin" &&
-    (member.role !== "acting" ||
-      (member.opsRole !== "external_lead" && member.opsRole !== "external_member"))
+    (member.role !== "acting" || !hasOpsRole(member, "external_lead", "external_member"))
   ) throw new ApiError("FORBIDDEN", "대외협력 업무 접근 권한이 없습니다.");
 }
 
 export function requireExternalLead(member: Member) {
-  if (member.role !== "admin" && (member.role !== "acting" || member.opsRole !== "external_lead"))
+  if (member.role !== "admin" && (member.role !== "acting" || !hasOpsRole(member, "external_lead")))
     throw new ApiError("FORBIDDEN", "대외협력 팀장 권한이 필요합니다.");
 }
 

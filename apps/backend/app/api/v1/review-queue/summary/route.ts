@@ -1,6 +1,7 @@
 import { withListupApiHandler } from "@/dh/lib/listup/apiHandler";
 import { assignableCandidateWhere, requireExternalReader } from "@/dh/lib/humanReview/access";
 import { prisma } from "@/lib/prisma";
+import { hasOpsRole } from "@/portal/lib/opsRoles";
 
 export const GET = withListupApiHandler(async (_req, { member }) => {
   requireExternalReader(member);
@@ -20,7 +21,7 @@ export const GET = withListupApiHandler(async (_req, { member }) => {
         assigned,
         intakePaused: intake?.paused ?? false,
         intakeVersion: intake?.version ?? 1,
-        canManage: member.role === "admin" || member.opsRole === "external_lead",
+        canManage: member.role === "admin" || hasOpsRole(member, "external_lead"),
         pipelineEnabled: process.env.HUMAN_REVIEW_PIPELINE_ENABLED === "true",
       },
     },

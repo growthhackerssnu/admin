@@ -103,6 +103,7 @@ export function getMe(token: string) {
 
 // 운영팀 직책. 백엔드 core.OpsRole enum과 같은 값이며, 한국어 이름은 화면
 // 쪽(AdminMembers)이 갖고 있다 — role 라벨도 같은 방식이다.
+// 직책(임원·팀장)은 한 사람이 하나까지, 팀원은 여러 팀을 가질 수 있다.
 export type OpsRole =
   | "president"
   | "vice_president"
@@ -113,7 +114,14 @@ export type OpsRole =
   | "edu_lead"
   | "external_member"
   | "hr_member"
-  | "pr_member";
+  | "pr_member"
+  | "edu_member";
+
+/** 직책이면 cohort가 그 직책의 운영팀 기수(옛 데이터라 모르면 null), 팀원이면 null. */
+export interface OpsRoleAssignment {
+  opsRole: OpsRole;
+  cohort: number | null;
+}
 
 export interface AdminMember {
   id: string;
@@ -121,17 +129,22 @@ export interface AdminMember {
   cohort: string | null;
   email: string;
   role: "admin" | "acting" | "alumni";
-  /** acting에게만 값이 있다. acting인데 null이면 아직 직책을 지정하지 않은 회원. */
-  opsRole: OpsRole | null;
+  /** acting에게만 있다(직책 → 팀원 순). acting인데 비어 있으면 아직 직책을 지정하지 않은 회원. */
+  opsRoles: OpsRoleAssignment[];
   active: boolean;
   createdAt: string;
   lastLoginAt: string | null;
 }
 
-// role과 운영팀 직책은 항상 같이 바뀐다 — acting이면 직책이 필수고, alumni가
-// 되면 직책은 사라진다. 그 규칙을 타입으로 그대로 옮긴다.
+// role과 운영팀 직책은 같이 바뀐다 — alumni가 되면 직책은 사라진다.
+// acting: teams로 팀원 목록을 바꾸고, office는 생략하면 각자 지금 직책을 그대로 둔다
+// (여럿을 골라 팀원만 바꿀 때), null이면 뺀다. 직책을 주는 건 한 명을 골랐을 때만.
 export type RoleChange =
-  | { role: "acting"; opsRole: OpsRole }
+  | {
+      role: "acting";
+      teams: OpsRole[];
+      office?: { opsRole: OpsRole; cohort: number } | null;
+    }
   | { role: "alumni" };
 
 export function listAdminMembers(token: string) {
@@ -147,7 +160,7 @@ export function changeMemberRole(
   change: RoleChange,
 ) {
   return request<{
-    items: { id: string; role: string; opsRole: OpsRole | null }[];
+    items: { id: string; role: string; opsRoles: OpsRoleAssignment[] }[];
   }>("/api/v1/admin/members/role", {
     method: "PATCH",
     token,

@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { Prisma } from "@/generated/prisma";
 
 const mocks = vi.hoisted(() => ({
-  member: { id: "member-1", role: "acting", opsRole: "external_member" } as Record<string, unknown>,
+  member: { id: "member-1", role: "acting", opsRoles: [{ opsRole: "external_member" }] } as Record<string, unknown>,
   detail: vi.fn(),
   idempotency: vi.fn(),
   prisma: { acquisitionRound: { findFirst: vi.fn() }, outreach: { findFirst: vi.fn() } },

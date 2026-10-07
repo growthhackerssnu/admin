@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  member: { id: "member-1", role: "acting", opsRole: "external_member" } as Record<string, unknown>,
+  member: { id: "member-1", role: "acting", opsRoles: [{ opsRole: "external_member" }] } as Record<string, unknown>,
   idempotency: vi.fn(),
   prisma: { outreach: { findUnique: vi.fn() } },
   tx: {

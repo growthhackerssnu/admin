@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const GET = withListupApiHandler(async (_req, { member }) => {
   requireExternalLead(member);
   const members = await prisma.member.findMany({
-    where: { active: true, role: "acting", opsRole: "external_member" },
+    where: { active: true, role: "acting", opsRoles: { some: { opsRole: "external_member" } } },
     select: { id: true, displayName: true },
     orderBy: [{ displayName: "asc" }, { id: "asc" }],
   });

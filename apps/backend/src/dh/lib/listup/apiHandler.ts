@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import type { Member } from "@/generated/prisma";
+import type { MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { getAuthenticatedMember } from "../auth";
 import { ApiError } from "../errors";
 import { errorBody } from "./errors";
 
 export type ListupApiContext<P = Record<string, string>> = {
-  member: Member;
+  member: MemberWithOpsRoles;
   requestId: string;
   params: P;
 };

@@ -109,10 +109,14 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
       orderBy: [{ year: "desc" }, { quarter: "desc" }, { title: "asc" }],
       take: 100,
     }),
-    prisma.member.findFirst({
-      where: { active: true, role: "acting", opsRole: "external_lead" },
-      select: { displayName: true },
-    }),
+    // 인수인계 기간엔 두 기수의 팀장이 함께 있다 — 최근 기수의 팀장 이름을 쓴다.
+    prisma.memberOpsRole
+      .findFirst({
+        where: { opsRole: "external_lead", member: { active: true, role: "acting" } },
+        orderBy: { cohort: { sort: "desc", nulls: "last" } },
+        select: { member: { select: { displayName: true } } },
+      })
+      .then((row) => row?.member ?? null),
   ]);
   if (!lead) throw new ApiError("SERVICE_UNAVAILABLE", "대외협력 팀장 이름이 설정되지 않았습니다.");
   const portfolio = projects.map((project) => ({

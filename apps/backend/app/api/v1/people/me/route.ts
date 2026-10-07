@@ -1,6 +1,7 @@
 import { withApiHandler } from "@/hr/lib/apiHandler";
 import { successBody } from "@/hr/lib/errors";
 import { prisma } from "@/lib/prisma";
+import { canReviewEditRequests } from "@/hr/lib/auth";
 
 // GET /api/v1/people/me — 로그인한 사람이 누구고 role이 뭔지 hr 화면이 알아야
 // 할 때 부르는 엔드포인트다. 두 군데서 이 값이 필요하다:
@@ -27,6 +28,8 @@ export const GET = withApiHandler(async (_req, { member, requestId }) => {
     body: successBody(
       {
         role: member.role,
+        // 승인 큐 탭을 보여줄지(admin·PR 팀). 서버도 같은 함수로 막는다.
+        canReview: canReviewEditRequests(member),
         // 관리자(admin@ghsnu.com)처럼 가입 절차(기수+이름+OTP)를 거치지 않고
         // CLI로 바로 만들어진 계정은 claimedPersonEntry가 없다 — 그런 경우
         // null을 돌려준다. hr 화면은 null이면 "내 프로필" 카드를 그냥

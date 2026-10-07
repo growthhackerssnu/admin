@@ -41,15 +41,16 @@ enum Role {
   @@schema("core")
 }
 
-// 운영팀 직책 — acting 회원에게만 붙는다(alumni·admin은 항상 NULL).
+// 운영팀 직책 — acting 회원에게만 붙는다(alumni·admin은 없다). 한 사람이 여럿을
+// 가질 수 있고 core.member_ops_roles에 한 줄씩 들어간다(MemberOpsRole 참고).
 //
-// 임원(회장·부회장·총무)과 각 팀의 팀장은 한 명씩이고, 팀원은 여러 명이다.
-// "한 명뿐"인 직책의 유일성은 Prisma 문법으로 표현할 수 없어서 마이그레이션
-// SQL의 부분 유니크 인덱스로 걸었다(conventions.md §7.3). "acting이면 반드시
-// 값이 있다"는 규칙은 API 쪽에서 지킨다 — 이 컬럼이 생기기 전에 등록된 acting
-// 행이 NULL로 남아 있어서 DB 제약으로 걸면 그 사람들의 로그인이 막힌다.
+// 직책(회장·부회장·총무·각 팀장)은 한 사람이 하나만, 팀원은 여러 팀에 동시에
+// 할 수 있다(예: 총무이면서 대외협력 팀원·에듀 팀원). 같은 직책은 기수당 한 명이라
+// 인수인계 기간엔 19기 회장과 20기 회장이 함께 있을 수 있다. 이 규칙들은 Prisma
+// 문법으로 표현할 수 없어서 마이그레이션 SQL의 부분 유니크 인덱스로 걸었다
+// (conventions.md §7.3).
 //
-// 에듀는 팀장만 있다 — 팀원이 생기면 enum 값을 추가한다(§8: 값은 추가만 한다).
+// enum 값은 추가만 한다(§8).
 enum OpsRole {
   president       // 회장
   vice_president  // 부회장
@@ -61,6 +62,7 @@ enum OpsRole {
   pr_lead         // PR 팀장
   pr_member       // PR 팀원
   edu_lead        // 에듀 팀장
+  edu_member      // 에듀 팀원
   @@schema("core")
 }
 
@@ -184,11 +186,15 @@ model Member {
   email          String   @unique
   displayName    String   @map("display_name")
   role           Role     @default(acting)
-  // 운영팀 직책. acting에게만 값이 있고 alumni·admin은 NULL이다(OpsRole 주석 참고).
-  opsRole        OpsRole? @map("ops_role")
+  // 예전의 1인 1직책 컬럼. 이제 아무도 읽거나 쓰지 않는다 — 직책은 opsRoles(core.member_ops_roles)에 있다.
+  // expand-contract(conventions.md §9.2)의 축소 단계에서 지운다. alumni로 내릴 때만 NULL로 비운다
+  // (CHECK 제약 members_ops_role_acting_only 때문에).
+  legacyOpsRole  OpsRole? @map("ops_role")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")
   lastLoginAt    DateTime? @map("last_login_at")
+
+  opsRoles            MemberOpsRole[]
 
   quarterChanges      OutreachTargetQuarterChange[] @relation("QuarterChangedBy")
   confirmedContacts   ContactOptionAssessment[]     @relation("ContactConfirmedBy")
@@ -222,6 +228,27 @@ model Member {
   editRequestsReviewed  EditRequest[] @relation("EditRequestReviewer")
 
   @@map("members")
+  @@schema("core")
+}
+
+// 운영팀 직책 배정. 한 회원이 여러 줄을 가질 수 있다(직책 하나 + 팀원 여럿).
+// cohort는 직책(회장·부회장·총무·팀장)의 운영팀 기수다 — 같은 직책은 기수마다 한 명이라
+// 인수인계 기간엔 두 기수의 회장이 함께 있을 수 있다. 팀원은 cohort가 NULL이다.
+// 마이그레이션 SQL의 부분 유니크 인덱스가 지키는 규칙:
+//   member_ops_roles_one_office_key            한 사람은 직책을 하나만
+//   member_ops_roles_office_cohort_key         같은 직책·같은 기수는 한 명만
+//   member_ops_roles_office_unknown_cohort_key 기수를 모르는(옛 데이터) 같은 직책은 한 명만
+// acting에게만 있다는 규칙은 API(portal)가 지킨다 — alumni로 내리면 지운다.
+model MemberOpsRole {
+  memberId  String   @map("member_id")
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  opsRole   OpsRole  @map("ops_role")
+  cohort    Int?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([memberId, opsRole])
+  @@index([opsRole])
+  @@map("member_ops_roles")
   @@schema("core")
 }
 

@@ -45,6 +45,8 @@ async function request<T>(
 
 export interface Me {
   role: "admin" | "acting" | "alumni";
+  /** 승인 큐를 볼 수 있는지(admin과 PR 팀장·팀원). */
+  canReview: boolean;
   notionPageId: string | null;
 }
 

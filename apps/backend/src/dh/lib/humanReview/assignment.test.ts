@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Member, Prisma } from "@/generated/prisma";
+import type { Member, OpsRole, Prisma } from "@/generated/prisma";
+import type { MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { assignmentPreview, validateAssignmentInput } from "./assignment";
 import { requireExternalLead } from "./access";
 
@@ -58,8 +59,8 @@ describe("fixed review assignment", () => {
   });
 
   it("allows assignment changes only for an acting external lead or admin", () => {
-    const member = (role: Member["role"], opsRole: Member["opsRole"]) =>
-      ({ role, opsRole } as Member);
+    const member = (role: Member["role"], opsRole: OpsRole | null) =>
+      ({ id: "m-1", role, opsRoles: opsRole ? [{ opsRole }] : [] }) as unknown as MemberWithOpsRoles;
     expect(() => requireExternalLead(member("acting", "external_lead"))).not.toThrow();
     expect(() => requireExternalLead(member("admin", null))).not.toThrow();
     expect(() => requireExternalLead(member("acting", "external_member"))).toThrow();

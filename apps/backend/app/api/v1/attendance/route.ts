@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Member } from "@/generated/prisma";
+import type { MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { withApiHandler } from "@/nut/lib/apiHandler";
 import { attendanceAccess as access, canEditAttendance, deleteAttendanceRecord, getAttendance, saveAttendanceRecord } from "@/nut/lib/attendance";
 import { successBody } from "@/nut/lib/errors";
@@ -19,7 +19,7 @@ const record = z
     note: z.string().trim().nullish(),
   });
 
-const reply = async (periodId: string | undefined, member: Member, requestId: string) =>
+const reply = async (periodId: string | undefined, member: MemberWithOpsRoles, requestId: string) =>
   successBody(await getAttendance(await periodFrom(periodId), canEditAttendance(member)), requestId);
 
 export const GET = withApiHandler(

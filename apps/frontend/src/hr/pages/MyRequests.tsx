@@ -85,7 +85,7 @@ export function MyRequests() {
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
 
-        <HrNav role={me.role} />
+        <HrNav me={me} />
 
         {requests.length === 0 ? (
           <Empty

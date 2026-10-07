@@ -6,6 +6,7 @@ import { Navigate } from "react-router-dom";
 import {
   App as AntApp,
   Alert,
+  Checkbox,
   Input,
   InputNumber,
   Modal,
@@ -29,6 +30,7 @@ import {
   reactivateMembers,
   type AdminMember,
   type OpsRole,
+  type OpsRoleAssignment,
 } from "../lib/api";
 import { useSession } from "../../lib/useSession";
 import { signOut } from "../../lib/supabase";
@@ -45,7 +47,7 @@ const ROLE_COLOR: Record<AdminMember["role"], string> = {
   alumni: "default",
 };
 
-// 운영팀 직책의 한국어 이름과 그룹. 백엔드 src/lib/opsRoles.ts와 같은 목록이며,
+// 운영팀 직책의 한국어 이름과 그룹. 백엔드 src/portal/lib/opsRoles.ts와 같은 목록이며,
 // 프론트는 백엔드 코드를 import하지 않으므로 여기 한 벌 더 둔다(ROLE_LABEL도 같다).
 // 값을 추가할 때는 양쪽을 같이 고친다.
 const OPS_ROLE_LABEL: Record<OpsRole, string> = {
@@ -59,30 +61,29 @@ const OPS_ROLE_LABEL: Record<OpsRole, string> = {
   external_member: "대외협력 팀원",
   hr_member: "HR 팀원",
   pr_member: "PR 팀원",
+  edu_member: "에듀 팀원",
 };
 
-// single: 그 직책을 한 명만 가질 수 있다(임원·팀장). 서버도 같은 규칙으로 거절한다.
-const OPS_ROLE_GROUPS: { label: string; single: boolean; roles: OpsRole[] }[] =
-  [
-    {
-      label: "임원",
-      single: true,
-      roles: ["president", "vice_president", "treasurer"],
-    },
-    {
-      label: "팀장",
-      single: true,
-      roles: ["external_lead", "hr_lead", "pr_lead", "edu_lead"],
-    },
-    {
-      label: "팀원",
-      single: false,
-      roles: ["external_member", "hr_member", "pr_member"],
-    },
-  ];
-const SINGLE_HOLDER_ROLES = new Set<OpsRole>(
-  OPS_ROLE_GROUPS.filter((g) => g.single).flatMap((g) => g.roles),
-);
+// 직책(임원·팀장): 한 사람이 하나만, 같은 직책은 기수마다 한 명(인수인계 기간엔 두 기수가
+// 함께 있을 수 있다). 팀원: 여러 팀을 동시에 할 수 있다. 서버도 같은 규칙으로 거절한다.
+const OFFICE_GROUPS: { label: string; roles: OpsRole[] }[] = [
+  { label: "임원", roles: ["president", "vice_president", "treasurer"] },
+  { label: "팀장", roles: ["external_lead", "hr_lead", "pr_lead", "edu_lead"] },
+];
+const OFFICE_ROLES = new Set<OpsRole>(OFFICE_GROUPS.flatMap((g) => g.roles));
+const TEAM_ROLES: OpsRole[] = ["external_member", "hr_member", "pr_member", "edu_member"];
+
+function opsRoleTitle(role: OpsRoleAssignment) {
+  return role.cohort
+    ? `${role.cohort}기 ${OPS_ROLE_LABEL[role.opsRole]}`
+    : OPS_ROLE_LABEL[role.opsRole];
+}
+
+type OpsRoleDraft = {
+  office: OpsRole | undefined;
+  cohort: number | null;
+  teams: OpsRole[];
+};
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString("ko-KR") : "—";
@@ -101,7 +102,11 @@ export function AdminMembers() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [view, setView] = useState<"all" | "active" | "inactive">("all");
   const [opsRoleModalOpen, setOpsRoleModalOpen] = useState(false);
-  const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRole>();
+  const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRoleDraft>({
+    office: undefined,
+    cohort: null,
+    teams: [],
+  });
   const [adding, setAdding] = useState(false);
   const [newMember, setNewMember] = useState<{
     name: string;
@@ -221,43 +226,72 @@ export function AdminMembers() {
     selectedMembers.length > 0 &&
     selectedMembers.every((m) => m.role === "acting");
 
-  // 1인 직책을 지금 누가 맡고 있는지. 선택 목록 안의 사람이면 자기 자리를 다시
-  // 지정하는 것이라 막지 않는다(그 외에는 서버가 422로 거절하므로 미리 잠근다).
-  const opsRoleHolders = new Map<OpsRole, AdminMember>();
-  for (const m of members ?? []) {
-    if (m.opsRole) opsRoleHolders.set(m.opsRole, m);
-  }
+  // 직책은 한 명씩만 지정한다 — 여럿을 고르면 지금 직책은 그대로 두고 팀원만 바꾼다.
+  const singleSelected =
+    selectedMembers.length === 1 ? selectedMembers[0] : undefined;
 
-  function opsRoleOptionNote(role: OpsRole): string | undefined {
-    if (!SINGLE_HOLDER_ROLES.has(role)) return undefined;
-    if (selectedIds.length > 1) return "한 명만 가능";
-    const holder = opsRoleHolders.get(role);
-    if (holder && !selectedIds.includes(holder.id)) {
-      return holder.active
-        ? holder.displayName
-        : `${holder.displayName} · 비활성`;
+  // 직책마다 지금 누가(몇 기로) 맡고 있는지. 같은 직책이라도 기수가 다르면 지정할 수
+  // 있어서(인수인계) 막지 않고 보여주기만 한다 — 같은 기수면 서버가 422로 거절한다.
+  const officeHolders = new Map<OpsRole, string[]>();
+  for (const m of members ?? []) {
+    if (m.id === singleSelected?.id) continue;
+    for (const r of m.opsRoles) {
+      if (!OFFICE_ROLES.has(r.opsRole)) continue;
+      const who = `${r.cohort ? `${r.cohort}기 ` : ""}${m.displayName}${m.active ? "" : " · 비활성"}`;
+      officeHolders.set(r.opsRole, [...(officeHolders.get(r.opsRole) ?? []), who]);
     }
-    return undefined;
   }
 
   function openOpsRoleModal() {
-    // 한 명만 골랐고 이미 직책이 있으면 그 값에서 시작한다.
-    setOpsRoleDraft(
-      selectedMembers.length === 1
-        ? (selectedMembers[0]?.opsRole ?? undefined)
-        : undefined,
-    );
+    // 한 명만 골랐으면 그 사람의 지금 직책·팀에서 시작한다. 여럿이면 모두가 함께 속한 팀에서.
+    if (singleSelected) {
+      const office = singleSelected.opsRoles.find((r) => OFFICE_ROLES.has(r.opsRole));
+      setOpsRoleDraft({
+        office: office?.opsRole,
+        cohort: office?.cohort ?? (Number(singleSelected.cohort) || null),
+        teams: singleSelected.opsRoles
+          .filter((r) => !OFFICE_ROLES.has(r.opsRole))
+          .map((r) => r.opsRole),
+      });
+    } else {
+      setOpsRoleDraft({
+        office: undefined,
+        cohort: null,
+        teams: TEAM_ROLES.filter((team) =>
+          selectedMembers.every((m) => m.opsRoles.some((r) => r.opsRole === team)),
+        ),
+      });
+    }
     setOpsRoleModalOpen(true);
   }
 
+  // 저장 후 직책이나 팀이 하나도 없는 사람이 생기면 안 된다(acting은 하나 이상).
+  const draftLeavesSomeoneEmpty =
+    opsRoleDraft.teams.length === 0 &&
+    (singleSelected
+      ? !opsRoleDraft.office
+      : selectedMembers.some(
+          (m) => !m.opsRoles.some((r) => OFFICE_ROLES.has(r.opsRole)),
+        ));
+  const draftInvalid =
+    draftLeavesSomeoneEmpty ||
+    (singleSelected !== undefined &&
+      opsRoleDraft.office !== undefined &&
+      !opsRoleDraft.cohort);
+
   function submitOpsRole() {
-    if (!opsRoleDraft) return;
+    if (draftInvalid) return;
+    const { office, cohort, teams } = opsRoleDraft;
     setOpsRoleModalOpen(false);
     void withBusyReload(
       () =>
         changeMemberRole(token!, selectedIds, {
           role: "acting",
-          opsRole: opsRoleDraft,
+          teams,
+          // 여럿을 골랐으면 office를 보내지 않는다 = 각자 지금 직책을 그대로 둔다.
+          ...(singleSelected
+            ? { office: office && cohort ? { opsRole: office, cohort } : null }
+            : {}),
         }),
       allSelectedActing
         ? "운영팀 직책을 변경했습니다."
@@ -310,12 +344,28 @@ export function AdminMembers() {
     },
     {
       title: "운영팀",
-      dataIndex: "opsRole",
-      width: 130,
-      render: (opsRole: AdminMember["opsRole"], m) => {
-        if (opsRole) return OPS_ROLE_LABEL[opsRole];
-        // acting인데 직책이 비어 있으면 이 기능이 생기기 전에 등록된 회원이다.
-        return m.role === "acting" ? <Tag color="orange">미지정</Tag> : "—";
+      dataIndex: "opsRoles",
+      width: 220,
+      render: (opsRoles: AdminMember["opsRoles"], m) => {
+        // acting인데 직책이 비어 있으면 아직 직책을 지정하지 않은 회원이다.
+        if (opsRoles.length === 0)
+          return m.role === "acting" ? <Tag color="orange">미지정</Tag> : "—";
+        return (
+          <Space size={[4, 4]} wrap>
+            {opsRoles.map((r) =>
+              // 기수를 모르는 직책은 옛 데이터를 옮겨온 것이다 — 직책 변경에서 기수를 채운다.
+              OFFICE_ROLES.has(r.opsRole) && !r.cohort ? (
+                <Tag key={r.opsRole} color="orange">
+                  {OPS_ROLE_LABEL[r.opsRole]} · 기수 미지정
+                </Tag>
+              ) : (
+                <Tag key={r.opsRole} color={OFFICE_ROLES.has(r.opsRole) ? "blue" : "default"}>
+                  {opsRoleTitle(r)}
+                </Tag>
+              ),
+            )}
+          </Space>
+        );
       },
     },
     {
@@ -531,31 +581,79 @@ export function AdminMembers() {
           onOk={submitOpsRole}
           okText="저장"
           cancelText="취소"
-          okButtonProps={{ disabled: !opsRoleDraft || busy }}
+          okButtonProps={{ disabled: draftInvalid || busy }}
         >
           <p className="muted">
-            acting 회원에게는 운영팀 직책이 반드시 있어야 합니다. 선택한{" "}
-            {selectedIds.length}명에게 지정할 직책을 고르세요.
+            직책(임원·팀장)은 한 사람이 하나만, 팀원은 여러 팀을 함께 할 수
+            있습니다. 같은 직책은 기수마다 한 명이라 인수인계 기간엔 두 기수가
+            함께 맡을 수 있습니다.
           </p>
-          <Select
-            style={{ width: "100%" }}
-            placeholder="운영팀 직책 선택"
-            value={opsRoleDraft}
-            onChange={setOpsRoleDraft}
-            options={OPS_ROLE_GROUPS.map((group) => ({
-              label: group.label,
-              options: group.roles.map((role) => {
-                const note = opsRoleOptionNote(role);
-                return {
+          <Space direction="vertical" style={{ width: "100%" }} size="middle">
+            {singleSelected ? (
+              <Space.Compact style={{ width: "100%" }}>
+                <Select
+                  style={{ flex: 1 }}
+                  allowClear
+                  placeholder="직책 없음"
+                  value={opsRoleDraft.office}
+                  onChange={(office?: OpsRole) =>
+                    setOpsRoleDraft({ ...opsRoleDraft, office })
+                  }
+                  options={OFFICE_GROUPS.map((group) => ({
+                    label: group.label,
+                    options: group.roles.map((role) => {
+                      const holders = officeHolders.get(role);
+                      return {
+                        value: role,
+                        label: holders
+                          ? `${OPS_ROLE_LABEL[role]} (${holders.join(", ")})`
+                          : OPS_ROLE_LABEL[role],
+                      };
+                    }),
+                  }))}
+                />
+                {opsRoleDraft.office && (
+                  <InputNumber
+                    style={{ width: 120 }}
+                    placeholder="기수"
+                    min={1}
+                    precision={0}
+                    addonAfter="기"
+                    value={opsRoleDraft.cohort}
+                    onChange={(cohort) =>
+                      setOpsRoleDraft({ ...opsRoleDraft, cohort })
+                    }
+                  />
+                )}
+              </Space.Compact>
+            ) : (
+              <Typography.Text type="secondary">
+                {selectedIds.length}명을 골랐습니다. 직책(임원·팀장)은 한 명씩
+                지정하고, 여기서는 각자 지금 직책을 그대로 둔 채 팀원만
+                바꿉니다.
+              </Typography.Text>
+            )}
+            <div>
+              <div className="meta" style={{ marginBottom: 4 }}>
+                팀원
+              </div>
+              <Checkbox.Group
+                value={opsRoleDraft.teams}
+                onChange={(teams) =>
+                  setOpsRoleDraft({ ...opsRoleDraft, teams: teams as OpsRole[] })
+                }
+                options={TEAM_ROLES.map((role) => ({
                   value: role,
-                  disabled: note !== undefined,
-                  label: note
-                    ? `${OPS_ROLE_LABEL[role]} (${note})`
-                    : OPS_ROLE_LABEL[role],
-                };
-              }),
-            }))}
-          />
+                  label: OPS_ROLE_LABEL[role],
+                }))}
+              />
+            </div>
+            {draftLeavesSomeoneEmpty && (
+              <Typography.Text type="warning">
+                acting 회원에게는 직책이나 팀이 하나 이상 있어야 합니다.
+              </Typography.Text>
+            )}
+          </Space>
         </Modal>
       </main>
     </AppShell>

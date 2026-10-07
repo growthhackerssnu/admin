@@ -192,7 +192,7 @@ export function Directory() {
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
 
-        <HrNav role={me.role} />
+        <HrNav me={me} />
 
         <div
           className={

@@ -1,15 +1,15 @@
 import { z } from "zod";
-import type { Member } from "@/generated/prisma";
+import { hasOpsRole, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { ApiError, successBody } from "./errors";
 import { getFinanceOverview, resolvePeriodId } from "./financeRepository";
 
 // NUT 보기는 admin·acting 전원, 고치기(모든 쓰기)와 청구서 계좌번호 열람은 admin과 총무만.
-export function canEditFinance(member: Member) {
-  return member.role === "admin" || member.opsRole === "treasurer";
+export function canEditFinance(member: MemberWithOpsRoles) {
+  return member.role === "admin" || hasOpsRole(member, "treasurer");
 }
 
 // 모든 NUT 쓰기 API는 바뀐 반기의 전체 화면 데이터를 돌려준다(화면이 그대로 갈아끼운다).
-export async function overviewBody(periodId: string, member: Member, requestId: string) {
+export async function overviewBody(periodId: string, member: MemberWithOpsRoles, requestId: string) {
   const overview = await getFinanceOverview(periodId, {
     memberId: member.id,
     canEdit: canEditFinance(member),

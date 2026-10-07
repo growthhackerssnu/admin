@@ -2,10 +2,11 @@ import type { Member } from "@/generated/prisma";
 import { createGetAuthenticatedMember, getSupabaseAuthClient } from "@dhbot/auth";
 import { ApiError } from "./errors";
 import { prisma } from "@/lib/prisma";
+import { memberWithOpsRoles, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 
-export const getAuthenticatedMember = createGetAuthenticatedMember<Member>({
-  findByEmail: (email) => prisma.member.findUnique({ where: { email } }),
-  markLogin: (id, supabaseUserId) => prisma.member.update({ where: { id }, data: { supabaseUserId, lastLoginAt: new Date() } }),
+export const getAuthenticatedMember = createGetAuthenticatedMember<MemberWithOpsRoles>({
+  findByEmail: (email) => prisma.member.findUnique({ where: { email }, include: memberWithOpsRoles }),
+  markLogin: (id, supabaseUserId) => prisma.member.update({ where: { id }, data: { supabaseUserId, lastLoginAt: new Date() }, include: memberWithOpsRoles }),
   toError: (code, message) => new ApiError(code as "UNAUTHENTICATED" | "FORBIDDEN", message),
   getSupabaseClient: getSupabaseAuthClient,
   deny: ["alumni"],

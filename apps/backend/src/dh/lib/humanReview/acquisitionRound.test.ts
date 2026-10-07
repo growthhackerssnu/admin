@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  member: { id: "lead-1", role: "acting", opsRole: "external_lead" } as Record<string, unknown>,
+  member: { id: "lead-1", role: "acting", opsRoles: [{ opsRole: "external_lead" }] } as Record<string, unknown>,
   idempotency: vi.fn(),
   tx: {
     $queryRaw: vi.fn(),
@@ -36,7 +36,7 @@ const set = async (body: Record<string, unknown>) => (await POST(new NextRequest
 describe("POST /acquisition-rounds", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mocks.member = { id: "lead-1", role: "acting", opsRole: "external_lead" };
+    mocks.member = { id: "lead-1", role: "acting", opsRoles: [{ opsRole: "external_lead" }] };
     mocks.idempotency.mockImplementation(async (_req, _member, _route, _payload, handler) => handler(mocks.tx));
     mocks.tx.$queryRaw.mockResolvedValue([]);
     mocks.tx.targetQuarter.findUnique.mockResolvedValue(quarter("q-next"));
@@ -44,7 +44,7 @@ describe("POST /acquisition-rounds", () => {
   });
 
   it("rejects members who are not the external lead or an admin", async () => {
-    mocks.member = { id: "m-2", role: "acting", opsRole: "external_member" };
+    mocks.member = { id: "m-2", role: "acting", opsRoles: [{ opsRole: "external_member" }] };
     await expect(set({ targetQuarterId: "q-next", expectedActiveRoundId: null })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

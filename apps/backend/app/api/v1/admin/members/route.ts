@@ -6,13 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { getNotionClient } from "@/portal/lib/notion";
 import { normalizeCohort, normalizeName } from "@/portal/lib/normalize";
 import { memoryDelete } from "@/hr/lib/memoryCache";
+import { sortOpsRoles } from "@/portal/lib/opsRoles";
 
 // GET /api/v1/admin/members — 회원 명단(admin 전용). 관리 화면용으로
 // role·운영팀 직책·활성여부·가입일·최근 접속일·기수(있으면)까지 전부 내려준다.
 //
-// opsRole은 acting에게만 값이 있다. acting인데 null인 행은 ops_role 컬럼이
-// 생기기 전에 등록된 회원이다 — 화면에서 "미지정"으로 보이고, 관리자가 직책을
-// 지정해주면 채워진다.
+// opsRoles는 acting에게만 있다(직책 하나까지 + 팀원 여럿, 표시 순서대로). 직책의 cohort는
+// 그 직책의 운영팀 기수이고, 옛 데이터라 모르면 null이다. acting인데 빈 배열이면 아직
+// 직책을 지정하지 않은 회원이다 — 화면에서 "미지정"으로 보인다.
 export const GET = withApiHandler(async (req, { member, requestId }) => {
   requireAdmin(member);
 
@@ -24,7 +25,7 @@ export const GET = withApiHandler(async (req, { member, requestId }) => {
     take: limit + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     orderBy: { createdAt: "desc" },
-    include: { claimedPersonEntry: { select: { cohort: true } } },
+    include: { claimedPersonEntry: { select: { cohort: true } }, opsRoles: true },
   });
 
   const hasMore = rows.length > limit;
@@ -39,7 +40,7 @@ export const GET = withApiHandler(async (req, { member, requestId }) => {
           cohort: m.claimedPersonEntry?.cohort ?? null,
           email: m.email,
           role: m.role,
-          opsRole: m.opsRole,
+          opsRoles: sortOpsRoles(m.opsRoles).map((r) => ({ opsRole: r.opsRole, cohort: r.cohort })),
           active: m.active,
           createdAt: m.createdAt.toISOString(),
           lastLoginAt: m.lastLoginAt?.toISOString() ?? null,

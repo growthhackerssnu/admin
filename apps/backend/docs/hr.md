@@ -12,19 +12,19 @@
 
 ## API
 
-모두 `Authorization: Bearer <Supabase access token>` 필요. 모든 role(admin·acting·alumni)이 통과하고(`src/hr/lib/auth.ts`에 `deny` 없음), admin 전용은 라우트에서 `requireAdmin`으로 막는다.
+모두 `Authorization: Bearer <Supabase access token>` 필요. 모든 role(admin·acting·alumni)이 통과하고(`src/hr/lib/auth.ts`에 `deny` 없음), 승인 큐는 admin과 PR 팀(팀장·팀원)만 — 라우트에서 `requireReviewer`로 막는다. 본인이 낸 요청은 승인·반려할 수 없다.
 
 | API | 설명 |
 |---|---|
-| `GET /api/v1/people/me` | `{role, notionPageId}` — "내 프로필" 카드, side pane 노출 판단용. portal의 `GET /api/v1/me`(로그인 후 이동 경로)와 용도가 달라 경로를 분리했다 |
+| `GET /api/v1/people/me` | `{role, canReview, notionPageId}` — "내 프로필" 카드, side pane·승인 큐 탭 노출 판단용. portal의 `GET /api/v1/me`(로그인 후 이동 경로)와 용도가 달라 경로를 분리했다 |
 | `GET /api/v1/people` | 디렉토리 전체 목록(경량 요약). 검색·필터는 프론트가 메모리에서 한다 |
 | `GET /api/v1/people/:notionPageId` | 프로필 상세. 로그인한 누구나 서로의 프로필을 볼 수 있다 |
 | `GET /api/v1/field-options` | 수정 폼 드롭다운 값(Notion select 옵션 그대로) |
 | `POST /api/v1/edit-requests` | 본인 프로필 수정 요청 제출. 대기 중인 요청이 있으면 덮어쓴다(그래서 멱등성 키 없이도 안전) |
 | `GET /api/v1/edit-requests/mine` | 내가 낸 요청 전체(최신순) |
-| `GET /api/v1/admin/edit-requests` | (admin) 승인 큐 |
-| `POST /api/v1/admin/edit-requests/:id/approve` | (admin) 승인 — **Notion 페이지를 실제로 수정한다**(단방향) |
-| `POST /api/v1/admin/edit-requests/:id/reject` | (admin) 반려, 사유 필요 |
+| `GET /api/v1/admin/edit-requests` | (admin·PR 팀) 승인 큐 |
+| `POST /api/v1/admin/edit-requests/:id/approve` | (admin·PR 팀) 승인 — **Notion 페이지를 실제로 수정한다**(단방향) |
+| `POST /api/v1/admin/edit-requests/:id/reject` | (admin·PR 팀) 반려, 사유 필요 |
 
 ## 데이터 흐름
 

@@ -1,6 +1,7 @@
 import type { Member, Role } from "@/generated/prisma";
 import { createGetAuthenticatedMember, getSupabaseAuthClient } from "@dhbot/auth";
 import { prisma } from "@/lib/prisma";
+import { memberWithOpsRoles, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { ApiError } from "./errors";
 
 // ⚠️ 이 capability 시스템은 **아직 어떤 라우트에도 연결돼 있지 않다.**
@@ -44,10 +45,10 @@ export function capabilitiesFor(role: Role): Capability[] {
 //
 // alumni는 admin.ghsnu.com/hr만 볼 수 있고 /dh(대협봇)는 접근 자체가 안 된다 —
 // 이 백엔드는 /dh 전용이므로 deny로 완전히 막는다.
-export const getAuthenticatedMember = createGetAuthenticatedMember<Member>({
-  findByEmail: (email) => prisma.member.findUnique({ where: { email } }),
+export const getAuthenticatedMember = createGetAuthenticatedMember<MemberWithOpsRoles>({
+  findByEmail: (email) => prisma.member.findUnique({ where: { email }, include: memberWithOpsRoles }),
   markLogin: (id, supabaseUserId) =>
-    prisma.member.update({ where: { id }, data: { supabaseUserId, lastLoginAt: new Date() } }),
+    prisma.member.update({ where: { id }, data: { supabaseUserId, lastLoginAt: new Date() }, include: memberWithOpsRoles }),
   toError: (code, message) => new ApiError(code, message),
   getSupabaseClient: getSupabaseAuthClient,
   deny: ["alumni"],

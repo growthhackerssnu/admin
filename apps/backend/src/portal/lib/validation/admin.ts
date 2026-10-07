@@ -1,31 +1,49 @@
 import { z } from "zod";
-import { OPS_ROLES } from "../opsRoles";
+import type { OpsRole } from "@/generated/prisma";
+import { OFFICE_ROLES, TEAM_ROLES } from "../opsRoles";
 
 const memberIds = z.array(z.string().min(1)).min(1, "최소 한 명은 선택해야 합니다.");
 
 // admin으로의 승격/강등은 이 API로 하지 않는다 — 수동(CLI/직접 DB)으로만.
 //
-// role과 운영팀 직책(opsRole)은 항상 같이 움직인다. acting에게는 직책이 반드시
-// 있어야 하고 alumni에게는 있을 수 없어서, 두 갈래를 각각 다른 모양으로 받는다
-// (opsRole을 optional 하나로 두면 "acting인데 직책 없음"이 스키마를 통과한다).
-// "그 직책을 이미 다른 사람이 갖고 있는지" 같은 사람 관련 규칙은 라우트에서
+// role과 운영팀 직책은 같이 움직인다. acting에게는 직책(임원·팀장)이나 팀원 중 하나
+// 이상이 있어야 하고 alumni에게는 없다. 한 사람이 직책은 하나까지, 팀원은 여러 팀을
+// 가질 수 있다(src/portal/lib/opsRoles.ts).
+//
+// acting으로 둘 때:
+//   teams  — 팀원 목록. 선택한 사람들의 팀원 목록을 이걸로 바꾼다(빈 배열이면 팀원 없음).
+//   office — 직책과 그 운영팀 기수. 생략하면 각자 지금 직책을 그대로 둔다(여럿을 골라
+//            팀원만 바꿀 때). null이면 직책을 뺀다. 직책을 주는 건 한 명을 골랐을 때만.
+// "그 직책·기수를 이미 다른 사람이 갖고 있는지" 같은 사람 관련 규칙은 라우트에서
 // 검사한다 — 누가 갖고 있는지 알려주려면 DB를 봐야 한다.
+const officeRole = z.enum(OFFICE_ROLES as [OpsRole, ...OpsRole[]], {
+  invalid_type_error: "직책 값이 올바르지 않습니다.",
+});
+const teamRole = z.enum(TEAM_ROLES as [OpsRole, ...OpsRole[]], {
+  invalid_type_error: "팀원 값이 올바르지 않습니다.",
+});
+
 export const bulkRoleChangeSchema = z.discriminatedUnion("role", [
   z.object({
     memberIds,
     role: z.literal("acting"),
-    opsRole: z.enum(OPS_ROLES, {
-      required_error: "acting으로 두려면 운영팀 직책을 지정해야 합니다.",
-      invalid_type_error: "운영팀 직책 값이 올바르지 않습니다.",
-    }),
+    teams: z
+      .array(teamRole, { required_error: "팀원 목록을 보내야 합니다(없으면 빈 배열)." })
+      .refine((teams) => new Set(teams).size === teams.length, "같은 팀이 두 번 들어 있습니다."),
+    office: z
+      .object({
+        opsRole: officeRole,
+        cohort: z.coerce
+          .number({ invalid_type_error: "직책의 기수를 숫자로 입력하세요." })
+          .int("직책의 기수를 숫자로 입력하세요.")
+          .min(1, "직책의 기수를 숫자로 입력하세요."),
+      })
+      .nullable()
+      .optional(),
   }),
   z.object({
     memberIds,
     role: z.literal("alumni"),
-    // alumni가 되면 운영팀 직책은 사라진다 — 보내려 했다면 오해한 것이니 알려준다.
-    opsRole: z
-      .null({ invalid_type_error: "alumni에게는 운영팀 직책을 줄 수 없습니다." })
-      .optional(),
   }),
 ]);
 

@@ -37,7 +37,7 @@ export async function validateAssignmentMembers(
       id: { in: memberIds },
       active: true,
       role: "acting",
-      opsRole: "external_member",
+      opsRoles: { some: { opsRole: "external_member" } },
     },
     select: { id: true },
   });

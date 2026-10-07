@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  member: { id: "member-1", role: "acting", opsRole: "external_member" },
+  member: { id: "member-1", role: "acting", opsRoles: [{ opsRole: "external_member" }] },
   owner: vi.fn(),
   detail: vi.fn(),
   idempotency: vi.fn(),

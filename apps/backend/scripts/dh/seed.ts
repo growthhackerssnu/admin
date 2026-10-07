@@ -62,29 +62,38 @@ async function main() {
   // 회원 계정이 전부 날아갔다 — 개발용 DB가 따로 없어 운영 DB를 그대로 보는 지금
   // 구조에서는 특히 위험했다. 이제 시드 전용 계정 둘만 upsert하고 나머지는 두지 않는다.
   //
-  // acting에게는 운영팀 직책(opsRole)이 반드시 있다. external_lead(대외협력 팀장)는
-  // 한 명만 가질 수 있어서, 실제 회원 중 누군가 이미 그 직책이면 시드가 유니크
-  // 인덱스에 걸린다 — 그때는 아래 직책을 external_member로 바꿔서 돌린다.
+  // acting에게는 운영팀 직책이 반드시 있다(core.member_ops_roles). 같은 직책은 기수마다
+  // 한 명이라, 시드 팀장은 실제 회원과 겹치지 않을 기수(1기)로 둔다.
   const jaewook = await prisma.member.upsert({
     where: { email: "jaewook@ghsnu.com" },
-    update: { displayName: "재욱", role: "acting", opsRole: "external_lead", active: true },
+    update: {
+      displayName: "재욱",
+      role: "acting",
+      active: true,
+      opsRoles: { deleteMany: {}, create: [{ opsRole: "external_lead", cohort: 1 }] },
+    },
     create: {
       supabaseUserId: "seed-jaewook",
       email: "jaewook@ghsnu.com",
       displayName: "재욱",
       role: "acting",
-      opsRole: "external_lead",
+      opsRoles: { create: [{ opsRole: "external_lead", cohort: 1 }] },
     },
   });
   const minjun = await prisma.member.upsert({
     where: { email: "minjun@ghsnu.com" },
-    update: { displayName: "민준", role: "acting", opsRole: "external_member", active: true },
+    update: {
+      displayName: "민준",
+      role: "acting",
+      active: true,
+      opsRoles: { deleteMany: {}, create: [{ opsRole: "external_member" }] },
+    },
     create: {
       supabaseUserId: "seed-minjun",
       email: "minjun@ghsnu.com",
       displayName: "민준",
       role: "acting",
-      opsRole: "external_member",
+      opsRoles: { create: [{ opsRole: "external_member" }] },
     },
   });
 

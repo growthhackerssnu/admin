@@ -1,20 +1,22 @@
+import type { OpsRole } from "@/generated/prisma";
 import { withApiHandler } from "@/portal/lib/apiHandler";
 import { requireAdmin } from "@/portal/lib/auth";
 import { ApiError, successBody } from "@/portal/lib/errors";
 import { withIdempotency } from "@/portal/lib/idempotency";
-import { isSingletonOpsRole, opsRoleLabel } from "@/portal/lib/opsRoles";
+import { isOfficeOpsRole, opsRoleTitle, sortOpsRoles } from "@/portal/lib/opsRoles";
 import { bulkRoleChangeSchema } from "@/portal/lib/validation/admin";
 
 // PATCH /api/v1/admin/members/role — 여러 명을 한 번에 acting/alumni로 전환하고,
-// acting이면 운영팀 직책(opsRole)까지 같이 지정한다.
+// acting이면 운영팀 직책(임원·팀장 하나)과 팀원(여러 팀)까지 같이 지정한다.
 //
 // admin으로의 승격은 이 API로 불가능하고(스키마가 애초에 acting/alumni만 받음),
 // 대상 중 현재 role이 admin인 사람이 있으면 통째로 거부한다 — 관리자 계정은
 // 이 화면에서 실수로도 건드릴 수 없게.
 //
 // role과 운영팀 직책은 한 번에 같이 쓴다:
-//   acting → 직책 필수. 이미 acting인 사람에게 이 API를 다시 부르면 직책만 바뀐다.
-//   alumni → 직책은 NULL이 된다. 운영팀에서 나간 것이니 남겨둘 이유가 없다.
+//   acting → 직책이나 팀원이 하나 이상 남아야 한다. 이미 acting이면 직책·팀원만 바뀐다.
+//            office를 생략하면 각자 지금 직책을 그대로 둔다(여럿을 골라 팀원만 바꿀 때).
+//   alumni → 직책·팀원을 전부 지운다. 운영팀에서 나간 것이니 남겨둘 이유가 없다.
 export const PATCH = withApiHandler(async (req, { member, requestId }) => {
   requireAdmin(member);
 
@@ -28,13 +30,13 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
       const path = issue.path.join(".") || "body";
       if (!(path in fieldErrors)) fieldErrors[path] = issue.message;
     }
-    throw new ApiError("VALIDATION_ERROR", fieldErrors.opsRole ?? "입력값을 확인하세요.", { fieldErrors });
+    throw new ApiError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "입력값을 확인하세요.", { fieldErrors });
   }
-  const { memberIds, role } = parsed.data;
-  const opsRole = parsed.data.role === "acting" ? parsed.data.opsRole : null;
+  const change = parsed.data;
+  const { memberIds } = change;
 
-  const result = await withIdempotency(req, member, "PATCH /admin/members/role", parsed.data, async (tx) => {
-    const targets = await tx.member.findMany({ where: { id: { in: memberIds } } });
+  const result = await withIdempotency(req, member, "PATCH /admin/members/role", change, async (tx) => {
+    const targets = await tx.member.findMany({ where: { id: { in: memberIds } }, include: { opsRoles: true } });
     if (targets.length !== memberIds.length) {
       throw new ApiError("NOT_FOUND", "존재하지 않는 회원이 포함되어 있습니다.");
     }
@@ -42,35 +44,75 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
       throw new ApiError("FORBIDDEN", "관리자 계정의 role은 이 화면에서 바꿀 수 없습니다.");
     }
 
-    // 회장·부회장·총무·각 팀장은 한 명씩이다. DB에도 부분 유니크 인덱스가 있지만
-    // (members_ops_role_singleton_key) 거기서 걸리면 "왜 안 되는지"를 알 수 없어서,
-    // 먼저 확인해서 현재 그 직책인 사람을 문구에 담는다.
-    if (opsRole && isSingletonOpsRole(opsRole)) {
-      const label = opsRoleLabel(opsRole);
-      if (memberIds.length > 1) {
-        throw new ApiError("VALIDATION_ERROR", `${label} 직책은 한 명만 가질 수 있습니다. 한 명만 선택하세요.`, {
-          fieldErrors: { opsRole: "1인 직책" },
+    let rows: { memberId: string; opsRole: OpsRole; cohort: number | null }[] = [];
+    if (change.role === "acting") {
+      const { office, teams } = change;
+      if (office) {
+        const title = opsRoleTitle(office);
+        if (memberIds.length > 1) {
+          throw new ApiError("VALIDATION_ERROR", `${title} 직책은 한 명만 가질 수 있습니다. 한 명만 선택하세요.`, {
+            fieldErrors: { office: "1인 직책" },
+          });
+        }
+        // 같은 직책·같은 기수는 한 명이다. DB에도 부분 유니크 인덱스가 있지만
+        // (member_ops_roles_office_cohort_key) 거기서 걸리면 "왜 안 되는지"를 알 수 없어서,
+        // 먼저 확인해서 지금 그 자리인 사람을 문구에 담는다. 다른 기수의 같은 직책은 괜찮다(인수인계).
+        const holder = await tx.memberOpsRole.findFirst({
+          where: { opsRole: office.opsRole, cohort: office.cohort, memberId: { notIn: memberIds } },
+          include: { member: true },
         });
+        if (holder) {
+          // 비활성 회원도 자리를 차지한다 — 비활성화는 role을 바꾸지 않기 때문이다.
+          const suffix = holder.member.active ? "" : "(비활성 계정)";
+          throw new ApiError(
+            "VALIDATION_ERROR",
+            `${title} 직책은 이미 ${holder.member.displayName} 님${suffix}이 맡고 있습니다. 그 회원의 직책을 먼저 옮기거나 alumni로 내리세요.`,
+            { fieldErrors: { office: "이미 지정된 직책" } },
+          );
+        }
       }
-      const holder = await tx.member.findFirst({ where: { opsRole, id: { notIn: memberIds } } });
-      if (holder) {
-        // 비활성 회원도 자리를 차지한다 — 비활성화는 role을 바꾸지 않기 때문이다.
-        const suffix = holder.active ? "" : "(비활성 계정)";
-        throw new ApiError(
-          "VALIDATION_ERROR",
-          `${label} 직책은 이미 ${holder.displayName} 님${suffix}이 맡고 있습니다. 그 회원의 직책을 먼저 옮기거나 alumni로 내리세요.`,
-          { fieldErrors: { opsRole: "이미 지정된 직책" } },
-        );
+
+      for (const target of targets) {
+        // office를 생략하면 지금 직책을 그대로 둔다.
+        const kept = office === undefined ? target.opsRoles.filter((r) => isOfficeOpsRole(r.opsRole)) : [];
+        const next = [
+          ...kept.map((r) => ({ memberId: target.id, opsRole: r.opsRole, cohort: r.cohort })),
+          ...(office ? [{ memberId: target.id, opsRole: office.opsRole, cohort: office.cohort }] : []),
+          ...teams.map((opsRole) => ({ memberId: target.id, opsRole, cohort: null })),
+        ];
+        if (next.length === 0) {
+          throw new ApiError(
+            "VALIDATION_ERROR",
+            `${target.displayName} 님에게 직책이나 팀이 하나도 없습니다. acting으로 두려면 하나 이상 지정하세요.`,
+            { fieldErrors: { teams: "직책이나 팀 필요" } },
+          );
+        }
+        rows.push(...next);
       }
+    } else {
+      rows = [];
     }
 
-    await tx.member.updateMany({ where: { id: { in: memberIds } }, data: { role, opsRole } });
-    const updated = await tx.member.findMany({ where: { id: { in: memberIds } } });
+    await tx.memberOpsRole.deleteMany({ where: { memberId: { in: memberIds } } });
+    if (rows.length > 0) await tx.memberOpsRole.createMany({ data: rows });
+    // 옛 컬럼(ops_role)은 아무도 읽지 않는다. alumni로 내릴 때만 비운다 — CHECK 제약
+    // members_ops_role_acting_only가 alumni에게 값이 남아 있는 걸 막기 때문이다.
+    await tx.member.updateMany({
+      where: { id: { in: memberIds } },
+      data: change.role === "alumni" ? { role: "alumni", legacyOpsRole: null } : { role: "acting" },
+    });
+    const updated = await tx.member.findMany({ where: { id: { in: memberIds } }, include: { opsRoles: true } });
 
     return {
       status: 200,
       body: successBody(
-        { items: updated.map((m) => ({ id: m.id, role: m.role, opsRole: m.opsRole })) },
+        {
+          items: updated.map((m) => ({
+            id: m.id,
+            role: m.role,
+            opsRoles: sortOpsRoles(m.opsRoles).map((r) => ({ opsRole: r.opsRole, cohort: r.cohort })),
+          })),
+        },
         requestId,
       ),
     };

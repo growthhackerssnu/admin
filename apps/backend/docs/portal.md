@@ -30,30 +30,33 @@
 | API | 설명 |
 |---|---|
 | `GET /api/v1/me` | `{userId, email, displayName, role, redirectPath}`. (hr의 "내 정보"는 별도 경로 `GET /api/v1/people/me`) `redirectPath`는 role로 고정 결정(admin→`/admin`, acting→`/dh`, alumni→`/hr`) — 프론트가 로그인 직후 이 값으로만 리다이렉트하면 된다 |
-| `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, opsRole, active, createdAt, lastLoginAt |
-| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", opsRole}` 또는 `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. admin 대상 포함 시 전체 거부 |
+| `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, opsRoles(`[{opsRole, cohort}]`, 직책 → 팀원 순), active, createdAt, lastLoginAt |
+| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", teams, office?}` 또는 `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. `teams`는 팀원 목록(교체), `office`는 `{opsRole, cohort}`(한 명일 때만)·`null`(뺀다)·생략(각자 지금 직책 유지). admin 대상 포함 시 전체 거부 |
 | `POST /api/v1/admin/members/deactivate` | (admin 전용) `{memberIds}` — 일괄 비활성화("삭제", 실제 행은 안 지움). admin 대상·본인 계정 거부 |
 | `POST /api/v1/admin/members/reactivate` | (admin 전용) `{memberIds}` — 비활성화를 되돌림 |
 
 쓰기 API(role/deactivate/reactivate)는 `Idempotency-Key` 헤더가 필수다.
 
-## 운영팀 직책 (`opsRole`)
+## 운영팀 직책 (`core.member_ops_roles`)
 
-`acting`에게는 운영팀 직책이 반드시 있고, `alumni`·`admin`에게는 없다(`null`). 두 값은 항상 같이 움직인다 — `alumni`로 내리면 직책이 지워지고, `alumni`를 `acting`으로 올릴 때는 직책을 반드시 지정해야 한다. 값 목록과 한국어 이름은 `src/portal/lib/opsRoles.ts` 한 곳에 있다(`core.OpsRole` enum과 같은 값).
+`acting`에게는 직책이나 팀이 하나 이상 있고, `alumni`·`admin`에게는 없다. `alumni`로 내리면 전부 지워지고, `alumni`를 `acting`으로 올릴 때는 하나 이상 지정해야 한다. 값 목록과 한국어 이름은 `src/portal/lib/opsRoles.ts` 한 곳에 있다(`core.OpsRole` enum과 같은 값). 권한 판정은 `hasOpsRole(member, ...)`로만 한다 — 로그인한 `member`에 `opsRoles`가 같이 실려 온다.
 
-| 그룹 | 값 | 인원 |
+| 그룹 | 값 | 규칙 |
 |---|---|---|
-| 임원 | `president`(회장), `vice_president`(부회장), `treasurer`(총무) | 각 1명 |
-| 팀장 | `external_lead`(대외협력), `hr_lead`(HR), `pr_lead`(PR), `edu_lead`(에듀) | 각 1명 |
-| 팀원 | `external_member`, `hr_member`, `pr_member` | 여러 명 |
+| 임원 | `president`(회장), `vice_president`(부회장), `treasurer`(총무) | 직책 |
+| 팀장 | `external_lead`(대외협력), `hr_lead`(HR), `pr_lead`(PR), `edu_lead`(에듀) | 직책 |
+| 팀원 | `external_member`, `hr_member`, `pr_member`, `edu_member` | 여러 명, 한 사람이 여러 팀 |
 
-"각 1명"은 DB의 부분 유니크 인덱스(`members_ops_role_singleton_key`)와 API 양쪽에서 막는다. 자리를 비우려면 지금 그 직책인 회원을 다른 직책으로 옮기거나 `alumni`로 내린다 — 비활성(`active: false`) 회원도 자리를 차지한다(비활성화는 role을 바꾸지 않기 때문이다).
+- **한 사람은 직책을 하나만** 가진다. 팀원은 직책과 함께, 여러 팀을 동시에 할 수 있다(예: 총무이면서 대외협력·에듀 팀원, 회장이면서 PR 팀원).
+- **같은 직책은 운영팀 기수마다 한 명**이다. 인수인계 기간엔 19기 회장과 20기 회장이 함께 있을 수 있다. 직책은 기수(`cohort`)와 함께 지정한다.
 
-`ops_role` 컬럼이 생기기 전에 등록된 `acting` 회원은 직책이 `null`이고, 어드민 화면에 "미지정"으로 보인다. 백필은 하지 않았다 — 누가 어느 팀인지 DB가 지어낼 수 없어서, 관리자가 화면에서 지정해줘야 채워진다.
+두 규칙은 DB의 부분 유니크 인덱스(`member_ops_roles_one_office_key`, `member_ops_roles_office_cohort_key`)와 API 양쪽에서 막는다. 비활성(`active: false`) 회원도 자리를 차지한다(비활성화는 role을 바꾸지 않기 때문이다).
+
+예전 `members.ops_role`(1인 1직책)에서 옮겨온 직책 중 그핵드인 명단에서 기수를 찾지 못한 것은 기수가 `null`이고 화면에 "기수 미지정"으로 보인다 — 직책 변경에서 기수를 채운다. `members.ops_role` 컬럼은 이제 읽지 않으며 다음 마이그레이션에서 지운다.
 
 ## 접근 제어
 
-화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, CLI(`npm run members:add -w apps/backend`)로 수동 등록한다(`acting`으로 등록할 때는 운영팀 직책 인자가 필수 — `... acting hr_lead`). `admin`으로의 승격은 API로 불가 — CLI로만.
+화이트리스트 방식(`members` 테이블) — Google 로그인 자체는 성공해도 `members`에 이메일이 없거나 `active: false`면 403이다. 등록은 위 가입 흐름으로 자동(`alumni`로) 되거나, `admin`이 관리자 API로 승격하거나, CLI(`npm run members:add -w apps/backend`)로 수동 등록한다(`acting`으로 등록할 때는 운영팀 직책 인자가 필수 — `... acting hr_lead 19`, 여럿은 쉼표로 `... acting treasurer,external_member 19`). `admin`으로의 승격은 API로 불가 — CLI로만.
 
 ## CORS
 

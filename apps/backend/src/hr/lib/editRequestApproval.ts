@@ -18,11 +18,15 @@ const SECTION_HEADING: Record<string, string> = {
   projects: "Projects",
 };
 
-export async function approveEditRequest(admin: Member, editRequestId: string, reviewNote?: string) {
+export async function approveEditRequest(reviewer: Member, editRequestId: string, reviewNote?: string) {
   const editRequest = await prisma.editRequest.findUnique({ where: { id: editRequestId } });
   if (!editRequest) throw new ApiError("NOT_FOUND", "수정 요청을 찾을 수 없습니다.");
   if (editRequest.status !== "pending") {
     throw new ApiError("VALIDATION_ERROR", "이미 처리된 요청입니다.");
+  }
+  // PR 팀원도 검토자라서 자기 프로필 요청이 큐에 섞인다 — 본인 것은 다른 사람이 처리한다.
+  if (editRequest.requesterMemberId === reviewer.id) {
+    throw new ApiError("FORBIDDEN", "본인이 낸 수정 요청은 다른 검토자가 처리해야 합니다.");
   }
 
   const diff = editRequest.diff as unknown as {
@@ -50,20 +54,24 @@ export async function approveEditRequest(admin: Member, editRequestId: string, r
 
   return prisma.editRequest.update({
     where: { id: editRequestId },
-    data: { status: "approved", reviewedByMemberId: admin.id, reviewedAt: new Date(), reviewNote },
+    data: { status: "approved", reviewedByMemberId: reviewer.id, reviewedAt: new Date(), reviewNote },
   });
 }
 
-export async function rejectEditRequest(admin: Member, editRequestId: string, reviewNote: string) {
+export async function rejectEditRequest(reviewer: Member, editRequestId: string, reviewNote: string) {
   const editRequest = await prisma.editRequest.findUnique({ where: { id: editRequestId } });
   if (!editRequest) throw new ApiError("NOT_FOUND", "수정 요청을 찾을 수 없습니다.");
   if (editRequest.status !== "pending") {
     throw new ApiError("VALIDATION_ERROR", "이미 처리된 요청입니다.");
   }
+  // PR 팀원도 검토자라서 자기 프로필 요청이 큐에 섞인다 — 본인 것은 다른 사람이 처리한다.
+  if (editRequest.requesterMemberId === reviewer.id) {
+    throw new ApiError("FORBIDDEN", "본인이 낸 수정 요청은 다른 검토자가 처리해야 합니다.");
+  }
 
   return prisma.editRequest.update({
     where: { id: editRequestId },
-    data: { status: "rejected", reviewedByMemberId: admin.id, reviewedAt: new Date(), reviewNote },
+    data: { status: "rejected", reviewedByMemberId: reviewer.id, reviewedAt: new Date(), reviewNote },
   });
 }
 

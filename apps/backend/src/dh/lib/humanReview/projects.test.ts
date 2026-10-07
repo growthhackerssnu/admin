@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  member: { id: "lead-1", role: "acting", opsRole: "external_lead" } as Record<string, unknown>,
+  member: { id: "lead-1", role: "acting", opsRoles: [{ opsRole: "external_lead" }] } as Record<string, unknown>,
   idempotency: vi.fn(),
   prisma: { pastProject: { findUnique: vi.fn() } },
   tx: {
@@ -48,7 +48,7 @@ const source = (extra: Record<string, unknown> = {}) => ({
 describe("POST /projects", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    mocks.member = { id: "lead-1", role: "acting", opsRole: "external_lead" };
+    mocks.member = { id: "lead-1", role: "acting", opsRoles: [{ opsRole: "external_lead" }] };
     mocks.idempotency.mockImplementation(async (_req, _member, _route, _payload, handler) => handler(mocks.tx));
     mocks.tx.company.findUnique.mockResolvedValue({ id: "c-1" });
     mocks.tx.company.findMany.mockResolvedValue([]);
@@ -56,7 +56,7 @@ describe("POST /projects", () => {
   });
 
   it("only the external lead or an admin can register", async () => {
-    mocks.member = { id: "m-1", role: "acting", opsRole: "external_member" };
+    mocks.member = { id: "m-1", role: "acting", opsRoles: [{ opsRole: "external_member" }] };
     await expect(create()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -147,7 +147,7 @@ describe("PATCH /projects/:id", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
-    mocks.member = { id: "lead-1", role: "acting", opsRole: "external_lead" };
+    mocks.member = { id: "lead-1", role: "acting", opsRoles: [{ opsRole: "external_lead" }] };
     mocks.idempotency.mockImplementation(async (_req, _member, _route, _payload, handler) => handler(mocks.tx));
     mocks.prisma.pastProject.findUnique.mockResolvedValue({ id: "p-1" });
     mocks.tx.pastProject.findUniqueOrThrow
@@ -158,7 +158,7 @@ describe("PATCH /projects/:id", () => {
 
   it("is lead-only and needs at least one field", async () => {
     await expect(patch({ expectedVersion: 1 })).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
-    mocks.member = { id: "m-1", role: "acting", opsRole: "external_member" };
+    mocks.member = { id: "m-1", role: "acting", opsRoles: [{ opsRole: "external_member" }] };
     await expect(patch({ expectedVersion: 1, status: "completed" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

@@ -12,12 +12,17 @@ const DIRECTORY_ITEM = { to: "/hr", label: "디렉토리" };
 const MY_REQUESTS_ITEM = { to: "/hr/requests", label: "내 수정 요청" };
 const ADMIN_ITEM = { to: "/hr/admin", label: "승인 큐" };
 
-export function HrNav({ role }: { role: Me["role"] }) {
+export function HrNav({ me }: { me: Pick<Me, "role" | "canReview"> }) {
   const { pathname } = useLocation();
   // admin은 CLI로 바로 만들어져 가입(claim) 절차를 거치지 않는 게 보통이라
   // 본인 프로필 자체가 없고, "내 수정 요청"이 항상 비어있는 화면이 된다 —
   // 그래서 admin에게는 이 탭을 아예 숨긴다(2026-09-28 결정, 사용자 확인).
-  const items = role === "admin" ? [DIRECTORY_ITEM, ADMIN_ITEM] : [DIRECTORY_ITEM, MY_REQUESTS_ITEM];
+  // 승인 큐는 admin과 PR 팀(팀장·팀원)에게 보인다 — PR 팀원은 자기 요청도 내므로 두 탭 다.
+  const items = [
+    DIRECTORY_ITEM,
+    ...(me.role === "admin" ? [] : [MY_REQUESTS_ITEM]),
+    ...(me.canReview ? [ADMIN_ITEM] : []),
+  ];
   return (
     <nav className="hr-nav">
       {items.map((item) => (

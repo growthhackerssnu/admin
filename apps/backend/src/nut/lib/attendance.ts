@@ -1,20 +1,15 @@
-import type { Member } from "@/generated/prisma";
+import { hasOpsRole, type MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { prisma } from "@/lib/prisma";
 
 // 출석체크. 예전 내부운영 시트의 '출석체크'·'벌점벌금' 탭을 옮겼다.
 // 보기는 NUT 회원 전원, 고치기는 회장단(회장·부회장)·총무·admin만.
-export function canEditAttendance(member: Member) {
-  return (
-    member.role === "admin" ||
-    member.opsRole === "president" ||
-    member.opsRole === "vice_president" ||
-    member.opsRole === "treasurer"
-  );
+export function canEditAttendance(member: MemberWithOpsRoles) {
+  return member.role === "admin" || hasOpsRole(member, "president", "vice_president", "treasurer");
 }
 
 // 출석체크 API 권한(withApiHandler의 access): GET은 전원, 쓰기는 위 사람들만.
 export const attendanceAccess = {
-  allow: (member: Member, method: string) => method === "GET" || canEditAttendance(member),
+  allow: (member: MemberWithOpsRoles, method: string) => method === "GET" || canEditAttendance(member),
   message: "출석체크 수정은 회장단·총무·관리자만 할 수 있습니다.",
 };
 

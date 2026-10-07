@@ -33,7 +33,8 @@ import { signOut } from "../../lib/supabase";
 
 type StatusFilter = "all" | EditRequestStatus;
 
-// 승인 큐(/hr/admin, ARCHITECTURE.md §12.4) — admin 전용. 벤치마크는
+// 승인 큐(/hr/admin, ARCHITECTURE.md §12.4) — admin과 PR 팀(팀장·팀원). 본인이 낸
+// 요청은 서버가 다른 검토자에게 넘기도록 거절한다. 벤치마크는
 // AdminMembers.tsx(Table+rowSelection 체크박스+Modal) 패턴(§12.4, 원래
 // 참고하려던 dh SourcingPage.tsx는 개편으로 없어짐).
 export function AdminQueue() {
@@ -201,7 +202,7 @@ export function AdminQueue() {
           <Button onClick={() => void signOut()}>로그아웃</Button>
         </div>
 
-        <HrNav role={me.role} />
+        <HrNav me={me} />
 
         <div className="filters">
           <Segmented
