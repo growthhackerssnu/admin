@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpsRole } from "@/generated/prisma";
-import { hasOpsRole, OFFICE_ROLES, opsRoleTitle, sortOpsRoles, TEAM_ROLES } from "./opsRoles";
+import { hasOpsRole, nextTeams, OFFICE_ROLES, opsRoleTitle, sortOpsRoles, TEAM_ROLES } from "./opsRoles";
 import { bulkRoleChangeSchema } from "./validation/admin";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
@@ -32,6 +32,22 @@ describe("운영팀 직책", () => {
   });
 });
 
+describe("팀원 바꾸기", () => {
+  const 총무 = [{ opsRole: "treasurer" }, { opsRole: "external_member" }] as { opsRole: OpsRole }[];
+
+  it("keeps teams a bulk edit didn't touch (여럿을 골라 에듀 팀원을 넣어도 대외협력은 남는다)", () => {
+    expect(nextTeams(총무, undefined, ["edu_member"], [])).toEqual(["external_member", "edu_member"]);
+  });
+
+  it("removes only the teams that were unticked", () => {
+    expect(nextTeams(총무, undefined, [], ["external_member"])).toEqual([]);
+  });
+
+  it("replaces the whole list for a single-member edit", () => {
+    expect(nextTeams(총무, ["pr_member"], [], [])).toEqual(["pr_member"]);
+  });
+});
+
 describe("승인 큐 권한", () => {
   it("lets admin and every PR team member review", () => {
     expect(canReviewEditRequests(member("admin"))).toBe(true);
@@ -56,8 +72,8 @@ describe("PATCH /admin/members/role 입력", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts a team-only change that keeps everyone's office (office omitted)", () => {
-    const parsed = bulkRoleChangeSchema.safeParse({ memberIds: ["m1", "m2"], role: "acting", teams: ["pr_member"] });
+  it("accepts a bulk team change that keeps everyone's office (office omitted)", () => {
+    const parsed = bulkRoleChangeSchema.safeParse({ memberIds: ["m1", "m2"], role: "acting", addTeams: ["pr_member"] });
     expect(parsed.success && parsed.data.role === "acting" && parsed.data.office).toBeUndefined();
   });
 

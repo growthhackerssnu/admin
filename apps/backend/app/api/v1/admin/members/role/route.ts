@@ -3,7 +3,7 @@ import { withApiHandler } from "@/portal/lib/apiHandler";
 import { requireAdmin } from "@/portal/lib/auth";
 import { ApiError, successBody } from "@/portal/lib/errors";
 import { withIdempotency } from "@/portal/lib/idempotency";
-import { isOfficeOpsRole, opsRoleTitle, sortOpsRoles } from "@/portal/lib/opsRoles";
+import { isOfficeOpsRole, nextTeams, opsRoleTitle, sortOpsRoles } from "@/portal/lib/opsRoles";
 import { bulkRoleChangeSchema } from "@/portal/lib/validation/admin";
 
 // PATCH /api/v1/admin/members/role — 여러 명을 한 번에 acting/alumni로 전환하고,
@@ -49,7 +49,21 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
 
     let rows: { memberId: string; opsRole: OpsRole; cohort: number | null }[] = [];
     if (change.role === "acting") {
-      const { teams } = change;
+      const { teams, addTeams = [], removeTeams = [] } = change;
+      // 여럿을 고르면 바꾼 팀만 넣고 뺀다 — 통째로 바꾸면 한 사람에게만 있던 팀이 지워진다.
+      if (teams && memberIds.length > 1) {
+        throw new ApiError("VALIDATION_ERROR", "여럿을 고르면 팀원 목록을 통째로 바꿀 수 없습니다. 넣거나 뺄 팀만 보내세요.", {
+          fieldErrors: { teams: "한 명일 때만" },
+        });
+      }
+      if (teams && (addTeams.length > 0 || removeTeams.length > 0)) {
+        throw new ApiError("VALIDATION_ERROR", "teams와 addTeams/removeTeams는 함께 보낼 수 없습니다.", {
+          fieldErrors: { teams: "둘 중 하나" },
+        });
+      }
+      if (addTeams.some((team) => removeTeams.includes(team))) {
+        throw new ApiError("VALIDATION_ERROR", "같은 팀을 넣고 동시에 뺄 수 없습니다.", { fieldErrors: { addTeams: "겹침" } });
+      }
       // 직책의 기수는 그 사람의 기수다(19기는 19기 회장만). 그핵드인 명단에 없으면 모른다(null).
       const officeCohort = Number(targets[0]?.claimedPersonEntry?.cohortNormalized) || null;
       const office = change.office ? { opsRole: change.office, cohort: officeCohort } : change.office;
@@ -85,7 +99,11 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
         const next = [
           ...kept.map((r) => ({ memberId: target.id, opsRole: r.opsRole, cohort: r.cohort })),
           ...(office ? [{ memberId: target.id, opsRole: office.opsRole, cohort: office.cohort }] : []),
-          ...teams.map((opsRole) => ({ memberId: target.id, opsRole, cohort: null })),
+          ...nextTeams(target.opsRoles, teams, addTeams, removeTeams).map((opsRole) => ({
+            memberId: target.id,
+            opsRole,
+            cohort: null,
+          })),
         ];
         if (next.length === 0) {
           throw new ApiError(
@@ -127,3 +145,4 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
 
   return result;
 });
+

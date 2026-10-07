@@ -84,3 +84,16 @@ export function hasOpsRole(member: { opsRoles: readonly { opsRole: OpsRole }[] }
 export function sortOpsRoles<T extends { opsRole: OpsRole }>(roles: readonly T[]): T[] {
   return [...roles].sort((a, b) => OPS_ROLES.indexOf(a.opsRole) - OPS_ROLES.indexOf(b.opsRole));
 }
+
+// 그 사람의 다음 팀원 목록. teams가 있으면 그걸로 바꾸고(한 명일 때), 없으면 지금 팀에
+// addTeams를 넣고 removeTeams를 뺀다(여럿일 때 — 각자 원래 있던 다른 팀은 그대로).
+export function nextTeams(
+  current: { opsRole: OpsRole }[],
+  teams: OpsRole[] | undefined,
+  addTeams: OpsRole[],
+  removeTeams: OpsRole[],
+): OpsRole[] {
+  if (teams) return teams;
+  const kept = current.map((r) => r.opsRole).filter((role) => !isOfficeOpsRole(role) && !removeTeams.includes(role));
+  return [...new Set([...kept, ...addTeams])];
+}

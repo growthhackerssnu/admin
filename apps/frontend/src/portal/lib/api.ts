@@ -137,15 +137,12 @@ export interface AdminMember {
 }
 
 // role과 운영팀 직책은 같이 바뀐다 — alumni가 되면 직책은 사라진다.
-// acting: teams로 팀원 목록을 바꾸고, office는 생략하면 각자 지금 직책을 그대로 둔다
-// (여럿을 골라 팀원만 바꿀 때), null이면 뺀다. 직책을 주는 건 한 명을 골랐을 때만.
 // 직책의 기수는 보내지 않는다 — 서버가 그 사람의 기수로 채운다(19기는 19기 회장만).
 export type RoleChange =
-  | {
-      role: "acting";
-      teams: OpsRole[];
-      office?: OpsRole | null;
-    }
+  // 한 명: teams로 팀원 목록을 통째로 바꾸고 office로 직책을 정한다(null이면 뺀다).
+  | { role: "acting"; teams: OpsRole[]; office: OpsRole | null }
+  // 여럿: 바꾼 팀만 넣고 뺀다. 각자 지금 직책과 다른 팀은 그대로다.
+  | { role: "acting"; addTeams: OpsRole[]; removeTeams: OpsRole[] }
   | { role: "alumni" };
 
 export function listAdminMembers(token: string) {

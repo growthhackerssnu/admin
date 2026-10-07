@@ -11,7 +11,9 @@ const memberIds = z.array(z.string().min(1)).min(1, "최소 한 명은 선택해
 // 가질 수 있다(src/portal/lib/opsRoles.ts).
 //
 // acting으로 둘 때:
-//   teams  — 팀원 목록. 선택한 사람들의 팀원 목록을 이걸로 바꾼다(빈 배열이면 팀원 없음).
+//   teams  — 팀원 목록. 그 사람의 팀원 목록을 이걸로 바꾼다(빈 배열이면 팀원 없음). 한 명일 때만.
+//   addTeams/removeTeams — 여럿을 골랐을 때: 이 팀만 넣고 뺀다. 각자 원래 있던 다른 팀은 그대로다
+//            (여럿을 teams로 통째로 바꾸면 한 사람에게만 있던 팀이 지워진다 — 2026-10-07 사고).
 //   office — 직책. 생략하면 각자 지금 직책을 그대로 둔다(여럿을 골라 팀원만 바꿀 때).
 //            null이면 직책을 뺀다. 직책을 주는 건 한 명을 골랐을 때만. 직책의 기수는 받지
 //            않는다 — 19기는 19기 회장만 될 수 있어서, 그 사람의 기수(그핵드인 명단)를 쓴다.
@@ -24,13 +26,17 @@ const teamRole = z.enum(TEAM_ROLES as [OpsRole, ...OpsRole[]], {
   invalid_type_error: "팀원 값이 올바르지 않습니다.",
 });
 
+const teamList = z
+  .array(teamRole)
+  .refine((teams) => new Set(teams).size === teams.length, "같은 팀이 두 번 들어 있습니다.");
+
 export const bulkRoleChangeSchema = z.discriminatedUnion("role", [
   z.object({
     memberIds,
     role: z.literal("acting"),
-    teams: z
-      .array(teamRole, { required_error: "팀원 목록을 보내야 합니다(없으면 빈 배열)." })
-      .refine((teams) => new Set(teams).size === teams.length, "같은 팀이 두 번 들어 있습니다."),
+    teams: teamList.optional(),
+    addTeams: teamList.optional(),
+    removeTeams: teamList.optional(),
     office: officeRole.nullable().optional(),
   }),
   z.object({

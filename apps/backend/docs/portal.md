@@ -31,7 +31,7 @@
 |---|---|
 | `GET /api/v1/me` | `{userId, email, displayName, role, redirectPath}`. (hr의 "내 정보"는 별도 경로 `GET /api/v1/people/me`) `redirectPath`는 role로 고정 결정(admin→`/admin`, acting→`/dh`, alumni→`/hr`) — 프론트가 로그인 직후 이 값으로만 리다이렉트하면 된다 |
 | `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, opsRoles(`[{opsRole, cohort}]`, 직책 → 팀원 순), active, createdAt, lastLoginAt |
-| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", teams, office?}` 또는 `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. `teams`는 팀원 목록(교체), `office`는 직책 이름(한 명일 때만, 기수는 그 사람의 기수)·`null`(뺀다)·생략(각자 지금 직책 유지). admin 대상 포함 시 전체 거부 |
+| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", teams, office}`(한 명) · `{memberIds, role: "acting", addTeams, removeTeams}`(여럿) · `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. 한 명: `teams`로 팀원 목록을 통째로 바꾸고 `office`는 직책 이름(기수는 그 사람의 기수)·`null`(뺀다)·생략(유지). 여럿: 바꾼 팀만 넣고 빼며 각자 직책·다른 팀은 그대로(통째로 바꾸는 `teams`는 거절). admin 대상 포함 시 전체 거부 |
 | `POST /api/v1/admin/members/deactivate` | (admin 전용) `{memberIds}` — 일괄 비활성화("삭제", 실제 행은 안 지움). admin 대상·본인 계정 거부 |
 | `POST /api/v1/admin/members/reactivate` | (admin 전용) `{memberIds}` — 비활성화를 되돌림 |
 

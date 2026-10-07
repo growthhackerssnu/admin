@@ -80,9 +80,12 @@ function opsRoleTitle(role: OpsRoleAssignment) {
 }
 
 // 직책의 기수는 고르지 않는다 — 19기는 19기 회장만 될 수 있어서 서버가 그 사람의 기수로 채운다.
+// initialTeams는 대화상자를 열 때 체크돼 있던 팀이다. 여럿을 골랐을 때는 여기서 바뀐 팀만
+// 보낸다(넣은 팀·뺀 팀) — 통째로 보내면 한 사람에게만 있던 팀이 지워진다.
 type OpsRoleDraft = {
   office: OpsRole | undefined;
   teams: OpsRole[];
+  initialTeams: OpsRole[];
 };
 
 function formatDate(value: string | null) {
@@ -105,6 +108,7 @@ export function AdminMembers() {
   const [opsRoleDraft, setOpsRoleDraft] = useState<OpsRoleDraft>({
     office: undefined,
     teams: [],
+    initialTeams: [],
   });
   const [adding, setAdding] = useState(false);
   const [newMember, setNewMember] = useState<{
@@ -245,31 +249,38 @@ export function AdminMembers() {
     // 한 명만 골랐으면 그 사람의 지금 직책·팀에서 시작한다. 여럿이면 모두가 함께 속한 팀에서.
     if (singleSelected) {
       const office = singleSelected.opsRoles.find((r) => OFFICE_ROLES.has(r.opsRole));
-      setOpsRoleDraft({
-        office: office?.opsRole,
-        teams: singleSelected.opsRoles
-          .filter((r) => !OFFICE_ROLES.has(r.opsRole))
-          .map((r) => r.opsRole),
-      });
+      const teams = singleSelected.opsRoles
+        .filter((r) => !OFFICE_ROLES.has(r.opsRole))
+        .map((r) => r.opsRole);
+      setOpsRoleDraft({ office: office?.opsRole, teams, initialTeams: teams });
     } else {
-      setOpsRoleDraft({
-        office: undefined,
-        teams: TEAM_ROLES.filter((team) =>
-          selectedMembers.every((m) => m.opsRoles.some((r) => r.opsRole === team)),
-        ),
-      });
+      const teams = TEAM_ROLES.filter((team) =>
+        selectedMembers.every((m) => m.opsRoles.some((r) => r.opsRole === team)),
+      );
+      setOpsRoleDraft({ office: undefined, teams, initialTeams: teams });
     }
     setOpsRoleModalOpen(true);
   }
 
+  // 여럿을 골랐을 때 넣을 팀과 뺄 팀. 체크 상태를 바꾸지 않은 팀은 각자 그대로다.
+  const addTeams = opsRoleDraft.teams.filter(
+    (t) => !opsRoleDraft.initialTeams.includes(t),
+  );
+  const removeTeams = opsRoleDraft.initialTeams.filter(
+    (t) => !opsRoleDraft.teams.includes(t),
+  );
+
   // 저장 후 직책이나 팀이 하나도 없는 사람이 생기면 안 된다(acting은 하나 이상).
-  const draftLeavesSomeoneEmpty =
-    opsRoleDraft.teams.length === 0 &&
-    (singleSelected
-      ? !opsRoleDraft.office
-      : selectedMembers.some(
-          (m) => !m.opsRoles.some((r) => OFFICE_ROLES.has(r.opsRole)),
-        ));
+  const draftLeavesSomeoneEmpty = singleSelected
+    ? opsRoleDraft.teams.length === 0 && !opsRoleDraft.office
+    : selectedMembers.some(
+        (m) =>
+          addTeams.length === 0 &&
+          !m.opsRoles.some(
+            (r) =>
+              OFFICE_ROLES.has(r.opsRole) || !removeTeams.includes(r.opsRole),
+          ),
+      );
   const draftInvalid = draftLeavesSomeoneEmpty;
 
   function submitOpsRole() {
@@ -278,14 +289,14 @@ export function AdminMembers() {
     setOpsRoleModalOpen(false);
     void withBusyReload(
       () =>
-        changeMemberRole(token!, selectedIds, {
-          role: "acting",
-          teams,
-          // 여럿을 골랐으면 office를 보내지 않는다 = 각자 지금 직책을 그대로 둔다.
-          ...(singleSelected
-            ? { office: office ?? null }
-            : {}),
-        }),
+        changeMemberRole(
+          token!,
+          selectedIds,
+          singleSelected
+            ? { role: "acting", teams, office: office ?? null }
+            : // 여럿이면 바뀐 팀만 보내고 office는 보내지 않는다 = 각자 지금 직책·다른 팀은 그대로.
+              { role: "acting", addTeams, removeTeams },
+        ),
       allSelectedActing
         ? "운영팀 직책을 변경했습니다."
         : "acting으로 변경했습니다.",
@@ -608,8 +619,8 @@ export function AdminMembers() {
             ) : (
               <Typography.Text type="secondary">
                 {selectedIds.length}명을 골랐습니다. 직책(임원·팀장)은 한 명씩
-                지정하고, 여기서는 각자 지금 직책을 그대로 둔 채 팀원만
-                바꿉니다.
+                지정합니다. 여기서 체크하거나 해제한 팀만 모두에게 넣고 빼며,
+                각자 지금 직책과 다른 팀은 그대로 둡니다.
               </Typography.Text>
             )}
             <div>
