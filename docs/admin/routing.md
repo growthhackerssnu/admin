@@ -11,8 +11,8 @@ admin.ghsnu.com  (Vercel, apps/frontend — 단일 SPA, 라우터 하나)
   /attendance                      출석체크(NUT 반기·API를 같이 쓴다)
         │  fetch + Authorization: Bearer <supabase access token>
         ▼
-api.ghsnu.com    (Railway, apps/backend — Next.js API 전용)
-  /api/auth/*  /api/v1/*  /api/inngest  /health
+api.ghsnu.com    (Cloud Run, apps/backend — Next.js API 전용)
+  /api/auth/*  /api/v1/*  /api/inngest  /api/health
 ```
 
 - **프론트**: 모든 화면이 `apps/frontend/src/main.tsx`의 라우트 하나에 들어 있다. 화면 간 이동(`SidePane`, 로그인 후 리다이렉트, 로그인 필요 시 `/login`)은 전부 React Router 내부 이동이라 새로고침이 없다. 루트 `vercel.json`이 모든 경로를 `index.html`로 돌린다(SPA fallback).

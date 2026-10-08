@@ -5,7 +5,7 @@
 `admin.ghsnu.com` 통합 어드민 포털(로그인·회원 관리 `/`·`/admin`, 대협봇 `/dh`, 그핵드인 `/hr`, NUT `/nut`)을 모노레포로 운영합니다. 배포 단위는 두 개입니다.
 
 - **프론트 — `admin.ghsnu.com`, Vercel 프로젝트 하나**(`apps/frontend`, 루트 `vercel.json`). 포털·대협봇·그핵드인·NUT이 라우터 하나를 쓰는 단일 SPA라 화면 간 이동에 새로고침이 없습니다. 설정은 [apps/frontend/README.md](apps/frontend/README.md).
-- **백엔드 — `api.ghsnu.com`, Railway 서비스 하나**(`apps/backend`, 루트 `railway.json`). 모든 API가 `/api/...` 아래에 있습니다. 설정은 [apps/backend/README.md](apps/backend/README.md).
+- **백엔드 — `api.ghsnu.com`, Cloud Run 서비스 하나**(`apps/backend`, 루트 `Dockerfile`, `.github/workflows/deploy-backend.yml`). 모든 API가 `/api/...` 아래에 있습니다. 설정은 [apps/backend/README.md](apps/backend/README.md).
 
 앱 간 공유 디자인 토큰·스타일은 `packages/ui-shell`, 인증 헬퍼는 `packages/auth`, DB 스키마·마이그레이션은 `packages/db`에 있습니다.
 

@@ -4,7 +4,7 @@
 
 ## 스택
 
-Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres · Supabase Auth(Google OAuth) · Inngest(비동기 작업) · Gemini API(리서치·초안 생성) · Railway 배포(서버 전체가 하나).
+Next.js 14 (App Router, Route Handlers만 사용) · Prisma + Supabase Postgres · Supabase Auth(Google OAuth) · Inngest(비동기 작업) · Gemini API(리서치·초안 생성) · Cloud Run 배포(서버 전체가 하나).
 
 ## 준비
 
