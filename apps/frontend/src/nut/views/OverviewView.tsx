@@ -28,7 +28,12 @@ export default function OverviewView({
       <div className="nut-balance">
         <div className="nut-balance__main">
           <span>지금 통장 잔액</span>
-          <strong>{money(data.currentCash)}</strong>
+          <strong>{money(data.carriedCash?.amount ?? data.currentCash)}</strong>
+          {data.carriedCash && (
+            <small>
+              아직 시작 전인 반기라 {data.carriedCash.label} 잔액을 보여줍니다
+            </small>
+          )}
         </div>
         <dl className="nut-balance__facts">
           <div>

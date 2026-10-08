@@ -1,6 +1,7 @@
 import { withApiHandler } from "@/nut/lib/apiHandler";
 import { ApiError } from "@/nut/lib/errors";
 import {
+  BILLINGS,
   createBudgetNode,
   reorderBudgetNodes,
   updateBudgetNode,
@@ -87,6 +88,11 @@ function nodeInput(body: Record<string, unknown>, partial = false) {
       body.note === null || body.note === ""
         ? null
         : stringValue(body.note, "note");
+  if (body.billing !== undefined) {
+    if (!BILLINGS.includes(body.billing as (typeof BILLINGS)[number]))
+      throw new ApiError("BAD_REQUEST", "billing must be every, spring, fall, or once.");
+    input.billing = body.billing;
+  }
   if (body.sortOrder !== undefined)
     input.sortOrder = numberValue(body.sortOrder, "sortOrder");
   return input;

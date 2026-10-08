@@ -1,6 +1,7 @@
 import type {
   AttendanceData,
   AttendanceType,
+  Billing,
   Excuse,
   FinanceOverview,
   TaxClass,
@@ -134,6 +135,7 @@ export type BudgetNodeInput = {
   budget: number;
   formulaExpression?: string | null;
   note?: string | null;
+  billing?: Billing;
 };
 
 export const budgetApi = {
@@ -142,7 +144,10 @@ export const budgetApi = {
   updateNode: (
     id: string,
     input: Partial<
-      Pick<BudgetNodeInput, "name" | "budget" | "formulaExpression" | "note">
+      Pick<
+        BudgetNodeInput,
+        "name" | "budget" | "formulaExpression" | "note" | "billing"
+      >
     >,
   ) => send("budget-nodes", "PATCH", { id, ...input }),
   removeNode: (id: string) => send("budget-nodes", "DELETE", { id }),

@@ -1,9 +1,14 @@
-import { Input, InputNumber, Popconfirm, Radio } from "antd";
+import { Input, InputNumber, Popconfirm, Radio, Select } from "antd";
 import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { budgetApi, createPeriod, incomeApi } from "../api";
 import { Meter, money, taxClassFor, useNut } from "../shared";
-import type { BudgetNode, FinanceOverview, IncomeLine } from "../types";
+import type {
+  Billing,
+  BudgetNode,
+  FinanceOverview,
+  IncomeLine,
+} from "../types";
 
 // 계산식을 설정 이름으로 읽기 쉽게: "summer-support-per-person * summer-participants"
 // → "팀지원비 (1인당) × 방학 프로젝트 참여 인원".
@@ -32,6 +37,48 @@ function readableFormula(data: FinanceOverview, expression: string) {
     .replaceAll("*", "×")
     .replaceAll("/", "÷");
 }
+
+// 같은 계산식에 지금 설정 값을 넣어 보여준다: "20,000원 × 올림((13명 + 13명) ÷ 2)".
+// 메모에 숫자를 따로 적지 않아도 설정을 바꾸면 바로 맞는 계산 내역이 나온다.
+function formulaWithValues(data: FinanceOverview, expression: string) {
+  const values = new Map<string, string>([
+    ...data.parameters.map(
+      (parameter) =>
+        [parameter.id, withUnit(parameter.value, parameter.unit)] as [
+          string,
+          string,
+        ],
+    ),
+    ...data.derivedParameters.map(
+      (derived) =>
+        [derived.id, withUnit(derived.value, derived.unit)] as [
+          string,
+          string,
+        ],
+    ),
+  ]);
+  return readableFormula(
+    data,
+    expression.replace(
+      /[a-z][a-z0-9-]*/g,
+      (name) => values.get(name) ?? name,
+    ),
+  );
+}
+
+function withUnit(value: number, unit: string) {
+  const number = value.toLocaleString("ko-KR");
+  if (unit === "$") return `$${number}`;
+  if (unit === "원/$") return `${number}원`;
+  return `${number}${unit}`;
+}
+
+export const billingLabel: Record<Billing, string> = {
+  every: "매 반기",
+  spring: "봄·여름 반기만",
+  fall: "가을·겨울 반기만",
+  once: "이번 반기만",
+};
 
 const levelBelow = { major: "middle", middle: "minor" } as const;
 const levelName = {
@@ -85,6 +132,8 @@ export default function BudgetView({
 
   return (
     <div className="nut-budget">
+      <ProjectedBalance />
+
       <section className="nut-panel" aria-labelledby="expense-budget">
         <header className="nut-panel__head">
           <div>
@@ -164,6 +213,63 @@ export default function BudgetView({
   );
 }
 
+// 예상 잔액: 반기 말에 남을 돈 = 기초 잔액 + 수입 계획 − 지출 예산.
+// 실제 기준(지금 잔액 + 아직 안 들어온 수입 − 아직 안 쓴 예산)도 같이 보여준다.
+function ProjectedBalance() {
+  const { data } = useNut();
+  const planned = data.openingCash + data.plan.income - data.plan.expense;
+  const incomeLeft = data.incomeLines.reduce(
+    (sum, line) => sum + Math.max(0, line.budget - line.actual),
+    0,
+  );
+  const leaves = data.budgetTree.filter(
+    (node) =>
+      node.kind === "expense" &&
+      !data.budgetTree.some((child) => child.parentId === node.id),
+  );
+  const expenseLeft = leaves.reduce(
+    (sum, node) => sum + Math.max(0, node.budget - node.actual),
+    0,
+  );
+  const started = data.ledger.length > 0;
+  const forecast = data.currentCash + incomeLeft - expenseLeft;
+  return (
+    <section className="nut-panel" aria-labelledby="projected-balance">
+      <header className="nut-panel__head">
+        <div>
+          <h2 id="projected-balance">예상 잔액</h2>
+          <p className="nut-panel__sub">
+            {data.openingCash ? `기초 잔액 ${money(data.openingCash)} + ` : ""}
+            수입 계획 {money(data.plan.income)} − 지출 예산{" "}
+            {money(data.plan.expense)}
+          </p>
+        </div>
+      </header>
+      <dl className="nut-balance__facts nut-projection">
+        <div>
+          <dt>예산안 기준 반기 말 잔액</dt>
+          <dd className={planned < 0 ? "nut-negative" : undefined}>
+            {money(planned)}
+          </dd>
+        </div>
+        {started && (
+          <div>
+            <dt>실제 기준 반기 말 잔액</dt>
+            <dd className={forecast < 0 ? "nut-negative" : undefined}>
+              {money(forecast)}
+              <small>
+                {" "}
+                지금 {money(data.currentCash)} + 들어올 수입{" "}
+                {money(incomeLeft)} − 남은 예산 {money(expenseLeft)}
+              </small>
+            </dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  );
+}
+
 function TreeRow({
   node,
   depth,
@@ -220,6 +326,15 @@ function TreeRow({
           )}
           <span>
             <strong>{node.name}</strong>
+            {node.billing !== "every" && (
+              <small className="nut-billing">
+                {billingLabel[node.billing]}
+                {node.offSeason && ` · 이번 반기 0원 (평소 ${money(node.amount)})`}
+              </small>
+            )}
+            {node.formulaExpression && (
+              <small>{formulaWithValues(data, node.formulaExpression)}</small>
+            )}
             {node.note && <small>{node.note}</small>}
             {node.formulaExpression && (
               <button
@@ -320,9 +435,10 @@ function NodeEditor({
   );
   const [value, setValue] = useState({
     name: node.name,
-    budget: node.budget,
+    budget: node.amount,
     formulaExpression: node.formulaExpression ?? "",
     note: node.note ?? "",
+    billing: node.billing,
   });
   return (
     <div className="nut-inline-form">
@@ -377,6 +493,24 @@ function NodeEditor({
           )}
         </>
       )}
+      <label>
+        결제 시기
+        <Select
+          value={value.billing}
+          options={(Object.keys(billingLabel) as Billing[]).map((billing) => ({
+            value: billing,
+            label: billingLabel[billing],
+          }))}
+          onChange={(billing) => setValue({ ...value, billing })}
+        />
+        <small>
+          {value.billing === "once"
+            ? "새 반기를 시작할 때 복사하지 않습니다."
+            : value.billing === "every"
+              ? "매 반기 예산에 잡힙니다."
+              : "다른 반기에는 0원으로 잡히고 금액은 남겨 둡니다."}
+        </small>
+      </label>
       <label className="nut-inline-form__wide">
         메모
         <Input
@@ -420,6 +554,7 @@ function NodeEditor({
                 budgetApi.updateNode(node.id, {
                   name: value.name.trim(),
                   note: value.note || null,
+                  billing: value.billing,
                   ...(hasChildren
                     ? {}
                     : mode === "formula"
@@ -662,6 +797,7 @@ function IncomeForm({
 }
 
 // 반기가 바뀔 때 한 번. 지금 보고 있는 반기의 예산 구조·계산 기준·운영팀을 복사해서 시작한다.
+// 기초 잔액은 복사하지 않는다 — 잔금은 '잔금' 수입 줄로 계획하고 인계될 때 수입으로 기록한다.
 function NewPeriod({ onCreated }: { onCreated: (id: string) => void }) {
   const { data, run } = useNut();
   const [open, setOpen] = useState(false);
@@ -686,8 +822,10 @@ function NewPeriod({ onCreated }: { onCreated: (id: string) => void }) {
         <div>
           <h2 id="new-period">새 반기 시작</h2>
           <p className="nut-panel__sub">
-            {data.period.label}의 예산 구조·계산 기준·운영팀 목록을 복사합니다.
-            기초 잔액은 지금 잔액 {money(data.currentCash)}입니다.
+            {data.period.label}의 예산 구조·계산 기준·운영팀 목록을 복사합니다
+            ('이번 반기만' 항목은 빼고). 기초 잔액은 0원에서 시작하고, 이번
+            반기 잔액({money(data.currentCash)})은 새 반기에 잔금 수입으로
+            기록합니다.
           </p>
         </div>
         {!open && <Button onClick={() => setOpen(true)}>새 반기 준비</Button>}

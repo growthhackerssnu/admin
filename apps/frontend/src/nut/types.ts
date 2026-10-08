@@ -9,6 +9,8 @@ export type LedgerType = "income" | "expense";
 export type ClaimStatus = "review" | "approved" | "paid" | "rejected";
 export type BucketKind = "income" | "expense" | "tax";
 export type BucketLevel = "major" | "middle" | "minor";
+// 언제 내는 돈인지: 매 반기, 봄·여름 반기만, 가을·겨울 반기만, 이번 반기만(새 반기로 복사하지 않음).
+export type Billing = "every" | "spring" | "fall" | "once";
 
 export interface BudgetNode {
   id: string;
@@ -23,6 +25,10 @@ export interface BudgetNode {
   remaining: number;
   variance: number;
   order: number;
+  // 항목 자체 금액(직접 입력 또는 계산식). 결제 시기가 아닌 반기에는 budget이 0이어도 이 값은 남는다.
+  amount: number;
+  billing: Billing;
+  offSeason: boolean;
   formula?: string;
   formulaKey?: string;
   formulaExpression?: string;
@@ -191,6 +197,8 @@ export interface FinanceOverview {
   fiscalYear: { label: string; start: string; end: string };
   openingCash: number;
   currentCash: number;
+  // 아직 시작하지 않은 반기에서만: 지금 통장 잔액 = 바로 전 반기의 잔액.
+  carriedCash?: { periodId: string; label: string; amount: number };
   incomeBudget: number;
   incomeActual: number;
   expenseBudget: number;

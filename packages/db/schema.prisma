@@ -1665,6 +1665,8 @@ model NutBudgetNode {
   formulaExpression String? @map("formula_expression")
   note       String?
   active     Boolean        @default(true)
+  // 언제 내는 돈인지: every(매 반기), spring(봄·여름 반기만), fall(가을·겨울 반기만), once(이번 반기만 — 새 반기로 복사하지 않는다).
+  billing    String         @default("every")
 
   @@index([periodId, parentId, sortOrder])
   @@map("budget_nodes")

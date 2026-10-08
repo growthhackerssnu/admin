@@ -28,6 +28,8 @@ All require `Authorization: Bearer <Supabase access token>`; without it, `401` i
 
 이름은 환급 계좌 명단에서 Slack 이메일로 찾는다. 날짜는 실행한 날(한국 시간)이다.
 
+Budget nodes carry a `billing` value: `every` (every half-year), `spring` / `fall` (counted only in a half-year starting Jan–Jun / Jul–Dec; otherwise `budget` is 0 but `amount` keeps the item's own value), or `once` (not copied by `POST /periods`). A new period starts with an opening balance of 0 — the previous balance comes in as a '잔금' income line. Until a period starts and has ledger rows, `carriedCash` reports the previous period's balance.
+
 Every successful mutation returns the refreshed `FinanceOverview` contract. `remaining` is `budget - actual`; `variance` is `actual - budget`, so a positive expense variance means over budget.
 
 ```sh

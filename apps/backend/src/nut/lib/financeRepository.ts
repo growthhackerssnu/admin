@@ -234,7 +234,25 @@ type NodeSnapshot = {
   formulaExpression: string | null;
   note: string | null;
   active: boolean;
+  billing: Billing;
 };
+
+// 언제 내는 돈인지. 연간 구독(CreatorLink·노션 등)이나 계절 단체복(반팔티·후리스)은 한쪽 반기에만 예산이 잡힌다.
+// once는 그 반기에만 쓰는 일회성 비용(법인화 비용 등)이라 새 반기로 복사하지 않는다.
+export type Billing = "every" | "spring" | "fall" | "once";
+export const BILLINGS: Billing[] = ["every", "spring", "fall", "once"];
+type Season = "spring" | "fall";
+
+// 1~6월에 시작하는 반기는 봄·여름(상반기), 7~12월은 가을·겨울(하반기).
+export function periodSeason(periodStart: Date): Season {
+  return periodStart.getUTCMonth() < 6 ? "spring" : "fall";
+}
+
+export function billedIn(billing: string, season: Season) {
+  return billing !== "spring" && billing !== "fall" ? true : billing === season;
+}
+
+const toBilling = (value: string): Billing => (BILLINGS.includes(value as Billing) ? (value as Billing) : "every");
 
 // 시트처럼 직접 입력하지 않고 다른 값으로 계산되는 기준. 산출식에서 이름 그대로 쓸 수 있다.
 // ponytail: 팀 구성이 바뀌면(예: 교육팀 추가) 여기 합계식을 고친다.
@@ -275,9 +293,11 @@ export function parameterValues(parameters: Array<{ id: string; value: number }>
   return values;
 }
 
+// amount는 항목 자체의 금액(직접 입력 또는 산출식), budget은 이번 반기에 잡히는 예산(결제 시기가 아니면 0)과 하위 합계.
 function calculateNodes(
   nodes: NodeSnapshot[],
   parameters: Array<{ id: string; value: number }>,
+  season: Season,
 ) {
   const values = parameterValues(parameters);
   const calculated = nodes.map((node) => {
@@ -285,12 +305,14 @@ function calculateNodes(
       node.formulaExpression,
       node.formulaKey,
     );
+    const amount = formulaExpression ? evaluateFormula(formulaExpression, values) : node.budget;
+    const offSeason = !billedIn(node.billing, season);
     return {
       ...node,
       formulaExpression,
-      budget: formulaExpression
-        ? evaluateFormula(formulaExpression, values)
-        : node.budget,
+      amount,
+      offSeason,
+      budget: offSeason ? 0 : amount,
     };
   });
   const byParent = new Map<string | null, NodeSnapshot[]>();
@@ -337,6 +359,9 @@ function serializeNode(node: ReturnType<typeof calculateNodes>[number]) {
     remaining: node.remaining,
     variance: node.variance,
     order: node.sortOrder,
+    amount: node.amount,
+    billing: node.billing,
+    offSeason: node.offSeason,
     formula: node.formula ?? undefined,
     formulaKey: node.formulaKey ?? undefined,
     formulaExpression: node.formulaExpression ?? undefined,
@@ -473,8 +498,9 @@ export async function getFinanceOverview(
     formulaExpression: node.formulaExpression,
     note: node.note,
     active: node.active,
+    billing: toBilling(node.billing),
   }));
-  const nodes = calculateNodes(nodeSnapshots, parameters);
+  const nodes = calculateNodes(nodeSnapshots, parameters, periodSeason(period.periodStart));
   const budgetTree = nodes.map(serializeNode);
   const expenseLines = budgetTree
     .filter((node) => node.kind === "expense" && node.level === "minor")
@@ -520,6 +546,18 @@ export async function getFinanceOverview(
   const income = ledger.reduce((sum, entry) => sum + entry.income, 0);
   const expense = ledger.reduce((sum, entry) => sum + entry.expense, 0);
   const currentCash = toNumber(period.openingCash) + income - expense;
+  // 아직 시작하지 않은 반기는 통장에 이 반기 돈이 없다. 지금 통장 잔액으로 바로 전 반기의 잔액을 보여준다
+  // (기초 잔액으로 복사하지 않는다 — 잔금은 시작 후 '잔금' 수입으로 들어온다).
+  const todayDate = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
+  const previous = periods.find((item) => item.periodEnd < period.periodStart);
+  const carriedCash =
+    period.periodStart > todayDate && !rawLedger.length && previous
+      ? await periodClosingCash(db, previous.id).then((amount) => ({
+          periodId: previous.id,
+          label: previous.label,
+          amount,
+        }))
+      : undefined;
   const incomeBudget = incomeLines.reduce((sum, line) => sum + toNumber(line.budget), 0);
   // 지출 예산도 저장값 대신 예산 트리(대분류 합계)에서 계산한다. 저장값은 가져오기 등으로 어긋날 수 있다.
   const expenseBudget = budgetTree
@@ -564,6 +602,7 @@ export async function getFinanceOverview(
     },
     openingCash: toNumber(period.openingCash),
     currentCash,
+    carriedCash,
     incomeBudget,
     incomeActual: income,
     expenseBudget,
@@ -664,6 +703,14 @@ export async function getFinanceOverview(
   };
 }
 
+async function periodClosingCash(db: DbClient, periodId: string) {
+  const [period, net] = await Promise.all([
+    db.nutFinancePeriod.findUniqueOrThrow({ where: { id: periodId }, select: { openingCash: true } }),
+    db.nutLedgerEntry.aggregate({ where: { periodId }, _sum: { income: true, expense: true } }),
+  ]);
+  return toNumber(period.openingCash) + toNumber(net._sum.income) - toNumber(net._sum.expense);
+}
+
 type TaxClass =
   | "non_taxable_gain"
   | "taxable_gain"
@@ -673,15 +720,21 @@ type TaxClass =
 
 // 예산 산출식(파라미터)으로 정해지는 예산액을 다시 계산해 저장하고, 반기 지출 예산 합계를 갱신한다.
 // 실제 지출(spent)은 저장하지 않고 조회 때 회계 내역에서 계산한다(getFinanceOverview).
+// 하위 항목이 없는 항목은 자기 금액(amount)을 저장한다 — 결제 시기가 아니라 0으로 잡혀도 금액은 남겨야 다음 해에 쓴다.
 async function syncBudgetRollups(tx: Prisma.TransactionClient, periodId: string) {
-  const [rawNodes, parameters] = await Promise.all([
+  const [period, rawNodes, parameters] = await Promise.all([
+    tx.nutFinancePeriod.findUniqueOrThrow({ where: { id: periodId }, select: { periodStart: true } }),
     tx.nutBudgetNode.findMany({ where: { periodId, active: true }, orderBy: { sortOrder: "asc" } }),
     tx.nutBudgetParameter.findMany({ where: { periodId } }),
   ]);
-  const calculated = calculateNodes(rawNodes.map(toSnapshot), parameters);
+  const calculated = calculateNodes(rawNodes.map(toSnapshot), parameters, periodSeason(period.periodStart));
+  const parents = new Set(calculated.map((node) => node.parentId));
   await Promise.all(
     calculated.map((node) =>
-      tx.nutBudgetNode.update({ where: { id: node.id }, data: { budget: BigInt(node.budget) } }),
+      tx.nutBudgetNode.update({
+        where: { id: node.id },
+        data: { budget: BigInt(parents.has(node.id) ? node.budget : node.amount) },
+      }),
     ),
   );
   const expenseBudget = calculated
@@ -706,6 +759,7 @@ function toSnapshot(node: Awaited<ReturnType<typeof prisma.nutBudgetNode.findMan
     formulaExpression: node.formulaExpression,
     note: node.note,
     active: node.active,
+    billing: toBilling(node.billing),
   };
 }
 
@@ -768,6 +822,7 @@ export async function createBudgetNode(
     formulaKey?: string | null;
     formulaExpression?: string | null;
     note?: string | null;
+    billing?: Billing;
   },
 ) {
   return prisma.$transaction(async (tx) => {
@@ -792,6 +847,7 @@ export async function createBudgetNode(
         formulaExpression: input.formulaExpression ?? null,
         note: input.note ?? null,
         active: true,
+        billing: input.billing ?? "every",
       },
     });
     await syncBudgetRollups(tx, periodId);
@@ -814,6 +870,7 @@ export async function updateBudgetNode(
     note: string | null;
     sortOrder: number;
     active: boolean;
+    billing: Billing;
   }>,
 ) {
   return prisma.$transaction(async (tx) => {
@@ -1094,7 +1151,8 @@ export async function deleteAccountingSummary(id: string) {
 // ---------- 반기 ----------
 
 // 새 반기는 이전 반기의 예산 구조·변수·운영팀 목록을 복사해서 시작한다(실제 지출은 0).
-// 기초 잔액은 이전 반기의 현재 잔액을 넘겨받는다.
+// 기초 잔액은 0이다. 이전 반기 잔액은 새 반기에 '잔금' 수입(잔금 인계)으로 들어온다(19기의 '26-1 잔금'처럼).
+// 일회성(once) 항목과, 하위 항목이 모두 일회성이라 비게 되는 상위 항목은 복사하지 않는다.
 export async function createPeriod(input: {
   id: string;
   label: string;
@@ -1104,11 +1162,6 @@ export async function createPeriod(input: {
 }) {
   return prisma.$transaction(async (tx) => {
     const source = await tx.nutFinancePeriod.findUniqueOrThrow({ where: { id: input.copyFromId } });
-    const net = await tx.nutLedgerEntry.aggregate({
-      where: { periodId: source.id },
-      _sum: { income: true, expense: true },
-    });
-    const openingCash = source.openingCash + (net._sum.income ?? 0n) - (net._sum.expense ?? 0n);
     const start = new Date(`${input.start}T00:00:00Z`);
     await tx.nutFinancePeriod.create({
       data: {
@@ -1121,12 +1174,12 @@ export async function createPeriod(input: {
         fiscalYearLabel: source.fiscalYearLabel,
         fiscalYearStart: source.fiscalYearStart,
         fiscalYearEnd: source.fiscalYearEnd,
-        openingCash,
-        currentCash: openingCash,
+        openingCash: 0n,
+        currentCash: 0n,
         incomeBudget: source.incomeBudget,
       },
     });
-    const [parameters, nodes, teams, incomeLines] = await Promise.all([
+    const [parameters, sourceNodes, teams, incomeLines] = await Promise.all([
       tx.nutBudgetParameter.findMany({ where: { periodId: source.id } }),
       tx.nutBudgetNode.findMany({ where: { periodId: source.id, active: true } }),
       tx.nutAccountingSummary.findMany({ where: { periodId: source.id, scope: "team" } }),
@@ -1134,11 +1187,13 @@ export async function createPeriod(input: {
     ]);
     // 설정은 기수에 묶이지 않으므로(운영/신입 기수) 그대로 복사하고, 항목 이름의 기수·학기만 한 칸 민다.
     await tx.nutBudgetParameter.createMany({ data: parameters.map((parameter) => ({ ...parameter, periodId: input.id })) });
+    const nodes = nodesToCarry(sourceNodes);
     const newIds = new Map(nodes.map((node) => [node.id, `budget-node-${crypto.randomUUID()}`]));
     await tx.nutBudgetNode.createMany({
       data: nodes.map((node) => ({
         ...node,
         name: advanceNames(node.name),
+        note: node.note ? advanceNames(node.note) : null,
         id: newIds.get(node.id)!,
         parentId: node.parentId ? (newIds.get(node.parentId) ?? null) : null,
         periodId: input.id,
@@ -1167,6 +1222,23 @@ export async function createPeriod(input: {
     await syncBudgetRollups(tx, input.id);
     return input.id;
   });
+}
+
+export function nodesToCarry<T extends { id: string; parentId: string | null; billing: string }>(nodes: T[]) {
+  const children = new Map<string | null, T[]>();
+  nodes.forEach((node) => children.set(node.parentId, [...(children.get(node.parentId) ?? []), node]));
+  const kept = new Set<string>();
+  const keep = (node: T): boolean => {
+    if (node.billing === "once") return false;
+    const below = children.get(node.id) ?? [];
+    // 모든 자식을 먼저 확인한다(some은 중간에 멈춘다).
+    const keptBelow = below.map(keep).filter(Boolean).length;
+    const result = !below.length || keptBelow > 0;
+    if (result) kept.add(node.id);
+    return result;
+  };
+  (children.get(null) ?? []).forEach(keep);
+  return nodes.filter((node) => kept.has(node.id));
 }
 
 // ---------- 환급 계좌 ----------

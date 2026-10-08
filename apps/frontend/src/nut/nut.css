@@ -292,6 +292,12 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+.nut-balance__main small {
+  display: block;
+  margin-top: 2px;
+  color: var(--nut-muted);
+  font-size: var(--ds-type-caption);
+}
 .nut-balance__facts {
   display: flex;
   flex-wrap: wrap;
@@ -637,6 +643,9 @@
 .nut-tree__name small {
   color: var(--nut-muted);
   font-size: var(--ds-type-caption);
+}
+.nut-tree__name small.nut-billing {
+  color: var(--nut-income);
 }
 .nut-tree__toggle {
   flex: 0 0 24px;
@@ -1129,4 +1138,9 @@ button.nut-tree__toggle:hover {
 .nut-vat__head strong {
   color: var(--ds-text-strong);
   font-size: var(--ds-type-body-2);
+}
+
+/* 예산 탭의 예상 잔액 */
+.nut-projection {
+  padding-top: var(--ds-space-2);
 }

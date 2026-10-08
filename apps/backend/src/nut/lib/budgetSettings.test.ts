@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceNames, evaluateFormula, fillCohort, parameterValues } from "./financeRepository";
+import { advanceNames, billedIn, evaluateFormula, fillCohort, nodesToCarry, parameterValues, periodSeason } from "./financeRepository";
 
 // 2026 하반기 내부운영 시트 '예산안'·'진행안'의 값. 설정을 옮긴 뒤에도 같은 예산이 나와야 한다.
 const sheet = parameterValues(
@@ -46,5 +46,25 @@ describe("budget settings", () => {
     const more = parameterValues([...sheet].filter(([id]) => !id.startsWith("cohort") && !id.endsWith("participants")).map(([id, value]) => ({ id, value: id === "hr-junior" ? 6 : value })));
     expect(more.get("cohort-junior")).toBe(14);
     expect(more.get("next-participants")).toBe(29);
+  });
+
+  it("bills seasonal items only in their half-year", () => {
+    expect(periodSeason(new Date("2027-01-01T00:00:00Z"))).toBe("spring");
+    expect(periodSeason(new Date("2026-07-01T00:00:00Z"))).toBe("fall");
+    expect(billedIn("spring", "spring")).toBe(true);
+    expect(billedIn("fall", "spring")).toBe(false);
+    expect(billedIn("every", "fall")).toBe(true);
+    expect(billedIn("once", "fall")).toBe(true);
+  });
+
+  it("drops one-off items, and parents left empty, when carrying to a new half-year", () => {
+    const kept = nodesToCarry([
+      { id: "major", parentId: null, billing: "every" },
+      { id: "etc", parentId: "major", billing: "every" },
+      { id: "incorporation", parentId: "etc", billing: "once" },
+      { id: "study", parentId: "major", billing: "every" },
+      { id: "notion", parentId: "study", billing: "spring" },
+    ]);
+    expect(kept.map((node) => node.id)).toEqual(["major", "study", "notion"]);
   });
 });

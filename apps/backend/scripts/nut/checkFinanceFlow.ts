@@ -57,7 +57,7 @@ const viewer = { memberId: "nobody", canEdit: true };
   // new period
   await r.createPeriod({ id: "2027-1h", label: "2027 상반기", start: "2027-01-01", end: "2027-06-30", copyFromId: p });
   const n = await r.getFinanceOverview("2027-1h", viewer);
-  assert.equal(n.openingCash, base); assert.equal(n.ledger.length, 0); assert.equal(n.budgetTree.length, o.budgetTree.length);
+  assert.equal(n.openingCash, 0, "new half-year starts without an opening balance"); assert.equal(n.ledger.length, 0); assert.equal(n.budgetTree.length, o.budgetTree.length);
   assert.ok(n.budgetTree.every(x => x.actual === 0)); assert.equal(n.parameters.length, o.parameters.length);
   assert.equal(n.periods.length, 2); assert.equal(n.accountingSummaries.filter(s => s.scope === "team").length, 5);
   assert.equal(n.period.operatingCohort, o.period.operatingCohort + 1, "next period is the next cohort");
