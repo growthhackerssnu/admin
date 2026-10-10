@@ -91,11 +91,13 @@ function parseAmount(value: Inputs["amount"]) {
   return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null;
 }
 
-// 양식의 법인카드 체크박스. 불리언으로 매핑하든 텍스트로 넣든(선택지 이름 "법인카드" 등) 읽는다.
+// 양식의 '청구 종류?' 드롭다운("학회카드 사용 후 내용 기록" / "개인카드 혹은 계좌이체 후 청구").
+// 불리언이나 다른 선택지 이름("법인카드" 등)으로 와도 읽는다.
 // 비어 있으면 개인 카드로 본다(영수증을 챙기는 쪽이 안전하다).
 function paidWithBizCard(value: Inputs["biz_card"]) {
   const text = (Array.isArray(value) ? value.join(",") : String(value ?? "")).trim();
-  return /^(true|yes|y|o|예|네)$/i.test(text) || /법인|biz|business|corporate/i.test(text);
+  if (/개인/.test(text)) return false;
+  return /^(true|yes|y|o|예|네)$/i.test(text) || /법인|학회\s*카드|biz|business|corporate/i.test(text);
 }
 
 // 영수증을 찾아볼 Slack 스레드. 화면에서 href로 쓰므로 Slack https 링크만 받는다.

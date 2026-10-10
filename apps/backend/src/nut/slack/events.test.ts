@@ -96,6 +96,11 @@ describe("POST /api/slack/events", () => {
     );
     await post(step("good", { biz_card: ["법인카드"] }));
     expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: false }));
+    // 실제 양식의 '청구 종류?' 드롭다운 두 선택지.
+    await post(step("good", { biz_card: "학회카드 사용 후 내용 기록" }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: false }));
+    await post(step("good", { biz_card: "개인카드 혹은 계좌이체 후 청구" }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: true }));
   });
 
   it("treats an unchecked box as a personal card and drops non-Slack links", async () => {

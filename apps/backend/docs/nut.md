@@ -32,7 +32,7 @@ All require `Authorization: Bearer <Supabase access token>`; without it, `401` i
 
 청구서 워크플로의 **NUT에 청구서 등록**(`register_nut_claim`) 단계에 두 칸을 더 넣는다(둘 다 선택):
 
-- `biz_card` — 양식의 법인카드 체크박스. 체크(`true`)거나 '법인'이 들어간 값이면 법인카드(`prepaid: false`, 돌려줄 돈 없음), 비우면 개인 카드(`prepaid: true`, 영수증 필요).
+- `biz_card` — 양식의 '청구 종류?' 드롭다운. '학회카드 사용 후 내용 기록'(또는 '법인'·`true`)이면 법인카드(`prepaid: false`, 돌려줄 돈 없음), '개인카드 혹은 계좌이체 후 청구'거나 비우면 개인 카드(`prepaid: true`, 영수증 필요). 잘못 들어온 건 청구서 탭의 카드 칩을 눌러 바꾼다.
 - `thread_link` — 영수증이 있는 Slack 메시지 링크. 이 단계 앞의 '메시지 보내기' 단계 출력인 '메시지 링크'를 넣는다. `https://*.slack.com/` 링크만 저장한다.
 
 청구서·거래 내역·세금 탭의 '분류 확인'에 결제 수단과 스레드 링크가 보이고, 세금 탭에서 법인카드/개인 카드로 거를 수 있다.

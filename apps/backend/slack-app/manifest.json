@@ -74,8 +74,8 @@
         },
         "biz_card": {
           "type": "string",
-          "title": "법인카드로 결제",
-          "description": "양식의 법인카드 체크박스(체크 = 법인카드). 비우면 개인 카드로 봅니다",
+          "title": "청구 종류",
+          "description": "양식의 '청구 종류?' 답. '학회카드'·'법인'이 들어가면 법인카드, 비우거나 '개인카드…'면 개인 카드로 봅니다",
           "is_required": false
         },
         "thread_link": {
