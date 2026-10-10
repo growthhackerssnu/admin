@@ -539,8 +539,7 @@
 }
 .nut-entry-editor label,
 .nut-inline-form label,
-.nut-form-grid > label:not(.ant-checkbox-wrapper),
-.nut-popover-form label {
+.nut-form-grid > label:not(.ant-checkbox-wrapper) {
   display: flex;
   flex-direction: column;
   gap: var(--layout-label-gap);
@@ -635,11 +634,13 @@
   justify-content: flex-end;
   gap: var(--ds-space-2);
 }
-.nut-popover-form {
-  display: flex;
-  width: 260px;
-  flex-direction: column;
-  gap: var(--ds-space-3);
+/* 지급·반려 양식은 행 아래 한 줄을 다 쓴다. */
+.nut-claim {
+  flex-wrap: wrap;
+}
+.nut-claim__form {
+  flex: 1 1 100%;
+  margin: 0;
 }
 
 /* ---------- 예산 ---------- */
@@ -722,7 +723,7 @@ button.nut-tree__toggle:hover {
 
 .nut-params {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: var(--ds-space-3) var(--layout-group-gap);
   margin: 0;
   padding: 0;
@@ -846,6 +847,68 @@ button.nut-tree__toggle:hover {
   }
   .nut-balance__main strong {
     font-size: var(--ds-type-headline-5);
+  }
+  /* 양식 칸은 한 줄에 하나씩. */
+  .nut-inline-form {
+    padding: var(--ds-space-3);
+  }
+  .nut-inline-form label,
+  .nut-inline-form__wide {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .nut-inline-form .nut-form-actions > * {
+    flex: 1 1 0;
+  }
+  /* 툴바: 검색·선택 칸이 남은 폭을 나눠 쓰고, 탭 모양 선택지는 넘치면 옆으로 민다. */
+  .nut-toolbar > * {
+    flex: 1 1 140px;
+    max-width: none;
+  }
+  .nut-toolbar__search {
+    flex-basis: 100%;
+  }
+  .nut-toolbar .ant-segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nut-toolbar__select,
+  .nut-toolbar__select--wide {
+    width: auto;
+  }
+  .nut-panel {
+    padding: var(--ds-space-4);
+  }
+  .nut-panel__head,
+  .nut-list__row {
+    flex-wrap: wrap;
+  }
+  .nut-list__end {
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+  }
+  .nut-tree__row {
+    grid-template-columns: minmax(0, 1fr) repeat(2, auto);
+    gap: var(--ds-space-2);
+  }
+  .nut-tax__lines > div {
+    flex-wrap: wrap;
+    gap: var(--ds-space-1) var(--ds-space-3);
+  }
+  .nut-tax__lines dd {
+    margin-left: auto;
+  }
+  .nut-tax__amount {
+    width: 170px;
+  }
+  .nut-entry {
+    gap: var(--ds-space-3);
+  }
+  .nut-entry__main strong {
+    white-space: normal;
   }
 }
 
@@ -1165,7 +1228,7 @@ button.nut-tree__toggle:hover {
 }
 .nut-vat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: var(--layout-group-gap);
 }
 .nut-vat__head {

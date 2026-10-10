@@ -1,5 +1,5 @@
 import { PersonLink } from "../../lib/PersonLink";
-import { Input, Popover, Segmented, Select } from "antd";
+import { Input, Segmented, Select } from "antd";
 import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { claimApi } from "../api";
@@ -88,6 +88,10 @@ function ClaimRow({ claim }: { claim: Claim }) {
   const { data, run } = useNut();
   const manage = data.viewer.canEdit;
   const uncategorized = claim.bucket === "미분류";
+  // 지급·반려 양식은 팝오버 대신 행 아래에 펼친다. 휴대폰에서 키보드·드롭다운이 떠도 양식이 화면 밖으로 밀리지 않는다.
+  const [form, setForm] = useState<"pay" | "reject" | null>(null);
+  const toggle = (next: "pay" | "reject") =>
+    setForm((current) => (current === next ? null : next));
   // 지급일은 총무가 고른 '보낸 날짜' = 거래 내역의 날짜.
   const paidOn = data.ledger.find(
     (entry) => entry.id === claim.ledgerEntryId,
@@ -147,7 +151,9 @@ function ClaimRow({ claim }: { claim: Claim }) {
           {manage &&
             (claim.status === "review" || claim.status === "approved") && (
               <>
-                <RejectButton claim={claim} />
+                <Button type="text" danger onClick={() => toggle("reject")}>
+                  반려
+                </Button>
                 {claim.status === "review" && !uncategorized && (
                   <Button
                     onClick={() =>
@@ -160,7 +166,9 @@ function ClaimRow({ claim }: { claim: Claim }) {
                     승인
                   </Button>
                 )}
-                <PayButton claim={claim} />
+                <Button type="primary" onClick={() => toggle("pay")}>
+                  {claim.prepaid ? "지급" : "기록"}
+                </Button>
               </>
             )}
           {manage && claim.status === "rejected" && (
@@ -178,6 +186,10 @@ function ClaimRow({ claim }: { claim: Claim }) {
           )}
         </div>
       </div>
+      {form === "reject" && (
+        <RejectForm claim={claim} onDone={() => setForm(null)} />
+      )}
+      {form === "pay" && <PayForm claim={claim} onDone={() => setForm(null)} />}
     </li>
   );
 }
@@ -206,54 +218,50 @@ function CardChip({ claim }: { claim: Claim }) {
   );
 }
 
-function RejectButton({ claim }: { claim: Claim }) {
+type FormProps = { claim: Claim; onDone: () => void };
+
+function RejectForm({ claim, onDone }: FormProps) {
   const { run } = useNut();
-  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      trigger="click"
-      title="반려 사유"
-      content={
-        <div className="nut-popover-form">
-          <Input.TextArea
-            autoFocus
-            rows={2}
-            placeholder="청구인에게 보이는 사유 (예: 영수증이 없습니다)"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-          />
-          <Button
-            type="primary"
-            danger
-            disabled={!reason.trim()}
-            onClick={async () => {
-              if (
-                await run(
-                  () => claimApi.reject(claim.id, reason),
-                  "반려했습니다.",
-                )
+    <div className="nut-inline-form nut-claim__form">
+      <label className="nut-inline-form__wide">
+        반려 사유
+        <Input.TextArea
+          autoFocus
+          rows={2}
+          placeholder="청구인에게 보이는 사유 (예: 영수증이 없습니다)"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </label>
+      <div className="nut-form-actions">
+        <Button type="text" onClick={onDone}>
+          취소
+        </Button>
+        <Button
+          type="primary"
+          danger
+          disabled={!reason.trim()}
+          onClick={async () => {
+            if (
+              await run(
+                () => claimApi.reject(claim.id, reason),
+                "반려했습니다.",
               )
-                setOpen(false);
-            }}
-          >
-            반려하기
-          </Button>
-        </div>
-      }
-    >
-      <Button type="text" danger>
-        반려
-      </Button>
-    </Popover>
+            )
+              onDone();
+          }}
+        >
+          반려하기
+        </Button>
+      </div>
+    </div>
   );
 }
 
-function PayButton({ claim }: { claim: Claim }) {
+function PayForm({ claim, onDone }: FormProps) {
   const { data, run } = useNut();
-  const [open, setOpen] = useState(false);
   const [date, setDate] = useState(defaultDate(data.period));
   const [bucket, setBucket] = useState(
     claim.bucket === "미분류" ? "" : claim.bucket,
@@ -263,77 +271,72 @@ function PayButton({ claim }: { claim: Claim }) {
   );
   const teams = teamsFor(data, bucket);
   return (
-    <Popover
-      open={open}
-      onOpenChange={setOpen}
-      trigger="click"
-      title={`${money(claim.amount)} ${claim.prepaid ? "지급" : "기록"}`}
-      content={
-        <div className="nut-popover-form">
-          <label>
-            {claim.prepaid ? "보낸 날짜" : "결제한 날짜"}
-            <Input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            />
-          </label>
-          <label>
-            예산 항목
-            <Select
-              showSearch
-              placeholder="어느 예산에서?"
-              value={bucket || undefined}
-              options={expenseCategories(data).map((node) => ({
-                value: node.name,
-                label: node.name,
-              }))}
-              onChange={(value) => {
-                setBucket(value);
-                setTeamId(defaultTeamId(data, value));
-              }}
-            />
-          </label>
-          {teams.length > 0 && (
-            <label>
-              어느 팀 돈인가요?
-              <Select
-                placeholder="팀 고르기"
-                value={teamId}
-                options={teams.map((team) => ({
-                  value: team.id,
-                  label: team.name,
-                }))}
-                onChange={setTeamId}
-              />
-            </label>
-          )}
-          <p className="nut-hint">
-            {claim.prepaid
-              ? "지급 완료로 바꾸고 거래 내역에 지출로 기록합니다."
-              : "법인카드 결제라 돌려줄 돈은 없습니다. 거래 내역에 지출로 기록합니다."}
-          </p>
-          <Button
-            type="primary"
-            disabled={!bucket || !date || (teams.length > 0 && !teamId)}
-            onClick={async () => {
-              if (
-                await run(
-                  () => claimApi.pay(claim.id, date, bucket, teamId),
-                  claim.prepaid
-                    ? `${claim.claimant}님에게 ${money(claim.amount)} 지급을 기록했습니다.`
-                    : `법인카드 ${money(claim.amount)} 결제를 기록했습니다.`,
-                )
+    <div className="nut-inline-form nut-claim__form">
+      <label>
+        {claim.prepaid ? "보낸 날짜" : "결제한 날짜"}
+        <Input
+          type="date"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+        />
+      </label>
+      <label>
+        예산 항목
+        <Select
+          showSearch
+          placeholder="어느 예산에서?"
+          value={bucket || undefined}
+          options={expenseCategories(data).map((node) => ({
+            value: node.name,
+            label: node.name,
+          }))}
+          onChange={(value) => {
+            setBucket(value);
+            setTeamId(defaultTeamId(data, value));
+          }}
+        />
+      </label>
+      {teams.length > 0 && (
+        <label>
+          어느 팀 돈인가요?
+          <Select
+            placeholder="팀 고르기"
+            value={teamId}
+            options={teams.map((team) => ({
+              value: team.id,
+              label: team.name,
+            }))}
+            onChange={setTeamId}
+          />
+        </label>
+      )}
+      <p className="nut-hint nut-inline-form__wide">
+        {claim.prepaid
+          ? `${money(claim.amount)}을 지급 완료로 바꾸고 거래 내역에 지출로 기록합니다.`
+          : `법인카드 결제라 돌려줄 돈은 없습니다. ${money(claim.amount)}을 거래 내역에 지출로 기록합니다.`}
+      </p>
+      <div className="nut-form-actions">
+        <Button type="text" onClick={onDone}>
+          취소
+        </Button>
+        <Button
+          type="primary"
+          disabled={!bucket || !date || (teams.length > 0 && !teamId)}
+          onClick={async () => {
+            if (
+              await run(
+                () => claimApi.pay(claim.id, date, bucket, teamId),
+                claim.prepaid
+                  ? `${claim.claimant}님에게 ${money(claim.amount)} 지급을 기록했습니다.`
+                  : `법인카드 ${money(claim.amount)} 결제를 기록했습니다.`,
               )
-                setOpen(false);
-            }}
-          >
-            {claim.prepaid ? "지급 완료" : "기록"}
-          </Button>
-        </div>
-      }
-    >
-      <Button type="primary">{claim.prepaid ? "지급" : "기록"}</Button>
-    </Popover>
+            )
+              onDone();
+          }}
+        >
+          {claim.prepaid ? "지급 완료" : "기록"}
+        </Button>
+      </div>
+    </div>
   );
 }
