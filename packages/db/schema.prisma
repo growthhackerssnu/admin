@@ -1794,7 +1794,9 @@ model NutClaim {
   bucket             String
   status             NutClaimStatus
   source             String
+  // true = 개인이 먼저 내고 돌려받음(영수증 필요), false = 법인카드 결제.
   prepaid            Boolean        @default(false)
+  slackLink          String?        @map("slack_link")
   memberId           String?        @map("member_id")
   bankAccount        String?        @map("bank_account")
   note               String?

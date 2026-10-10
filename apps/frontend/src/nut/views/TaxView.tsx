@@ -2,6 +2,7 @@ import {
   App as AntApp,
   Alert,
   InputNumber,
+  Segmented,
   Select,
   Skeleton,
   Switch,
@@ -20,6 +21,7 @@ export default function TaxView() {
   const canEdit = data.viewer.canEdit;
   const [tax, setTax] = useState<TaxOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [card, setCard] = useState<"all" | "biz" | "personal">("all");
 
   const load = useCallback(async (fy?: number) => {
     try {
@@ -63,6 +65,12 @@ export default function TaxView() {
 
   const c = tax.corporate;
   const fyLabel = (fy: number) => `${fy} 회계연도`;
+  const shown = tax.entries.filter(
+    (entry) => card === "all" || entry.card === card,
+  );
+  const missingReceipts = shown.filter(
+    (entry) => entry.card === "personal" && !entry.slackLink,
+  ).length;
   return (
     <div className="nut-tax">
       <div className="nut-toolbar">
@@ -334,13 +342,63 @@ export default function TaxView() {
             </p>
           </div>
         </header>
+        <div className="nut-toolbar">
+          <Segmented
+            value={card}
+            options={[
+              { value: "all", label: "전체" },
+              { value: "biz", label: "법인카드" },
+              { value: "personal", label: "개인 카드" },
+            ]}
+            onChange={(value) => setCard(value as typeof card)}
+          />
+          {card !== "all" && (
+            <p className="nut-summary-line">
+              {shown.length}건 ·{" "}
+              {money(shown.reduce((sum, entry) => sum + entry.amount, 0))}
+              {missingReceipts > 0 && (
+                <span className="nut-negative">
+                  {" "}
+                  · 영수증 스레드 없음 {missingReceipts}건
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+        {card !== "all" && (
+          <p className="nut-hint">
+            청구서로 들어온 지출만 결제 수단을 압니다. 직접 적은 거래는
+            &apos;전체&apos;에서 보입니다.
+          </p>
+        )}
         <ul className="nut-list">
-          {tax.entries.map((entry) => (
+          {shown.map((entry) => (
             <li key={entry.id} className="nut-list__row">
               <div>
                 <strong>{entry.detail}</strong>
                 <span>
                   {shortDate(entry.date)} · {entry.bucket}
+                  {entry.card === "biz" && " · 법인카드"}
+                  {entry.card === "personal" && " · 개인 카드"}
+                  {entry.slackLink ? (
+                    <>
+                      {" · "}
+                      <a
+                        href={entry.slackLink}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Slack 스레드
+                      </a>
+                    </>
+                  ) : (
+                    entry.card === "personal" && (
+                      <span className="nut-negative">
+                        {" "}
+                        · 영수증 스레드 없음
+                      </span>
+                    )
+                  )}
                 </span>
               </div>
               <div className="nut-list__end">

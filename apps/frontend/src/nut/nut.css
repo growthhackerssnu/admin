@@ -460,6 +460,11 @@
   outline: 2px solid var(--ds-focus);
   outline-offset: -2px;
 }
+.nut-entry__link {
+  display: inline-block;
+  padding-bottom: var(--ds-space-2);
+  font-size: var(--ds-type-caption);
+}
 .nut-entry__end {
   display: flex;
   flex-shrink: 0;

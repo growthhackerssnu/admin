@@ -100,6 +100,8 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
     prisma.nutAttendanceReset.findFirst({ orderBy: { createdAt: "desc" } }),
   ]);
   const clearedThrough = reset ? dateOnly(reset.clearedThrough) : null;
+  // 동명이인: alumni와 acting에 같은 이름이 있으면 acting 쪽 기록이 합계에서 빠지지 않게 한다.
+  const actingNames = new Set(roster.filter((member) => member.role === "acting" && member.active).map((member) => member.displayName));
   return {
     period: { id: period.id, label: period.label, start: dateOnly(period.periodStart), end: dateOnly(period.periodEnd) },
     periods,
@@ -111,7 +113,7 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
         cohort: member.claimedPersonEntry ? `${member.claimedPersonEntry.cohort}기` : null,
       }))
       .sort((a, b) => (parseInt(a.cohort ?? "", 10) || 999) - (parseInt(b.cohort ?? "", 10) || 999) || a.name.localeCompare(b.name, "ko")),
-    formerNames: roster.filter((member) => member.role !== "acting" || !member.active).map((member) => member.displayName),
+    formerNames: roster.filter((member) => !actingNames.has(member.displayName)).map((member) => member.displayName),
     // 이 날짜까지의 기록은 초기화돼서 벌점·벌금 합계에 넣지 않는다(기록은 남는다).
     clearedThrough,
     sessionMinutes: rules.sessionMinutes,

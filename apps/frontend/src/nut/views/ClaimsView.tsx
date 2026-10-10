@@ -19,6 +19,7 @@ type Filter = "todo" | "mine" | ClaimStatus | "all";
 
 // 청구서: Slack 청구서 워크플로로 들어온 청구를 총무가 승인·반려·지급한다.
 // 지급하면 거래 내역에 자동으로 기록된다. 다른 회원은 진행 상황만 본다.
+// 법인카드 결제는 돌려줄 돈 없이 기록만 하고, 개인 카드 결제는 영수증이 있는 Slack 스레드를 잇는다.
 export default function ClaimsView() {
   const { data } = useNut();
   const manage = data.viewer.canEdit;
@@ -108,7 +109,22 @@ function ClaimRow({ claim }: { claim: Claim }) {
           </span>
           {claim.source === "Slack" ? " · Slack으로 접수" : ""}
         </span>
-        {claim.bankAccount && (
+        <span className="nut-claim__meta">
+          {claim.prepaid ? "개인 카드 · 돌려줄 돈" : "법인카드"}
+          {claim.slackLink ? (
+            <>
+              {" · "}
+              <a href={claim.slackLink} target="_blank" rel="noreferrer">
+                Slack 스레드
+              </a>
+            </>
+          ) : (
+            claim.prepaid && (
+              <span className="nut-negative"> · 영수증 스레드 없음</span>
+            )
+          )}
+        </span>
+        {claim.prepaid && claim.bankAccount && (
           <span className="nut-claim__meta">입금 계좌 {claim.bankAccount}</span>
         )}
         {claim.note && (
@@ -121,7 +137,8 @@ function ClaimRow({ claim }: { claim: Claim }) {
         )}
         {claim.status === "paid" && paidOn && (
           <span className="nut-claim__meta">
-            {shortDate(paidOn)} 지급 · 거래 내역에 기록됨
+            {shortDate(paidOn)} {claim.prepaid ? "지급" : "결제"} · 거래 내역에
+            기록됨
           </span>
         )}
       </div>
@@ -227,11 +244,11 @@ function PayButton({ claim }: { claim: Claim }) {
       open={open}
       onOpenChange={setOpen}
       trigger="click"
-      title={`${money(claim.amount)} 지급`}
+      title={`${money(claim.amount)} ${claim.prepaid ? "지급" : "기록"}`}
       content={
         <div className="nut-popover-form">
           <label>
-            보낸 날짜
+            {claim.prepaid ? "보낸 날짜" : "결제한 날짜"}
             <Input
               type="date"
               value={date}
@@ -269,7 +286,9 @@ function PayButton({ claim }: { claim: Claim }) {
             </label>
           )}
           <p className="nut-hint">
-            지급 완료로 바꾸고 거래 내역에 지출로 기록합니다.
+            {claim.prepaid
+              ? "지급 완료로 바꾸고 거래 내역에 지출로 기록합니다."
+              : "법인카드 결제라 돌려줄 돈은 없습니다. 거래 내역에 지출로 기록합니다."}
           </p>
           <Button
             type="primary"
@@ -278,18 +297,20 @@ function PayButton({ claim }: { claim: Claim }) {
               if (
                 await run(
                   () => claimApi.pay(claim.id, date, bucket, teamId),
-                  `${claim.claimant}님에게 ${money(claim.amount)} 지급을 기록했습니다.`,
+                  claim.prepaid
+                    ? `${claim.claimant}님에게 ${money(claim.amount)} 지급을 기록했습니다.`
+                    : `법인카드 ${money(claim.amount)} 결제를 기록했습니다.`,
                 )
               )
                 setOpen(false);
             }}
           >
-            지급 완료
+            {claim.prepaid ? "지급 완료" : "기록"}
           </Button>
         </div>
       }
     >
-      <Button type="primary">지급</Button>
+      <Button type="primary">{claim.prepaid ? "지급" : "기록"}</Button>
     </Popover>
   );
 }

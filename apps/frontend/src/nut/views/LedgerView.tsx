@@ -343,7 +343,9 @@ export default function LedgerView() {
                                 </span>
                               ) : null}
                               {entry.claimant ? ` · ${entry.claimant}` : ""}
-                              {entry.claimId ? " · 청구서로 지급" : ""}
+                              {entry.claimId ? (
+                                <ClaimNote claimId={entry.claimId} />
+                              ) : null}
                               {entry.note ? ` · ${entry.note}` : ""}
                             </span>
                           </span>
@@ -362,6 +364,7 @@ export default function LedgerView() {
                             </span>
                           </span>
                         </EntryShell>
+                        <ClaimThreadLink claimId={entry.claimId} />
                       </li>
                     ),
                   )}
@@ -571,4 +574,23 @@ function LedgerEditor({
       </div>
     </li>
   );
+}
+
+// 청구서에서 온 행: 법인카드인지 개인 카드인지, 영수증이 있는 Slack 스레드(세금 신고 때 찾아본다).
+// 행 전체가 수정 버튼이라 링크는 버튼 밖, 행 아래에 둔다.
+function ClaimNote({ claimId }: { claimId: string }) {
+  const { data } = useNut();
+  const claim = data.claims.find((item) => item.id === claimId);
+  if (!claim) return <> · 청구서로 지급</>;
+  return <>{claim.prepaid ? " · 청구서로 지급(개인 카드)" : " · 법인카드"}</>;
+}
+
+function ClaimThreadLink({ claimId }: { claimId?: string }) {
+  const { data } = useNut();
+  const link = data.claims.find((item) => item.id === claimId)?.slackLink;
+  return link ? (
+    <a className="nut-entry__link" href={link} target="_blank" rel="noreferrer">
+      Slack 스레드 (영수증)
+    </a>
+  ) : null;
 }

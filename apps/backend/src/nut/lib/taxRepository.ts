@@ -107,6 +107,14 @@ export async function getTaxOverview(requestedFy?: number | null) {
     const date = dateOnly(entry.transactionDate);
     return date >= range.start && date <= range.end;
   });
+  // 청구서로 들어온 지출은 법인카드인지 개인 카드인지, 영수증 Slack 스레드가 어딘지 안다(직접 적은 행은 모른다).
+  const claims = await prisma.nutClaim.findMany({
+    where: { ledgerEntryId: { in: inFy.map((entry) => entry.id) } },
+    select: { ledgerEntryId: true, prepaid: true, slackLink: true },
+  });
+  const claimByLedger = new Map(claims.map((claim) => [claim.ledgerEntryId!, claim]));
+  const cardOf = (claim?: { prepaid: boolean; slackLink: string | null }) =>
+    claim ? { card: claim.prepaid ? ("personal" as const) : ("biz" as const), slackLink: claim.slackLink ?? undefined } : {};
 
   const sum = (rows: typeof entries, taxClass: string, field: "income" | "expense") =>
     rows.filter((row) => row.taxClass === taxClass).reduce((total, row) => total + toNumber(row[field]), 0);
@@ -170,6 +178,7 @@ export async function getTaxOverview(requestedFy?: number | null) {
     vat,
     withholding: withheld,
     entries: inFy.map((entry) => ({
+      ...cardOf(claimByLedger.get(entry.id)),
       id: entry.id,
       date: dateOnly(entry.transactionDate),
       type: entry.type,

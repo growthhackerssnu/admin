@@ -59,6 +59,8 @@ type Inputs = {
   bank_account?: string;
   bucket?: string;
   note?: string;
+  biz_card?: boolean | string | string[];
+  thread_link?: string;
 };
 
 async function slack(method: string, token: string, body: Record<string, unknown>) {
@@ -87,6 +89,19 @@ async function slack(method: string, token: string, body: Record<string, unknown
 function parseAmount(value: Inputs["amount"]) {
   const amount = typeof value === "number" ? value : Number(String(value ?? "").replace(/[^\d.]/g, ""));
   return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null;
+}
+
+// 양식의 법인카드 체크박스. 불리언으로 매핑하든 텍스트로 넣든(선택지 이름 "법인카드" 등) 읽는다.
+// 비어 있으면 개인 카드로 본다(영수증을 챙기는 쪽이 안전하다).
+function paidWithBizCard(value: Inputs["biz_card"]) {
+  const text = (Array.isArray(value) ? value.join(",") : String(value ?? "")).trim();
+  return /^(true|yes|y|o|예|네)$/i.test(text) || /법인|biz|business|corporate/i.test(text);
+}
+
+// 영수증을 찾아볼 Slack 스레드. 화면에서 href로 쓰므로 Slack https 링크만 받는다.
+function slackLinkOf(value: Inputs["thread_link"]) {
+  const link = value?.trim() ?? "";
+  return /^https:\/\/[\w-]+\.slack\.com\//.test(link) ? link : null;
 }
 
 type RollCallInputs = {
@@ -153,8 +168,9 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
     bucket: inputs.bucket?.trim() || "미분류",
     // 양식에 계좌가 없으면 환급 계좌 명단(NUT '환급 계좌' 탭)에서 채운다.
     bankAccount: inputs.bank_account?.trim() || account?.bankAccount || null,
-    // 청구서는 모두 선결제 후지급이다(회원이 먼저 내고 학회가 돌려준다).
-    prepaid: true,
+    // 개인 카드면 선결제 후지급(회원이 먼저 내고 학회가 돌려준다), 법인카드면 돌려줄 돈이 없다.
+    prepaid: !paidWithBizCard(inputs.biz_card),
+    slackLink: slackLinkOf(inputs.thread_link),
     note: inputs.note?.trim() || null,
     source: "Slack",
   });

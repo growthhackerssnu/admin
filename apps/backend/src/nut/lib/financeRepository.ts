@@ -668,6 +668,7 @@ export async function getFinanceOverview(
         status: claim.status,
         source: claim.source,
         prepaid: claim.prepaid,
+        slackLink: claim.slackLink ?? undefined,
         mine: claim.memberId === viewer.memberId,
         bankAccount: canSeeAccount ? (claim.bankAccount ?? fallback ?? undefined) : undefined,
         note: claim.note ?? undefined,
@@ -1010,6 +1011,7 @@ export async function createClaim(
     bucket: string;
     bankAccount?: string | null;
     prepaid: boolean;
+    slackLink?: string | null;
     note?: string | null;
     source: "NUT" | "Slack";
   },
@@ -1029,6 +1031,7 @@ export async function createClaim(
       bucket: input.bucket,
       bankAccount: input.bankAccount || null,
       prepaid: input.prepaid,
+      slackLink: input.slackLink || null,
       note: input.note || null,
       status: "review",
       source: input.source,

@@ -41,14 +41,14 @@ vi.mock("@/nut/lib/attendance", () => ({ recordRollCall, recordArrival: vi.fn(as
 const { POST } = await import("../../../app/api/slack/events/route");
 const post = (payload: unknown) =>
   POST(new Request("http://localhost/api/slack/events", { method: "POST", body: JSON.stringify(payload) }));
-const step = (token: string) => ({
+const step = (token: string, extra: Record<string, unknown> = {}) => ({
   type: "event_callback",
   event: {
     type: "function_executed",
     function: { callback_id: "register_nut_claim" },
     function_execution_id: "Fx1",
     bot_access_token: token,
-    inputs: { claimant: "U1", date: "2026-10-06", detail: "루키 다과", amount: "23,500원" },
+    inputs: { claimant: "U1", date: "2026-10-06", detail: "루키 다과", amount: "23,500원", ...extra },
   },
 });
 
@@ -86,6 +86,21 @@ describe("POST /api/slack/events", () => {
     findRefundAccount.mockResolvedValueOnce(null);
     await post(step("good"));
     expect(createClaim).toHaveBeenCalledWith("2026-2h", expect.objectContaining({ claimant: "홍길동", bankAccount: null }));
+  });
+
+  it("marks biz card claims as not prepaid and keeps the Slack thread link", async () => {
+    await post(step("good", { biz_card: "true", thread_link: "https://ghsnu.slack.com/archives/C1/p1700000000000100" }));
+    expect(createClaim).toHaveBeenCalledWith(
+      "2026-2h",
+      expect.objectContaining({ prepaid: false, slackLink: "https://ghsnu.slack.com/archives/C1/p1700000000000100" }),
+    );
+    await post(step("good", { biz_card: ["법인카드"] }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: false }));
+  });
+
+  it("treats an unchecked box as a personal card and drops non-Slack links", async () => {
+    await post(step("good", { biz_card: "false", thread_link: "javascript:alert(1)" }));
+    expect(createClaim).toHaveBeenCalledWith("2026-2h", expect.objectContaining({ prepaid: true, slackLink: null }));
   });
 
   it("records the roll call's lists under the roster names", async () => {

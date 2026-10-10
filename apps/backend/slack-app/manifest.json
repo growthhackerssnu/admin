@@ -71,6 +71,18 @@
           "type": "string",
           "title": "메모",
           "is_required": false
+        },
+        "biz_card": {
+          "type": "string",
+          "title": "법인카드로 결제",
+          "description": "양식의 법인카드 체크박스(체크 = 법인카드). 비우면 개인 카드로 봅니다",
+          "is_required": false
+        },
+        "thread_link": {
+          "type": "string",
+          "title": "Slack 스레드 링크",
+          "description": "영수증이 있는 메시지 링크('메시지 보내기' 단계의 '메시지 링크')",
+          "is_required": false
         }
       },
       "output_parameters": {

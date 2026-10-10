@@ -28,6 +28,15 @@ All require `Authorization: Bearer <Supabase access token>`; without it, `401` i
 
 이름은 환급 계좌 명단에서 Slack 이메일로 찾는다. 날짜는 실행한 날(한국 시간)이다.
 
+### 청구서 Slack 연결
+
+청구서 워크플로의 **NUT에 청구서 등록**(`register_nut_claim`) 단계에 두 칸을 더 넣는다(둘 다 선택):
+
+- `biz_card` — 양식의 법인카드 체크박스. 체크(`true`)거나 '법인'이 들어간 값이면 법인카드(`prepaid: false`, 돌려줄 돈 없음), 비우면 개인 카드(`prepaid: true`, 영수증 필요).
+- `thread_link` — 영수증이 있는 Slack 메시지 링크. 이 단계 앞의 '메시지 보내기' 단계 출력인 '메시지 링크'를 넣는다. `https://*.slack.com/` 링크만 저장한다.
+
+청구서·거래 내역·세금 탭의 '분류 확인'에 결제 수단과 스레드 링크가 보이고, 세금 탭에서 법인카드/개인 카드로 거를 수 있다.
+
 Budget nodes carry a `billing` value: `every` (every half-year), `spring` / `fall` (counted only in a half-year starting Jan–Jun / Jul–Dec; otherwise `budget` is 0 but `amount` keeps the item's own value), or `once` (not copied by `POST /periods`). A new period starts with an opening balance of 0 — the previous balance comes in as a '잔금' income line. Until a period starts and has ledger rows, `carriedCash` reports the previous period's balance.
 
 Every successful mutation returns the refreshed `FinanceOverview` contract. `remaining` is `budget - actual`; `variance` is `actual - budget`, so a positive expense variance means over budget.

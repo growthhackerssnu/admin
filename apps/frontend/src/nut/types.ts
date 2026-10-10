@@ -145,7 +145,9 @@ export interface Claim {
   bucket: string;
   status: ClaimStatus;
   source: string;
+  // true = 개인 카드(돌려줄 돈, 영수증 필요), false = 법인카드.
   prepaid: boolean;
+  slackLink?: string;
   mine: boolean;
   bankAccount?: string;
   note?: string;
@@ -270,6 +272,9 @@ export interface TaxOverview {
     detail: string;
     amount: number;
     taxClass: TaxClass;
+    // 청구서로 들어온 행만: 법인카드 / 개인 카드(영수증은 slackLink 스레드).
+    card?: "biz" | "personal";
+    slackLink?: string;
   }>;
 }
 
