@@ -36,4 +36,11 @@ describe("penalty", () => {
     expect(penalty({ type: "late", excuse: "unexcused", minutesLate: 9 }, rules)).toMatchObject({ points: 4, fine: 15000 });
     expect(penalty({ type: "late", excuse: "unexcused", minutesLate: 5 }, rules)).toMatchObject({ points: 1, fine: 5000 });
   });
+
+  it("lets a manual tier override the automatic one only while it matches the excuse", () => {
+    expect(penalty({ type: "late", excuse: "unexcused", minutesLate: 6, tier: "late-unexcused-over30" })).toMatchObject({ points: 5, manual: true });
+    expect(penalty({ type: "late", excuse: "unexcused", minutesLate: null, tier: "late-unexcused-5to30" })).toMatchObject({ points: 2, fine: 10000 });
+    // 사유를 부분사유로 바꾸면 무단지각 구간은 무시하고 자동으로 돌아간다.
+    expect(penalty({ type: "late", excuse: "partial", minutesLate: 6, tier: "late-unexcused-over30" })).toMatchObject({ points: 1, fine: 0, tier: "late-partial-under30" });
+  });
 });

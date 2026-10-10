@@ -12,10 +12,13 @@ const record = z
     periodId: z.string().optional(),
     date: dateString,
     name: z.string().trim().min(1, "이름을 입력하세요."),
+    email: z.string().trim().nullish(),
     project: z.string().trim().nullish(),
     type: z.enum(["late", "absent", "quest"]),
     excuse: z.enum(["excused", "partial", "unexcused"]),
     minutesLate: z.number().int().min(0, "지각 시간은 0분 이상입니다.").nullable(),
+    // 지각 구간 직접 지정. null이면 자동.
+    tier: z.enum(["late-partial-under30", "late-partial-over30", "late-unexcused-under5", "late-unexcused-5to30", "late-unexcused-over30"]).nullish(),
     note: z.string().trim().nullish(),
   });
 

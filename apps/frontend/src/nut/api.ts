@@ -213,10 +213,12 @@ export type AttendanceInput = {
   id?: string;
   date: string;
   name: string;
+  email?: string | null;
   project?: string | null;
   type: AttendanceType;
   excuse: Excuse;
   minutesLate: number | null;
+  tier?: string | null;
   note?: string | null;
 };
 

@@ -96,7 +96,7 @@ export default function AttendancePage() {
   if (!data) return <Skeleton active paragraph={{ rows: 8 }} />;
   const canEdit = data.canEdit;
   const cohortOf = new Map(
-    data.roster.map((person) => [person.name, person.cohort]),
+    data.roster.map((person) => [person.email, person.cohort]),
   );
 
   const missing = data.records.filter(
@@ -198,7 +198,8 @@ export default function AttendancePage() {
         {adding && (
           <RecordForm
             period={data.period}
-            names={data.roster.map((person) => person.name)}
+            roster={data.roster}
+            rules={data.rules}
             onSave={(input) =>
               save(
                 () => attendanceApi.save(data.period.id, input),
@@ -216,10 +217,11 @@ export default function AttendancePage() {
               <RecordRow
                 key={record.id}
                 record={record}
-                cohort={cohortOf.get(record.name)}
+                cohort={record.email ? cohortOf.get(record.email) : null}
                 period={data.period}
                 canEdit={canEdit}
-                names={data.roster.map((person) => person.name)}
+                roster={data.roster}
+                rules={data.rules}
                 onSave={(input) =>
                   save(
                     () => attendanceApi.save(data.period.id, input),
@@ -366,6 +368,7 @@ function RuleInput({
 }
 
 type PersonRow = {
+  email: string | null;
   name: string;
   cohort: string | null;
   points: number;
@@ -384,17 +387,19 @@ function Summary({
   // 벌점 열 머리를 누르면 많은 순 ↔ 적은 순으로 바뀐다.
   const [order, setOrder] = useState<"desc" | "asc">("desc");
   const groups = useMemo(() => {
-    const former = new Set(data.formerNames);
-    const byName = new Map<string, PersonRow>(
+    // 사람은 이메일로 묶는다(동명이인). 회원을 못 찾은 기록만 이름으로 묶는다.
+    const byKey = new Map<string, PersonRow>(
       data.roster.map((person) => [
-        person.name,
+        person.email,
         { ...person, points: 0, fine: 0, records: [] },
       ]),
     );
     data.records.forEach((record) => {
       // 초기화 전 기록과 acting이 아니게 된 회원의 기록은 합계에 넣지 않는다.
-      if (record.cleared || former.has(record.name)) return;
-      const row = byName.get(record.name) ?? {
+      if (record.cleared || record.former) return;
+      const key = record.email ?? record.name;
+      const row = byKey.get(key) ?? {
+        email: record.email,
         name: record.name,
         cohort: null,
         points: 0,
@@ -404,10 +409,10 @@ function Summary({
       row.points += record.penalty.points;
       row.fine += record.penalty.fine;
       row.records.push(record);
-      byName.set(record.name, row);
+      byKey.set(key, row);
     });
     const byCohort = new Map<string, PersonRow[]>();
-    byName.forEach((row) => {
+    byKey.forEach((row) => {
       const cohort = row.cohort ?? "기수 미상";
       byCohort.set(cohort, [...(byCohort.get(cohort) ?? []), row]);
     });
@@ -425,10 +430,7 @@ function Summary({
   }, [data, order]);
   const totalFine = data.records.reduce(
     (sum, record) =>
-      sum +
-      (record.cleared || data.formerNames.includes(record.name)
-        ? 0
-        : record.penalty.fine),
+      sum + (record.cleared || record.former ? 0 : record.penalty.fine),
     0,
   );
   return (
@@ -478,7 +480,7 @@ function Summary({
             </thead>
             <tbody>
               {group.rows.map((row) => (
-                <tr key={row.name}>
+                <tr key={row.email ?? row.name}>
                   <th scope="row">
                     <PersonLink name={row.name} cohort={row.cohort} />
                   </th>
@@ -607,7 +609,8 @@ function RecordRow({
   cohort,
   period,
   canEdit,
-  names,
+  roster,
+  rules,
   onSave,
   onRemove,
 }: {
@@ -615,7 +618,8 @@ function RecordRow({
   cohort?: string | null;
   period: AttendanceData["period"];
   canEdit: boolean;
-  names: string[];
+  roster: AttendanceData["roster"];
+  rules: AttendanceData["rules"];
   onSave: (input: AttendanceInput) => Promise<boolean>;
   onRemove: () => Promise<boolean>;
 }) {
@@ -626,7 +630,8 @@ function RecordRow({
         <RecordForm
           record={record}
           period={period}
-          names={names}
+          roster={roster}
+          rules={rules}
           onSave={onSave}
           onRemove={onRemove}
           onDone={() => setEditing(false)}
@@ -640,6 +645,7 @@ function RecordRow({
         <strong>
           <PersonLink name={record.name} cohort={cohort} /> · {penalty.label}
           {record.minutesLate != null ? ` ${record.minutesLate}분` : ""}
+          {penalty.manual ? " (구간 직접 지정)" : ""}
         </strong>
         <span>
           {record.cleared ? "초기화됨 · " : ""}
@@ -687,14 +693,16 @@ function RecordRow({
 function RecordForm({
   record,
   period,
-  names,
+  roster,
+  rules,
   onSave,
   onRemove,
   onDone,
 }: {
   record?: AttendanceRecord;
   period: AttendanceData["period"];
-  names: string[];
+  roster: AttendanceData["roster"];
+  rules: AttendanceData["rules"];
   onSave: (input: AttendanceInput) => Promise<boolean>;
   onRemove?: () => Promise<boolean>;
   onDone: () => void;
@@ -703,10 +711,12 @@ function RecordForm({
     id: record?.id,
     date: record?.date ?? defaultDate(period),
     name: record?.name ?? "",
+    email: record?.email ?? null,
     project: record?.project ?? "",
     type: record?.type ?? "late",
     excuse: record?.excuse ?? "unexcused",
     minutesLate: record?.minutesLate ?? null,
+    tier: record?.tier ?? null,
     note: record?.note ?? "",
   });
   const ready = value.name.trim() && value.date;
@@ -730,10 +740,29 @@ function RecordForm({
         이름
         <Select
           showSearch
-          value={value.name || undefined}
+          value={value.email ?? (value.name || undefined)}
           placeholder="학회원"
-          options={names.map((name) => ({ value: name, label: name }))}
-          onChange={(name) => setValue({ ...value, name })}
+          optionFilterProp="label"
+          options={[
+            ...roster.map((person) => ({
+              value: person.email,
+              // 동명이인은 기수로 구분한다.
+              label:
+                roster.filter((other) => other.name === person.name).length > 1
+                  ? `${person.name} (${person.cohort ?? "기수 미상"})`
+                  : person.name,
+            })),
+            // 명단에 없는 사람의 기록을 고칠 때도 이름이 보이게 한다.
+            ...(record &&
+            !roster.some((person) => person.email === record.email)
+              ? [{ value: record.email ?? record.name, label: record.name }]
+              : []),
+          ]}
+          onChange={(key) => {
+            const person = roster.find((other) => other.email === key);
+            if (person)
+              setValue({ ...value, name: person.name, email: person.email });
+          }}
         />
       </label>
       <label>
@@ -768,6 +797,28 @@ function RecordForm({
             value={value.minutesLate}
             onChange={(minutesLate) =>
               setValue({ ...value, minutesLate: minutesLate ?? null })
+            }
+          />
+        </label>
+      )}
+      {value.type === "late" && value.excuse !== "excused" && (
+        <label>
+          구간
+          <Select<string>
+            value={
+              value.tier?.startsWith(`late-${value.excuse}-`)
+                ? value.tier
+                : "auto"
+            }
+            options={[
+              // 세션 길이가 그날만 달랐으면 구간을 직접 고른다.
+              { value: "auto", label: "자동 (지각 분 ÷ 세션 길이)" },
+              ...rules
+                .filter((rule) => rule.id.startsWith(`late-${value.excuse}-`))
+                .map((rule) => ({ value: rule.id, label: rule.label })),
+            ]}
+            onChange={(tier) =>
+              setValue({ ...value, tier: tier === "auto" ? null : tier })
             }
           />
         </label>

@@ -1850,6 +1850,7 @@ model NutAttendanceRecord {
   type        String   // late | absent | quest
   excuse      String   // excused | partial | unexcused
   minutesLate Int?     @map("minutes_late")
+  tier        String?  // 지각 구간 직접 지정(규칙 id). 없으면 지각 분 ÷ 세션 길이로 자동
   note        String?
   source      String
   createdAt   DateTime @default(now()) @map("created_at")

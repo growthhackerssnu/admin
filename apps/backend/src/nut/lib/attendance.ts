@@ -15,7 +15,8 @@ export const attendanceAccess = {
 
 export type AttendanceType = "late" | "absent" | "quest";
 export type Excuse = "excused" | "partial" | "unexcused";
-type Classifiable = { type: AttendanceType; excuse: Excuse; minutesLate: number | null };
+// tier: 회장단이 직접 고른 지각 구간(규칙 id). 없으면 지각 분 ÷ 세션 길이로 자동으로 정한다.
+type Classifiable = { type: AttendanceType; excuse: Excuse; minutesLate: number | null; tier?: string | null };
 
 // 벌점벌금 탭의 열. 점수·금액은 반기마다 출석체크 탭에서 바꿀 수 있고, 안 바꾼 값은 시트의 기본값을 쓴다.
 // 사유(전부 인정)는 언제나 벌점이 없다.
@@ -47,13 +48,16 @@ function ruleFor({ type, excuse, minutesLate }: Classifiable, sessionMinutes: nu
 }
 
 export function penalty(record: Classifiable, rules: AttendanceRules = DEFAULT_RULES) {
-  const { type, excuse, minutesLate } = record;
+  const { type, excuse, minutesLate, tier } = record;
   if (excuse === "excused") return { label: type === "absent" ? "사유결석" : type === "quest" ? "퀘스트미제출(사유)" : "사유지각", points: 0, fine: 0 };
+  // 직접 고른 구간은 지금 종류·사유에 맞을 때만 쓴다(사유를 바꾸면 다시 자동).
+  const manual = type === "late" && tier?.startsWith(`late-${excuse}-`) ? RULES.find((rule) => rule.id === tier) : undefined;
+  if (manual) return { label: manual.label, ...rules.rates[manual.id], tier: manual.id, manual: true };
   // 지각 시간을 아직 모르면 벌점을 매기지 않고 화면에서 입력하라고 알린다.
   if (type === "late" && minutesLate == null)
     return { label: excuse === "partial" ? "부분사유지각" : "무단지각", points: 0, fine: 0, needsMinutes: true };
   const id = ruleFor(record, rules.sessionMinutes);
-  return { label: RULES.find((rule) => rule.id === id)!.label, ...rules.rates[id] };
+  return { label: RULES.find((rule) => rule.id === id)!.label, ...rules.rates[id], tier: id };
 }
 
 // 반기 설정: key는 '<규칙 id>.points'·'<규칙 id>.fine'·'session-minutes'. 없는 값은 기본값.
@@ -82,7 +86,8 @@ const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 
 // 반기 안의 기록과 명단을 돌려준다. 명단은 지금 acting인 회원(기수 = 그핵드인 명단의 기수)이라
 // 19기가 alumni가 되면 20기만 남는다. 기록이 없는 사람도 0점으로 보인다.
-// formerNames: acting이 아니게 된 회원 이름. 화면이 그 사람의 기록을 합계에서 뺀다.
+// 사람은 이메일로 묶는다(동명이인). 이메일 없는 예전 직접 입력 기록은 이름으로 회원을 찾고, 같은 이름이면 acting을 고른다.
+// former: acting이 아니게 된 회원의 기록. 화면이 합계에서 뺀다.
 // 출석체크는 NUT와 같은 반기를 쓴다. 화면 위쪽 반기 선택에 쓰도록 반기 목록도 같이 준다.
 export async function getAttendance(periodId: string, canEdit: boolean) {
   const period = await prisma.nutFinancePeriod.findUniqueOrThrow({ where: { id: periodId } });
@@ -94,36 +99,44 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
     }),
     prisma.member.findMany({
       where: { role: { not: "admin" } },
-      select: { displayName: true, role: true, active: true, claimedPersonEntry: { select: { cohort: true } } },
+      select: { email: true, displayName: true, role: true, active: true, claimedPersonEntry: { select: { cohort: true } } },
     }),
     getRules(periodId),
     prisma.nutAttendanceReset.findFirst({ orderBy: { createdAt: "desc" } }),
   ]);
   const clearedThrough = reset ? dateOnly(reset.clearedThrough) : null;
-  // 동명이인: alumni와 acting에 같은 이름이 있으면 acting 쪽 기록이 합계에서 빠지지 않게 한다.
-  const actingNames = new Set(roster.filter((member) => member.role === "acting" && member.active).map((member) => member.displayName));
+  const isActing = (member: (typeof roster)[number]) => member.role === "acting" && member.active;
+  const byEmail = new Map(roster.map((member) => [member.email.toLowerCase(), member]));
+  const byName = new Map<string, (typeof roster)[number]>();
+  roster.forEach((member) => {
+    const seen = byName.get(member.displayName);
+    if (!seen || (!isActing(seen) && isActing(member))) byName.set(member.displayName, member);
+  });
   return {
     period: { id: period.id, label: period.label, start: dateOnly(period.periodStart), end: dateOnly(period.periodEnd) },
     periods,
     canEdit,
     roster: roster
-      .filter((member) => member.role === "acting" && member.active)
+      .filter(isActing)
       .map((member) => ({
+        email: member.email.toLowerCase(),
         name: member.displayName,
         cohort: member.claimedPersonEntry ? `${member.claimedPersonEntry.cohort}기` : null,
       }))
       .sort((a, b) => (parseInt(a.cohort ?? "", 10) || 999) - (parseInt(b.cohort ?? "", 10) || 999) || a.name.localeCompare(b.name, "ko")),
-    formerNames: roster.filter((member) => !actingNames.has(member.displayName)).map((member) => member.displayName),
     // 이 날짜까지의 기록은 초기화돼서 벌점·벌금 합계에 넣지 않는다(기록은 남는다).
     clearedThrough,
     sessionMinutes: rules.sessionMinutes,
     rules: RULES.map(({ id, label }) => ({ id, label, ...rules.rates[id] })),
     records: records.map((record) => {
-      const classified = { type: record.type as AttendanceType, excuse: record.excuse as Excuse, minutesLate: record.minutesLate };
+      const member = record.email ? byEmail.get(record.email.toLowerCase()) : byName.get(record.name);
+      const classified = { type: record.type as AttendanceType, excuse: record.excuse as Excuse, minutesLate: record.minutesLate, tier: record.tier };
       return {
         id: record.id,
         date: dateOnly(record.date),
         name: record.name,
+        email: member?.email.toLowerCase() ?? record.email?.toLowerCase() ?? null,
+        former: member != null && !isActing(member),
         project: record.project,
         ...classified,
         note: record.note,
@@ -135,16 +148,19 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
   };
 }
 
-export type AttendanceInput = Classifiable & { date: string; name: string; project?: string | null; note?: string | null };
+export type AttendanceInput = Classifiable & { date: string; name: string; email?: string | null; project?: string | null; note?: string | null };
 
 export async function saveAttendanceRecord(input: AttendanceInput & { id?: string }) {
   const data = {
     date: new Date(`${input.date}T00:00:00Z`),
     name: input.name,
+    email: input.email || null,
     project: input.project || null,
     type: input.type,
     excuse: input.excuse,
     minutesLate: input.type === "late" ? input.minutesLate : null,
+    // 사유와 안 맞는 구간(사유를 바꾼 뒤 남은 값)은 버리고 자동으로 돌린다.
+    tier: input.type === "late" && input.tier?.startsWith(`late-${input.excuse}-`) ? input.tier : null,
     note: input.note || null,
   };
   if (input.id) await prisma.nutAttendanceRecord.update({ where: { id: input.id }, data });

@@ -285,10 +285,16 @@ export type AttendanceRecord = {
   id: string;
   date: string;
   name: string;
+  // 사람을 묶는 키. 이메일 없는 예전 기록은 서버가 이름으로 회원을 찾아 채운다.
+  email: string | null;
+  // acting이 아니게 된 회원의 기록이라 합계에서 뺀다.
+  former: boolean;
   project: string | null;
   type: AttendanceType;
   excuse: Excuse;
   minutesLate: number | null;
+  // 직접 고른 지각 구간(규칙 id). null이면 자동.
+  tier: string | null;
   note: string | null;
   source: string;
   penalty: {
@@ -296,6 +302,8 @@ export type AttendanceRecord = {
     points: number;
     fine: number;
     needsMinutes?: boolean;
+    // 직접 고른 구간으로 매긴 벌점.
+    manual?: boolean;
   };
   // 벌점 초기화 날짜 이전 기록이라 합계에 들어가지 않는다.
   cleared: boolean;
@@ -306,10 +314,8 @@ export type AttendanceData = {
   periods: Array<{ id: string; label: string }>;
   canEdit: boolean;
   clearedThrough: string | null;
-  // acting이 아니게 된 회원 이름. 합계에서 뺀다.
-  formerNames: string[];
   sessionMinutes: number;
   rules: Array<{ id: string; label: string; points: number; fine: number }>;
-  roster: Array<{ name: string; cohort: string | null }>;
+  roster: Array<{ email: string; name: string; cohort: string | null }>;
   records: AttendanceRecord[];
 };
