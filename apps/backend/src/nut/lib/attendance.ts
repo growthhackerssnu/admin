@@ -129,7 +129,8 @@ export async function getAttendance(periodId: string, canEdit: boolean) {
     sessionMinutes: rules.sessionMinutes,
     rules: RULES.map(({ id, label }) => ({ id, label, ...rules.rates[id] })),
     records: records.map((record) => {
-      const member = record.email ? byEmail.get(record.email.toLowerCase()) : byName.get(record.name);
+      // Slack 이메일이 회원 이메일과 다를 수 있어서(개인 gmail 등) 이메일로 못 찾으면 이름으로 찾는다.
+      const member = (record.email && byEmail.get(record.email.toLowerCase())) || byName.get(record.name);
       const classified = { type: record.type as AttendanceType, excuse: record.excuse as Excuse, minutesLate: record.minutesLate, tier: record.tier };
       return {
         id: record.id,
