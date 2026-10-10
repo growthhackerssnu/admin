@@ -1,7 +1,7 @@
 import { Input, InputNumber, Popconfirm, Segmented, Select } from "antd";
 import { useMemo, useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
-import { ledgerApi, type LedgerInput } from "../api";
+import { claimApi, ledgerApi, type LedgerInput } from "../api";
 import {
   dateLabel,
   defaultDate,
@@ -422,6 +422,9 @@ function LedgerEditor({
     teamId: entry.teamId ?? null,
     taxClass: entry.taxClass,
   });
+  // 청구서에서 온 행은 결제 수단(법인카드/개인카드)을 여기서 고친다. 값은 청구서에 있다.
+  const claim = data.claims.find((item) => item.id === entry.claimId);
+  const [prepaid, setPrepaid] = useState(claim?.prepaid);
   const teams = teamsFor(data, value.bucket);
   const options =
     entry.type === "expense"
@@ -513,6 +516,19 @@ function LedgerEditor({
             onChange={(taxClass) => setValue({ ...value, taxClass })}
           />
         </label>
+        {claim && (
+          <label>
+            결제 수단
+            <Segmented
+              value={prepaid ? "personal" : "biz"}
+              options={[
+                { value: "biz", label: "법인카드" },
+                { value: "personal", label: "개인카드" },
+              ]}
+              onChange={(card) => setPrepaid(card === "personal")}
+            />
+          </label>
+        )}
         <label>
           청구인
           <Input
@@ -561,10 +577,11 @@ function LedgerEditor({
           disabled={!value.detail.trim() || !value.bucket}
           onClick={async () => {
             if (
-              await run(
-                () => ledgerApi.update(entry.id, value),
-                "거래를 고쳤습니다.",
-              )
+              await run(async () => {
+                if (claim && prepaid !== undefined && prepaid !== claim.prepaid)
+                  await claimApi.setCard(claim.id, prepaid);
+                return ledgerApi.update(entry.id, value);
+              }, "거래를 고쳤습니다.")
             )
               onDone();
           }}
