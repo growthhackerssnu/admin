@@ -330,7 +330,10 @@ export default function LedgerView() {
                           label={`${entry.detail} 수정`}
                         >
                           <span className="nut-entry__main">
-                            <strong>{entry.detail}</strong>
+                            <span className="nut-entry__title">
+                              <strong>{entry.detail}</strong>
+                              <CardChip claimId={entry.claimId} />
+                            </span>
                             <span>
                               {entry.bucket}
                               {entry.teamId
@@ -343,9 +346,6 @@ export default function LedgerView() {
                                 </span>
                               ) : null}
                               {entry.claimant ? ` · ${entry.claimant}` : ""}
-                              {entry.claimId ? (
-                                <ClaimNote claimId={entry.claimId} />
-                              ) : null}
                               {entry.note ? ` · ${entry.note}` : ""}
                             </span>
                           </span>
@@ -576,13 +576,20 @@ function LedgerEditor({
   );
 }
 
-// 청구서에서 온 행: 법인카드인지 개인 카드인지, 영수증이 있는 Slack 스레드(세금 신고 때 찾아본다).
-// 행 전체가 수정 버튼이라 링크는 버튼 밖, 행 아래에 둔다.
-function ClaimNote({ claimId }: { claimId: string }) {
+// 청구서에서 온 행이 법인카드인지 개인 카드인지(직접 적은 행은 모르니 칩이 없다).
+function CardChip({ claimId }: { claimId?: string }) {
   const { data } = useNut();
   const claim = data.claims.find((item) => item.id === claimId);
-  if (!claim) return <> · 청구서로 지급</>;
-  return <>{claim.prepaid ? " · 청구서로 지급(개인 카드)" : " · 법인카드"}</>;
+  if (!claim) return null;
+  return (
+    <span
+      className={
+        "nut-card-chip nut-card-chip--" + (claim.prepaid ? "personal" : "biz")
+      }
+    >
+      {claim.prepaid ? "개인카드" : "법인카드"}
+    </span>
+  );
 }
 
 function ClaimThreadLink({ claimId }: { claimId?: string }) {
