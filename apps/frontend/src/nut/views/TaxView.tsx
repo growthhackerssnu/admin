@@ -93,7 +93,7 @@ export default function TaxView() {
       <p className="nut-claims__intro">
         회계연도는 운영팀 반기와 달리 12월 1일부터 11월 30일까지입니다.
         {tax.range.start === tax.taxStart &&
-          ` 학회는 ${tax.taxStart.replaceAll("-", ".")}부터 세금을 계산하므로 이번 회계연도는 그날부터이고, 그 전 거래는 넣지 않습니다.`}{" "}
+          ` 학회는 ${tax.taxStart.replaceAll("-", ".")}부터 세금을 계산하므로 이번 회계연도는 그날부터이고, 그 전 거래는 넣지 않습니다(법인카드로 낸 돈은 손금에 넣습니다).`}{" "}
         아래 금액은 계산을 돕기 위한 추정이며, 신고 전에 세무사와 확인하세요.
       </p>
 

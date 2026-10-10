@@ -18,6 +18,13 @@ export function fiscalYearRange(fy: number) {
   return { start: start < TAX_START ? TAX_START : start, end: `${fy}-11-30` };
 }
 
+// 법인세에 넣을 거래인지. 세금 계산 시작일 전 거래는 빼지만, 법인카드로 낸 돈은 법인의 지출이라
+// 시작일 전이어도 그 회계연도(12월 1일부터)의 손금으로 넣는다.
+export function countsForFiscalYear(date: string, fy: number, bizCard: boolean) {
+  const { start, end } = fiscalYearRange(fy);
+  return date <= end && (date >= start || (bizCard && date >= `${fy - 1}-12-01`));
+}
+
 export function fiscalYearOf(date: string) {
   const [year, month] = date.split("-").map(Number);
   return month === 12 ? year! + 1 : year!;
@@ -99,20 +106,21 @@ export async function getTaxOverview(requestedFy?: number | null) {
     .map((period) => ({ ...period, start: period.start < TAX_START ? TAX_START : period.start }));
   const earliest = vatPeriods[0]?.start ?? range.start;
   const latest = vatPeriods.at(-1)?.end ?? range.end;
+  // 법인카드 지출은 세금 계산 시작일 전 것도 세므로 회계연도 본래 시작일(12월 1일)부터 읽는다.
+  const fyStart = `${fy - 1}-12-01`;
   const entries = await prisma.nutLedgerEntry.findMany({
-    where: { transactionDate: { gte: utc(earliest < range.start ? earliest : range.start), lte: utc(latest > range.end ? latest : range.end) } },
-    orderBy: [{ transactionDate: "asc" }, { id: "asc" }],
-  });
-  const inFy = entries.filter((entry) => {
-    const date = dateOnly(entry.transactionDate);
-    return date >= range.start && date <= range.end;
+    where: { transactionDate: { gte: utc(earliest < fyStart ? earliest : fyStart), lte: utc(latest > range.end ? latest : range.end) } },
+    orderBy: [{ transactionDate: "asc" }, { createdAt: "asc" }],
   });
   // 청구서로 들어온 지출은 법인카드인지 개인 카드인지, 영수증 Slack 스레드가 어딘지 안다(직접 적은 행은 모른다).
   const claims = await prisma.nutClaim.findMany({
-    where: { ledgerEntryId: { in: inFy.map((entry) => entry.id) } },
+    where: { ledgerEntryId: { in: entries.map((entry) => entry.id) } },
     select: { ledgerEntryId: true, prepaid: true, slackLink: true },
   });
   const claimByLedger = new Map(claims.map((claim) => [claim.ledgerEntryId!, claim]));
+  const inFy = entries.filter((entry) =>
+    countsForFiscalYear(dateOnly(entry.transactionDate), fy, claimByLedger.get(entry.id)?.prepaid === false),
+  );
   const cardOf = (claim?: { prepaid: boolean; slackLink: string | null }) =>
     claim ? { card: claim.prepaid ? ("personal" as const) : ("biz" as const), slackLink: claim.slackLink ?? undefined } : {};
 

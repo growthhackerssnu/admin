@@ -1738,8 +1738,10 @@ model NutLedgerEntry {
   taxClass      NutTaxClass  @map("tax_class")
   // 팀지원비·기술지원비·운영팀 지원비로 나간 돈이면 어느 팀 돈인지. 팀별 지원비 화면은 이 값으로 모은다.
   teamId        String?      @map("team_id")
+  // 기록한 시각. 같은 날 거래는 이 순서로 보인다.
+  createdAt     DateTime     @default(now()) @map("created_at")
 
-  @@index([periodId, transactionDate])
+  @@index([periodId, transactionDate, createdAt])
   @@index([teamId])
   @@index([bucket])
   @@map("ledger_entries")

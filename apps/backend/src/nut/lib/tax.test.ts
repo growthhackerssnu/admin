@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { corporateTax, fiscalYearOf, fiscalYearRange, withholding } from "./taxRepository";
+import { corporateTax, countsForFiscalYear, fiscalYearOf, fiscalYearRange, withholding } from "./taxRepository";
 
 describe("NUT tax", () => {
   it("uses the Dec 1 – Nov 30 fiscal year, starting the first one on 2026-10-11", () => {
@@ -16,6 +16,14 @@ describe("NUT tax", () => {
     // 2억 초과분은 다음 구간: 2억×10% + 1억×20%
     expect(corporateTax(300_000_000, "2026-12-01").tax).toBe(40_000_000);
     expect(corporateTax(0, "2026-12-01").tax).toBe(0);
+  });
+
+  it("counts biz card spending before 2026-10-11 but not personal spending", () => {
+    expect(countsForFiscalYear("2026-10-10", 2026, true)).toBe(true);
+    expect(countsForFiscalYear("2026-10-10", 2026, false)).toBe(false);
+    expect(countsForFiscalYear("2026-10-11", 2026, false)).toBe(true);
+    expect(countsForFiscalYear("2025-11-30", 2026, true)).toBe(false);
+    expect(countsForFiscalYear("2026-12-01", 2026, true)).toBe(false);
   });
 
   it("withholds 3.3% for business income and 8.8% for other income", () => {

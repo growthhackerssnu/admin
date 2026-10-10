@@ -28,9 +28,6 @@ export async function resolvePeriodId(requested?: string | null, db: DbClient = 
 const toNumber = (value: bigint | number | null | undefined) =>
   Number(value ?? 0);
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
-const ledgerOrder = (id: string) =>
-  Number(id.match(/(\d+)$/)?.[1] ?? Number.MAX_SAFE_INTEGER);
-
 const legacyFormulaExpressions: Record<string, string> = {
   slack:
     "round(8.75 * 1500 * (cohort-19 * 4.5 + cohort-20 * 3) / 10000) * 10000",
@@ -516,14 +513,14 @@ export async function getFinanceOverview(
       variance: node.variance,
       note: node.note,
     }));
-  // 엑셀에서 가져온 행은 id 끝 번호가 시트 순서다. 새 행은 날짜·생성 순.
+  // 날짜 순, 같은 날은 기록한 순(엑셀에서 가져온 행은 시트 순서대로 기록 시각을 채웠다).
   let running = toNumber(period.openingCash);
   const claimByLedger = new Map(claims.filter((c) => c.ledgerEntryId).map((c) => [c.ledgerEntryId!, c.id]));
   const ledger = rawLedger
     .sort(
       (a, b) =>
         a.transactionDate.getTime() - b.transactionDate.getTime() ||
-        ledgerOrder(a.id) - ledgerOrder(b.id),
+        a.createdAt.getTime() - b.createdAt.getTime(),
     )
     .map((entry) => ({
       id: entry.id,
