@@ -101,6 +101,7 @@ function ClaimRow({ claim }: { claim: Claim }) {
           <span className={"nut-status nut-status--" + claim.status}>
             {statusLabel[claim.status]}
           </span>
+          <CardChip claim={claim} />
         </div>
         <span className="nut-claim__meta">
           <PersonLink name={claim.claimant} /> · {shortDate(claim.date)} 사용 ·{" "}
@@ -110,17 +111,15 @@ function ClaimRow({ claim }: { claim: Claim }) {
           {claim.source === "Slack" ? " · Slack으로 접수" : ""}
         </span>
         <span className="nut-claim__meta">
-          {claim.prepaid ? "개인 카드 · 돌려줄 돈" : "법인카드"}
           {claim.slackLink ? (
             <>
-              {" · "}
               <a href={claim.slackLink} target="_blank" rel="noreferrer">
                 Slack 스레드
               </a>
             </>
           ) : (
             claim.prepaid && (
-              <span className="nut-negative"> · 영수증 스레드 없음</span>
+              <span className="nut-negative">영수증 스레드 없음</span>
             )
           )}
         </span>
@@ -180,6 +179,30 @@ function ClaimRow({ claim }: { claim: Claim }) {
         </div>
       </div>
     </li>
+  );
+}
+
+// 법인카드 / 개인카드 칩. 총무는 눌러서 바꾼다(Slack 양식에서 잘못 체크했을 때).
+function CardChip({ claim }: { claim: Claim }) {
+  const { data, run } = useNut();
+  const label = claim.prepaid ? "개인카드" : "법인카드";
+  const className =
+    "nut-card-chip nut-card-chip--" + (claim.prepaid ? "personal" : "biz");
+  if (!data.viewer.canEdit) return <span className={className}>{label}</span>;
+  return (
+    <button
+      type="button"
+      className={className + " nut-card-chip--button"}
+      title={`${claim.prepaid ? "법인카드" : "개인카드"}로 바꾸기`}
+      onClick={() =>
+        void run(
+          () => claimApi.setCard(claim.id, !claim.prepaid),
+          `${claim.prepaid ? "법인카드" : "개인카드"}로 바꿨습니다.`,
+        )
+      }
+    >
+      {label}
+    </button>
   );
 }
 

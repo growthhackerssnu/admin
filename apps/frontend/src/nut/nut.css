@@ -484,6 +484,17 @@
   background: #fff4e5;
   color: var(--nut-near);
 }
+.nut-card-chip--button {
+  border: 0;
+  cursor: pointer;
+}
+.nut-card-chip--button:hover {
+  filter: brightness(0.95);
+}
+.nut-card-chip--button:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 1px;
+}
 .nut-entry__link {
   display: inline-block;
   padding-bottom: var(--ds-space-2);

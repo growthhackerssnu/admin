@@ -1045,6 +1045,7 @@ export async function actOnClaim(
     | { type: "approve"; bucket?: string }
     | { type: "reject"; reason: string }
     | { type: "reopen" }
+    | { type: "card"; prepaid: boolean }
     | { type: "pay"; date: string; bucket?: string; teamId?: string | null },
   reviewerMemberId: string,
 ) {
@@ -1054,7 +1055,10 @@ export async function actOnClaim(
     const bucket = "bucket" in action && action.bucket ? action.bucket : found.bucket;
     const claim = { ...found, bucket };
     const reviewed = { reviewedByMemberId: reviewerMemberId, reviewedAt: new Date() };
-    if (action.type === "approve") {
+    if (action.type === "card") {
+      // 결제 수단은 상태와 상관없이 고친다(Slack 양식에서 잘못 체크한 경우).
+      await tx.nutClaim.update({ where: { id }, data: { prepaid: action.prepaid } });
+    } else if (action.type === "approve") {
       if (claim.status !== "review") throw new ClaimStateError("검토 중인 청구서만 승인할 수 있습니다.");
       await tx.nutClaim.update({ where: { id }, data: { status: "approved", bucket, rejectReason: null, ...reviewed } });
     } else if (action.type === "reject") {

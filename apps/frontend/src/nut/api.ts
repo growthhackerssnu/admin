@@ -97,6 +97,8 @@ export const claimApi = {
   reject: (id: string, reason: string) =>
     send("claims", "PATCH", { id, type: "reject", reason }),
   reopen: (id: string) => send("claims", "PATCH", { id, type: "reopen" }),
+  setCard: (id: string, prepaid: boolean) =>
+    send("claims", "PATCH", { id, type: "card", prepaid }),
   pay: (id: string, date: string, bucket?: string, teamId?: string | null) =>
     send("claims", "PATCH", { id, type: "pay", date, bucket, teamId }),
 };

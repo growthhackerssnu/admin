@@ -156,6 +156,8 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
   // 명단에 없으면 회원·Slack 이름에서 공백을 뺀다.
   const slackName = member?.displayName ?? info?.user?.profile?.real_name ?? info?.user?.real_name ?? info?.user?.profile?.display_name;
   const account = await findRefundAccount(email, slackName);
+  // 법인카드 체크박스가 어떤 값으로 오는지 Slack 쪽에선 안 보여서 남겨 둔다.
+  console.log(`[slack] register_nut_claim ${executionId} biz_card=${JSON.stringify(inputs.biz_card ?? null)}`);
   const name = account?.name ?? (slackName ? normalizeName(slackName) : "이름 미상");
 
   return createClaim(await resolvePeriodId(null), {
