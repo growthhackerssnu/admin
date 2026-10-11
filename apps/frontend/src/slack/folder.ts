@@ -8,26 +8,39 @@ export type Folder = {
   exists(path: string): Promise<boolean>;
 };
 
-export async function readJson<T>(folder: Folder, path: string): Promise<T | null> {
+export async function readJson<T>(
+  folder: Folder,
+  path: string,
+): Promise<T | null> {
   const text = await folder.read(path);
   return text === null ? null : (JSON.parse(text) as T);
 }
 
-export const writeJson = (folder: Folder, path: string, value: unknown) => folder.write(path, JSON.stringify(value));
+export const writeJson = (folder: Folder, path: string, value: unknown) =>
+  folder.write(path, JSON.stringify(value));
 
 // 파일 이름에 쓸 수 없는 글자(맥·윈도우)를 _로 바꾼다.
-export const safeName = (name: string) => name.replace(/[/\\:*?"<>|\u0000-\u001f]/g, "_").slice(0, 120) || "file";
+export const safeName = (name: string) =>
+  name.replace(/[/\\:*?"<>|\u0000-\u001f]/g, "_").slice(0, 120) || "file";
 
 declare global {
   interface Window {
-    showDirectoryPicker?: (options?: { mode?: "read" | "readwrite"; id?: string }) => Promise<FileSystemDirectoryHandle>;
+    showDirectoryPicker?: (options?: {
+      mode?: "read" | "readwrite";
+      id?: string;
+    }) => Promise<FileSystemDirectoryHandle>;
   }
 }
 
-export const canUseFolders = () => typeof window !== "undefined" && typeof window.showDirectoryPicker === "function";
+export const canUseFolders = () =>
+  typeof window !== "undefined" &&
+  typeof window.showDirectoryPicker === "function";
 
 export async function pickFolder() {
-  return window.showDirectoryPicker!({ mode: "readwrite", id: "gh-slack-backup" });
+  return window.showDirectoryPicker!({
+    mode: "readwrite",
+    id: "gh-slack-backup",
+  });
 }
 
 /** 새로고침 뒤에는 폴더 권한이 풀려 있을 수 있다. 버튼 클릭 안에서 불러야 한다. */
@@ -36,14 +49,16 @@ export async function ensurePermission(handle: FileSystemDirectoryHandle) {
     queryPermission?: (d: { mode: string }) => Promise<PermissionState>;
     requestPermission?: (d: { mode: string }) => Promise<PermissionState>;
   };
-  if ((await h.queryPermission?.({ mode: "readwrite" })) === "granted") return true;
+  if ((await h.queryPermission?.({ mode: "readwrite" })) === "granted")
+    return true;
   return (await h.requestPermission?.({ mode: "readwrite" })) === "granted";
 }
 
 export function fsFolder(root: FileSystemDirectoryHandle): Folder {
   async function dir(parts: string[], create: boolean) {
     let current = root;
-    for (const part of parts) current = await current.getDirectoryHandle(part, { create });
+    for (const part of parts)
+      current = await current.getDirectoryHandle(part, { create });
     return current;
   }
   async function file(path: string, create: boolean) {
@@ -70,17 +85,27 @@ export function fsFolder(root: FileSystemDirectoryHandle): Folder {
   };
 }
 
-export function memoryFolder(files = new Map<string, string | Blob>()): Folder & { files: Map<string, string | Blob> } {
+export function memoryFolder(
+  files = new Map<string, string | Blob>(),
+): Folder & { files: Map<string, string | Blob> } {
   const readBlob = async (path: string) => {
     const value = files.get(path);
-    return value === undefined ? null : typeof value === "string" ? new Blob([value]) : value;
+    return value === undefined
+      ? null
+      : typeof value === "string"
+        ? new Blob([value])
+        : value;
   };
   return {
     files,
     readBlob,
     read: async (path) => {
       const value = files.get(path);
-      return value === undefined ? null : typeof value === "string" ? value : value.text();
+      return value === undefined
+        ? null
+        : typeof value === "string"
+          ? value
+          : value.text();
     },
     exists: async (path) => files.has(path),
     write: async (path, data) => void files.set(path, data),

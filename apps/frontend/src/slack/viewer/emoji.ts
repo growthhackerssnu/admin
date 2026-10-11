@@ -2,9 +2,14 @@
 import shortcodes from "emojibase-data/en/shortcodes/iamcal.json";
 
 const byName = new Map<string, string>();
-for (const [hex, names] of Object.entries(shortcodes as Record<string, string | string[]>)) {
-  const char = String.fromCodePoint(...hex.split("-").map((h) => parseInt(h, 16)));
-  for (const name of Array.isArray(names) ? names : [names]) byName.set(name, char);
+for (const [hex, names] of Object.entries(
+  shortcodes as Record<string, string | string[]>,
+)) {
+  const char = String.fromCodePoint(
+    ...hex.split("-").map((h) => parseInt(h, 16)),
+  );
+  for (const name of Array.isArray(names) ? names : [names])
+    byName.set(name, char);
 }
 // 슬랙만 쓰는 별칭 몇 개
 byName.set("thumbsup", byName.get("+1") ?? "👍");

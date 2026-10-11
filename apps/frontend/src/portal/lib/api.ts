@@ -93,6 +93,8 @@ export interface Me {
   displayName: string;
   role: "admin" | "acting" | "alumni";
   redirectPath: string;
+  /** 슬랙 백업(/slack)을 쓸 수 있는지 — admin·acting과 19기 이후 알럼나이 */
+  slackBackup: boolean;
 }
 
 export function getMe(token: string) {

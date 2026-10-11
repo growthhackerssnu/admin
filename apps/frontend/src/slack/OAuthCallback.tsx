@@ -15,5 +15,7 @@ export default function OAuthCallback() {
     channel.close();
     window.close();
   }, []);
-  return <p style={{ padding: 24 }}>슬랙 로그인 완료. 이 창은 닫아도 됩니다.</p>;
+  return (
+    <p style={{ padding: 24 }}>슬랙 로그인 완료. 이 창은 닫아도 됩니다.</p>
+  );
 }

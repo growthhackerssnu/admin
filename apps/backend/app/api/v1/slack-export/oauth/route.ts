@@ -1,18 +1,20 @@
 import { z } from "zod";
-import { withApiHandler } from "@/nut/lib/apiHandler";
-import { ApiError, successBody } from "@/nut/lib/errors";
-import { parseBody } from "@/nut/lib/respond";
+import { withApiHandler } from "@/portal/lib/apiHandler";
+import { ApiError, successBody } from "@/portal/lib/errors";
 import { ALLOWED_ORIGINS } from "@/lib/origins";
 import { isAllowedRedirect } from "@/slackExport/proxy";
+import { requireSlackBackup } from "@/slackExport/access";
 
 // 슬랙 백업: "슬랙으로 로그인"의 code를 사용자 토큰(xoxp-)으로 바꿔 돌려준다. 토큰은 저장·기록하지 않는다.
-// admin·acting만(withApiHandler가 alumni를 막는다).
+// admin·acting과 19기 이후 알럼나이만(requireSlackBackup).
 const body = z.object({ code: z.string().min(1), redirectUri: z.string().min(1) });
-const everyone = { allow: () => true, message: "" };
 
-export const POST = withApiHandler(async (req, { requestId }) => {
-  const { code, redirectUri } = await parseBody(req, body);
-  if (!isAllowedRedirect(redirectUri, ALLOWED_ORIGINS)) throw new ApiError("BAD_REQUEST", "허용되지 않은 redirect 주소입니다.");
+export const POST = withApiHandler(async (req, { member, requestId }) => {
+  await requireSlackBackup(member);
+  const parsed = body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "code와 redirectUri가 필요합니다.");
+  const { code, redirectUri } = parsed.data;
+  if (!isAllowedRedirect(redirectUri, ALLOWED_ORIGINS)) throw new ApiError("VALIDATION_ERROR", "허용되지 않은 redirect 주소입니다.");
   const clientId = process.env.SLACK_EXPORT_CLIENT_ID;
   const clientSecret = process.env.SLACK_EXPORT_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new ApiError("INTERNAL_ERROR", "슬랙 백업 앱이 설정되지 않았습니다.");
@@ -29,7 +31,7 @@ export const POST = withApiHandler(async (req, { requestId }) => {
     authed_user?: { id: string; access_token?: string };
   };
   if (!result.ok || !result.authed_user?.access_token) {
-    throw new ApiError("BAD_REQUEST", `슬랙 로그인에 실패했습니다(${result.error ?? "no user token"}). 다시 시도하세요.`);
+    throw new ApiError("VALIDATION_ERROR", `슬랙 로그인에 실패했습니다(${result.error ?? "no user token"}). 다시 시도하세요.`);
   }
   return {
     body: successBody(
@@ -37,4 +39,4 @@ export const POST = withApiHandler(async (req, { requestId }) => {
       requestId,
     ),
   };
-}, everyone);
+});

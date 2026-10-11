@@ -55,6 +55,8 @@ export type SlackConversation = {
   created?: number;
 };
 
+export type SlackUserGroup = { id: string; handle: string; name?: string };
+
 export type ConversationState = {
   /** 이번 실행에서 끝났는지. 실행이 끝나면 다음 실행 시작 때 다시 false로 돌린다. */
   done: boolean;

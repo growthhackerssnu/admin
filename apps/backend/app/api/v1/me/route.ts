@@ -1,11 +1,13 @@
 import { withApiHandler } from "@/portal/lib/apiHandler";
 import { redirectPathFor } from "@/portal/lib/auth";
 import { successBody } from "@/portal/lib/errors";
+import { canUseSlackBackup } from "@/slackExport/access";
 
 // #01 GET /me — 로그인 직후 프론트가 "이 사람이 누구고 어디로 보내야 하는지"
 // 판단하는 유일한 근거. redirectPath는 role 기반 고정 매핑(admin->/admin,
 // acting->/dh, alumni->/hr)이라 여기서 같이 내려준다 — 프론트가 role별
-// 분기 로직을 따로 들고 있을 필요가 없게.
+// 분기 로직을 따로 들고 있을 필요가 없게. slackBackup은 슬랙 백업(/slack)을 쓸 수 있는지 —
+// role만으로는 모르는 유일한 화면이라(19기 이후 알럼나이도 쓴다) 여기서 같이 알려준다.
 export const GET = withApiHandler(async (_req, { member, requestId }) => ({
   body: successBody(
     {
@@ -14,6 +16,7 @@ export const GET = withApiHandler(async (_req, { member, requestId }) => ({
       displayName: member.displayName,
       role: member.role,
       redirectPath: redirectPathFor(member.role),
+      slackBackup: await canUseSlackBackup(member),
     },
     requestId,
   ),

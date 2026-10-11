@@ -42,16 +42,18 @@ export function AppNavigationLinks({
   current,
   onNavigate,
   iconOnly = false,
+  slackBackup = false,
 }: {
   role: Role;
   current: AppKey;
   onNavigate?: () => void;
   iconOnly?: boolean;
+  slackBackup?: boolean;
 }) {
   const inRouter = useInRouterContext();
   return (
     <SidebarMenu>
-      {reachableApps(role).map((app) => {
+      {reachableApps(role, { slackBackup }).map((app) => {
         const Icon = icons[app];
         const content = (
           <>
@@ -100,15 +102,18 @@ export function AppSidebar({
   current,
   canManageOps = false,
   appearance = "full",
+  slackBackup = false,
 }: {
   role?: Role;
   current: AppKey;
   canManageOps?: boolean;
   appearance?: "full" | "rail";
+  /** 19기 이후 알럼나이면 true — 그핵드인과 슬랙 백업 두 곳이라 패널이 보인다. */
+  slackBackup?: boolean;
 }) {
   const inRouter = useInRouterContext();
-  const apps = reachableApps(role);
-  if (role === "alumni" || apps.length < 2) return null;
+  const apps = reachableApps(role, { slackBackup });
+  if (apps.length < 2) return null;
   const content = (
     <>
       {appearance === "rail" ? (
@@ -126,6 +131,7 @@ export function AppSidebar({
             <AppNavigationLinks
               role={role}
               current={current}
+              slackBackup={slackBackup}
               iconOnly={appearance === "rail"}
             />
           </SidebarGroupContent>
@@ -164,7 +170,11 @@ export function AppSidebar({
       aria-label="워크스페이스 탐색"
       className={`dw-sidebar${appearance === "rail" ? " ds-app-rail" : ""}`}
     >
-      {appearance === "rail" ? <div className="ds-app-rail-content">{content}</div> : content}
+      {appearance === "rail" ? (
+        <div className="ds-app-rail-content">{content}</div>
+      ) : (
+        content
+      )}
     </Sidebar>
   );
 }

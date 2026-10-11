@@ -66,7 +66,7 @@ export function RequireApp({
     );
   }
 
-  if (!reachableApps(me.role).includes(app)) {
+  if (!reachableApps(me.role, { slackBackup: me.slackBackup }).includes(app)) {
     return (
       <main>
         <Alert
