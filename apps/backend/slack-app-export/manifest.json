@@ -1,0 +1,31 @@
+{
+  "display_information": {
+    "name": "GH Export",
+    "description": "내 슬랙 메시지를 내 컴퓨터에 백업합니다(읽기 전용).",
+    "background_color": "#01397c"
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://admin.ghsnu.com/slack/callback", "http://localhost:5173/slack/callback"],
+    "scopes": {
+      "user": [
+        "channels:history",
+        "channels:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "mpim:history",
+        "mpim:read",
+        "users:read",
+        "files:read",
+        "emoji:read"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": true,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false,
+    "function_runtime": "remote"
+  }
+}

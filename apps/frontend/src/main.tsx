@@ -62,6 +62,8 @@ const HrAdminQueue = lazy(() =>
 );
 const Nut = lazy(() => import("./nut"));
 const Attendance = lazy(() => import("./attendance"));
+const Slack = lazy(() => import("./slack"));
+const SlackCallback = lazy(() => import("./slack/OAuthCallback"));
 
 // 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 공통 배경 화면이라 같은 색
 // 바탕만 깔아서(CSS 파일이 아직 안 왔으므로 인라인) 흰/회색 스켈레톤이 번쩍이지 않게 한다.
@@ -75,7 +77,8 @@ function isAppScreenPath(pathname: string) {
     pathname === "/dh" ||
     pathname === "/nut" ||
     pathname.startsWith("/nut/") ||
-    pathname === "/attendance"
+    pathname === "/attendance" ||
+    pathname === "/slack"
   );
 }
 function RouteFallback() {
@@ -166,7 +169,18 @@ function Root() {
                     </RequireApp>
                   }
                 />
+                <Route
+                  path="/slack"
+                  element={
+                    <RequireApp app="slack">
+                      <Slack />
+                    </RequireApp>
+                  }
+                />
               </Route>
+
+              {/* 슬랙 로그인 팝업이 돌아오는 곳. code를 부모 창(/slack)에 넘기고 닫힌다. */}
+              <Route path="/slack/callback" element={<SlackCallback />} />
 
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

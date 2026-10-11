@@ -1,4 +1,5 @@
 import {
+  Archive,
   CalendarCheck,
   ClipboardList,
   Handshake,
@@ -34,6 +35,7 @@ const icons = {
   hr: UsersRound,
   nut: Wallet,
   attendance: CalendarCheck,
+  slack: Archive,
 };
 export function AppNavigationLinks({
   role,

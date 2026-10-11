@@ -56,6 +56,12 @@ const TILE: Record<
     bg: "var(--background)",
     tone: "light",
   },
+  slack: {
+    en: "SLACK BACKUP",
+    desc: "내 슬랙 메시지를 내 컴퓨터에 백업·열람",
+    bg: "var(--background)",
+    tone: "light",
+  },
 };
 
 const ROLE_LABEL: Record<Me["role"], string> = {
