@@ -1,26 +1,11 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { AppShell, useAppRole } from "@/components/ui/app-shell";
-import { useSession } from "../lib/useSession";
-import { fetchMe, type NutMember } from "../nut/api";
 import SlackPage from "./SlackPage";
 
-// /slack — 슬랙 백업. admin·acting만(RequireApp, 백엔드 withApiHandler). 세션이 없으면 로그인으로 보낸다.
+// /slack — 슬랙 백업. admin·acting과 19기 이후 알럼나이만(RequireApp이 /me의 slackBackup으로 막고,
+// role은 RequireApp이 넣어 준다). 백엔드도 같은 규칙으로 막는다(src/slackExport/access.ts).
 export default function Slack() {
-  const role = useAppRole();
-  const session = useSession();
-  const navigate = useNavigate();
-  const [member, setMember] = useState<NutMember>();
-
-  useEffect(() => {
-    if (session === null) navigate("/login", { replace: true });
-    if (!session) return;
-    fetchMe().then(setMember, () => undefined);
-  }, [session, navigate]);
-
-  if (!session) return null;
   return (
-    <AppShell role={member?.role ?? role} current="slack">
+    <AppShell role={useAppRole()} current="slack">
       <main>
         <SlackPage />
       </main>

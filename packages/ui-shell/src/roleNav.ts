@@ -35,17 +35,20 @@ export const APP_LABEL: Record<AppKey, string> = {
 
 /**
  * role별로 갈 수 있는 화면 목록. 배열 순서가 곧 화면(index/side pane)에
- * 나열되는 순서다. NUT·출석체크·슬랙 백업은 admin·acting 전용이다(백엔드도
+ * 나열되는 순서다. NUT·출석체크는 admin·acting 전용이다(백엔드도
  * apps/backend/src/nut/lib/auth.ts에서 alumni를 막는다).
  *
- * alumni는 갈 곳이 hr 하나뿐이라 "고르는 화면"이나 "갈아타는 패널" 자체가
- * 필요 없다 — 그래서 호출하는 쪽(Login.tsx, SidePane)이 role === "alumni"를
- * 먼저 확인해서 이 함수를 아예 안 부르거나, 결과를 무시하고 곧장 /hr로 보낸다.
+ * 슬랙 백업은 admin·acting에 더해 19기 이후 알럼나이도 쓴다(액팅 때 만든 백업을 졸업 뒤에도 보려고).
+ * 기수는 role로 알 수 없어서 백엔드 /me가 slackBackup으로 알려주고, 호출하는 쪽이 넘긴다
+ * (판단은 apps/backend/src/slackExport/access.ts 한 곳).
+ *
+ * 그 밖의 alumni는 갈 곳이 hr 하나뿐이라 "고르는 화면"이나 "갈아타는 패널" 자체가
+ * 필요 없다 — 그래서 로그인 직후엔 곧장 /hr로 보내고, 패널은 갈 곳이 둘 이상일 때만 보인다.
  * 그래도 이 함수는 모든 role에 대해 항상 값을 돌려주도록 만들어서(부분함수로
  * 안 만듦), "혹시 빠뜨린 role이 있나" 걱정할 필요가 없게 했다.
  */
-export function reachableApps(role: Role): AppKey[] {
+export function reachableApps(role: Role, { slackBackup = false }: { slackBackup?: boolean } = {}): AppKey[] {
   if (role === "admin") return ["admin", "dh", "hr", "nut", "attendance", "slack"];
   if (role === "acting") return ["dh", "hr", "nut", "attendance", "slack"];
-  return ["hr"];
+  return slackBackup ? ["hr", "slack"] : ["hr"];
 }

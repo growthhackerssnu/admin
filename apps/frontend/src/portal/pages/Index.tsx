@@ -125,7 +125,7 @@ export function Index() {
     );
   }
 
-  const apps = reachableApps(me.role);
+  const apps = reachableApps(me.role, { slackBackup: me.slackBackup });
 
   return (
     <AuthStage>
