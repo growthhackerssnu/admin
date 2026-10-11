@@ -9,26 +9,43 @@ export class SlackError extends Error {
 }
 
 /** 토큰이 더는 안 통하는 오류 — 백업을 멈추고 다시 로그인하게 한다. */
-export const AUTH_ERRORS = new Set(["invalid_auth", "not_authed", "token_revoked", "token_expired", "account_inactive"]);
+export const AUTH_ERRORS = new Set([
+  "invalid_auth",
+  "not_authed",
+  "token_revoked",
+  "token_expired",
+  "account_inactive",
+]);
 
 type Params = Record<string, string | number | boolean | undefined>;
-export type SlackClient = { call(method: string, params?: Params): Promise<any> };
+export type SlackClient = {
+  call(method: string, params?: Params): Promise<any>;
+};
 
 export function createSlackClient(
   token: string,
   {
     fetch = globalThis.fetch.bind(globalThis),
-    sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    sleep = (ms: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, ms)),
     onWait,
-  }: { fetch?: typeof globalThis.fetch; sleep?: (ms: number) => Promise<void>; onWait?: (seconds: number) => void } = {},
+  }: {
+    fetch?: typeof globalThis.fetch;
+    sleep?: (ms: number) => Promise<void>;
+    onWait?: (seconds: number) => void;
+  } = {},
 ): SlackClient {
   async function call(method: string, params: Params = {}) {
     const body = new URLSearchParams({ token });
-    for (const [key, value] of Object.entries(params)) if (value !== undefined) body.set(key, String(value));
+    for (const [key, value] of Object.entries(params))
+      if (value !== undefined) body.set(key, String(value));
     for (let attempt = 0; ; attempt++) {
       let response: Response;
       try {
-        response = await fetch(`https://slack.com/api/${method}`, { method: "POST", body });
+        response = await fetch(`https://slack.com/api/${method}`, {
+          method: "POST",
+          body,
+        });
       } catch (error) {
         // 네트워크가 잠깐 끊긴 경우. 몇 번만 다시 해 본다.
         if (attempt >= 3) throw error;
@@ -43,7 +60,8 @@ export function createSlackClient(
         continue;
       }
       const json = await response.json();
-      if (!json.ok) throw new SlackError(json.error ?? `http_${response.status}`);
+      if (!json.ok)
+        throw new SlackError(json.error ?? `http_${response.status}`);
       return json;
     }
   }
@@ -51,7 +69,13 @@ export function createSlackClient(
 }
 
 /** cursor 페이지를 끝까지 넘기며 key 배열을 모은다. */
-export async function paginate<T>(client: SlackClient, method: string, params: Params, key: string, signal?: AbortSignal) {
+export async function paginate<T>(
+  client: SlackClient,
+  method: string,
+  params: Params,
+  key: string,
+  signal?: AbortSignal,
+) {
   const items: T[] = [];
   let cursor: string | undefined;
   do {

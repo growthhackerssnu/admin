@@ -18,7 +18,8 @@
         "mpim:read",
         "users:read",
         "files:read",
-        "emoji:read"
+        "emoji:read",
+        "usergroups:read"
       ]
     }
   },
