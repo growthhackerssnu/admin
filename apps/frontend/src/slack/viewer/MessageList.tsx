@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SlackConversation, SlackMessage } from "../types";
 import { dayKey, dayLabel, loadMonth, type ExportData } from "./data";
+import { monthKey } from "../exporter";
 import { isCompact, MessageView, useMrkdwnContext } from "./Message";
 
 export type Target = { conversationId: string; ts: string; nonce: number };
@@ -126,6 +127,16 @@ export function MessageList({
     loading.current = false;
   }
 
+  // "스레드에 답글" 줄: 부모가 읽어 둔 범위에 없으면 그 달 파일에서 찾는다.
+  async function openThreadByTs(threadTs: string) {
+    const parent =
+      loaded.messages.find((m) => m.ts === threadTs) ??
+      (await loadMonth(data.folder, conversation.id, monthKey(threadTs))).find(
+        (m) => m.ts === threadTs,
+      );
+    if (parent) onOpenThread(parent);
+  }
+
   const messages = loaded.messages;
   return (
     <div
@@ -160,6 +171,7 @@ export function MessageList({
               compact={!newDay && isCompact(previous, message)}
               focused={focusTs === message.ts}
               onOpenThread={onOpenThread}
+              onOpenBroadcastThread={openThreadByTs}
             />
           </Fragment>
         );

@@ -20,7 +20,9 @@ import {
   type FileOptions,
 } from "./files";
 import type {
+  BotInfo,
   ConversationState,
+  SlackBotProfile,
   Manifest,
   SlackConversation,
   SlackFile,
@@ -300,6 +302,54 @@ export async function runExport({
     state.done = true;
     await saveManifest();
   }
+
+  // 봇 이름·아이콘. 봇 메시지 대부분은 bot_id만 갖고 있어서 bots.info로 찾아 bots.json에 둔다.
+  // 받은 달 전체를 훑으므로 예전 백업도 다음 실행 때 채워진다. 이미 아는 봇은 다시 찾지 않는다.
+  onProgress?.({
+    phase: "meta",
+    index: 0,
+    total: 0,
+    name: "봇 정보",
+    messages: messageCount,
+  });
+  const bots =
+    (await readJson<Record<string, BotInfo>>(folder, "bots.json")) ?? {};
+  const unknown = new Map<string, SlackBotProfile | undefined>();
+  for (const [id, state] of Object.entries(run.conversations)) {
+    for (const month of state.months) {
+      for (const message of (await readJson<SlackMessage[]>(
+        folder,
+        `messages/${id}/${month}.json`,
+      )) ?? []) {
+        for (const m of [message, ...(message.replies ?? [])]) {
+          if (m.bot_id && !bots[m.bot_id] && !unknown.get(m.bot_id))
+            unknown.set(m.bot_id, m.bot_profile);
+        }
+      }
+    }
+  }
+  for (const [id, embedded] of unknown) {
+    signal?.throwIfAborted();
+    let profile = embedded;
+    if (!profile) {
+      try {
+        profile = (await client.call("bots.info", { bot: id })).bot;
+      } catch (error) {
+        if (!(error instanceof SlackError) || AUTH_ERRORS.has(error.code))
+          throw error;
+      }
+    }
+    const url =
+      profile?.icons?.image_72 ??
+      profile?.icons?.image_48 ??
+      profile?.icons?.image_36;
+    const icon = url
+      ? `avatars/bots/${safeName(id)}.${extension(url, "png")}`
+      : undefined;
+    if (icon) await saveFile(icon, url);
+    bots[id] = { name: profile?.name, icon };
+  }
+  await writeJson(folder, "bots.json", bots);
 
   run.finishedAt = new Date().toISOString();
   await saveManifest();

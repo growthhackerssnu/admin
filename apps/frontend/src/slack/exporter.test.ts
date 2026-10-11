@@ -25,6 +25,17 @@ function fakeSlack(data: {
             ok: true,
             members: [{ id: "U1", name: "jay", profile: {} }],
           };
+        case "bots.info":
+          return {
+            ok: true,
+            bot: {
+              id: params.bot,
+              name: `bot-${params.bot}`,
+              icons: {
+                image_72: `https://avatars.slack-edge.com/${params.bot}_72.png`,
+              },
+            },
+          };
         case "usergroups.list":
           if (data.usergroupsError) throw new SlackError(data.usergroupsError);
           return {
@@ -161,6 +172,51 @@ describe("runExport", () => {
     expect(
       JSON.parse((await folder.read("usergroups.json"))!)[0],
     ).toMatchObject({ id: "S1", handle: "cm" });
+  });
+
+  it("saves bot names and icons, looking up only bots without an embedded profile", async () => {
+    const folder = memoryFolder();
+    const { client, calls } = fakeSlack({
+      history: {
+        C1: [
+          {
+            ts: june,
+            bot_id: "B1",
+            subtype: "bot_message",
+            text: "no profile",
+          },
+          {
+            ts: july,
+            bot_id: "B2",
+            text: "with profile",
+            bot_profile: {
+              id: "B2",
+              name: "Claude",
+              icons: {
+                image_72: "https://avatars.slack-edge.com/claude_72.png",
+              },
+            },
+          },
+        ],
+      },
+    });
+    await runExport({ client, folder, download });
+    expect(
+      calls.filter((c) => c.method === "bots.info").map((c) => c.params.bot),
+    ).toEqual(["B1"]);
+    expect(JSON.parse((await folder.read("bots.json"))!)).toEqual({
+      B1: { name: "bot-B1", icon: "avatars/bots/B1.png" },
+      B2: { name: "Claude", icon: "avatars/bots/B2.png" },
+    });
+    expect(
+      folder.files.has("avatars/bots/B1.png") &&
+        folder.files.has("avatars/bots/B2.png"),
+    ).toBe(true);
+
+    // 다음 실행은 이미 아는 봇을 다시 찾지 않는다(받은 달 전체를 훑어도).
+    const second = fakeSlack({ history: { C1: [] } });
+    await runExport({ client: second.client, folder, download });
+    expect(second.calls.some((c) => c.method === "bots.info")).toBe(false);
   });
 
   it("keeps going without user groups when the token lacks usergroups:read", async () => {
