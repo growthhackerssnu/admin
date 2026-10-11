@@ -476,3 +476,8 @@
   font-size: 12px;
   color: var(--ds-gray-600);
 }
+.slk-image-wrap {
+  display: block !important;
+  width: fit-content;
+  cursor: zoom-in;
+}

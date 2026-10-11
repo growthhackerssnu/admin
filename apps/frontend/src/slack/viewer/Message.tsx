@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from "react";
-import { Tooltip } from "antd";
+import { Image, Tooltip } from "antd";
 import { FileText } from "lucide-react";
 import type { SlackFile, SlackMessage, SlackReaction } from "../types";
 import { fileKind, savedFilePaths } from "../files";
@@ -139,10 +139,15 @@ function FileView({ data, file }: { data: ExportData; file: SlackFile }) {
   const name = file.title || file.name || "파일";
   const excluded = data.manifest.fileOptions?.[fileKind(file)] === false;
   if (url && file.mimetype?.startsWith("image/"))
+    // 누르면 새 탭 대신 화면 안 미리보기(확대·회전, Esc로 닫기)
     return (
-      <a href={url} target="_blank" rel="noreferrer">
-        <img className="slk-image" src={url} alt={name} />
-      </a>
+      <Image
+        rootClassName="slk-image-wrap"
+        className="slk-image"
+        src={url}
+        alt={name}
+        preview={{ mask: false }}
+      />
     );
   if (url && file.mimetype?.startsWith("video/"))
     return <video className="slk-image" src={url} controls />;
