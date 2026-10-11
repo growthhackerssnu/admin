@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { Tooltip } from "antd";
 import { FileText } from "lucide-react";
 import type { SlackFile, SlackMessage, SlackReaction } from "../types";
-import { filePath } from "../exporter";
+import { fileKind, savedFilePaths } from "../files";
 import {
   conversationLabel,
   messageAuthor,
@@ -98,8 +98,12 @@ export function Avatar({
 
 function FileView({ data, file }: { data: ExportData; file: SlackFile }) {
   const missing = file.mode === "tombstone" || file.mode === "hidden_by_limit";
-  const url = useFileUrl(data.folder, missing ? undefined : filePath(file));
+  const url = useFileUrl(
+    data.folder,
+    missing ? undefined : savedFilePaths(file),
+  );
   const name = file.title || file.name || "파일";
+  const excluded = data.manifest.fileOptions?.[fileKind(file)] === false;
   if (url && file.mimetype?.startsWith("image/"))
     return (
       <a href={url} target="_blank" rel="noreferrer">
@@ -108,18 +112,21 @@ function FileView({ data, file }: { data: ExportData; file: SlackFile }) {
     );
   if (url && file.mimetype?.startsWith("video/"))
     return <video className="slk-image" src={url} controls />;
+  // 백업에 없는 파일은 슬랙 원본으로 연결한다(슬랙에 로그인돼 있어야 열린다).
   return (
     <a
       className={`slk-file${url ? "" : " slk-file-missing"}`}
-      href={url ?? undefined}
+      href={url ?? file.permalink}
       download={url ? file.name : undefined}
+      target={url ? undefined : "_blank"}
+      rel="noreferrer"
     >
       <FileText size={18} />
       <span>
         <b>{name}</b>
         <small>
           {url === null
-            ? "파일을 불러올 수 없음"
+            ? `${excluded ? "백업에서 제외한 파일" : "파일을 불러올 수 없음"}${file.permalink ? " · 슬랙에서 열기" : ""}`
             : (file.filetype ?? "").toUpperCase()}
         </small>
       </span>

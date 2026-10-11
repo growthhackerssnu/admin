@@ -75,5 +75,12 @@ export type Manifest = {
   finishedAt: string | null;
   /** 이번 실행이 처음부터 전부 다시 받는 실행인지(이어 하기에도 유지) */
   fullRun?: boolean;
+  /** 받을 파일 종류·사진 압축(없으면 전부 받고 압축). files.ts의 FileOptions */
+  fileOptions?: {
+    photos: boolean;
+    videos: boolean;
+    files: boolean;
+    compressPhotos: boolean;
+  };
   conversations: Record<string, ConversationState>;
 };
