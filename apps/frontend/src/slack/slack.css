@@ -73,3 +73,4 @@
   .slk-sidebar { max-height: 160px; }
   .slk-side { border-left: 0; border-top: 1px solid var(--ds-gray-200); }
 }
+.slk-text s { text-decoration: line-through; }
