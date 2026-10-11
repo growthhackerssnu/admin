@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App as AntApp, Progress as AntProgress } from "antd";
+import { Alert, App as AntApp, Checkbox, Progress as AntProgress } from "antd";
 import { AppButton as Button } from "@/components/ui/app-button";
 import {
   canUseFolders,
@@ -9,10 +9,16 @@ import {
   type Folder,
 } from "./folder";
 import { runExport, type Progress } from "./exporter";
+import {
+  compressExisting,
+  DEFAULT_FILE_OPTIONS,
+  type FileKind,
+  type FileOptions,
+} from "./files";
 import { AUTH_ERRORS, createSlackClient, SlackError } from "./slackClient";
 import { downloadSlackFile, type SlackSession } from "./api";
 import { signInWithSlack } from "./oauth";
-import { loadExport, type ExportData } from "./viewer/data";
+import { conversationLabel, loadExport, type ExportData } from "./viewer/data";
 import { Viewer } from "./viewer/Viewer";
 import "./slack.css";
 
@@ -29,6 +35,9 @@ export default function SlackPage() {
   const [error, setError] = useState<string>();
   const [signingIn, setSigningIn] = useState(false);
   const [running, setRunning] = useState(false);
+  const [fileOptions, setFileOptions] =
+    useState<FileOptions>(DEFAULT_FILE_OPTIONS);
+  const [compressing, setCompressing] = useState<string>();
   const abort = useRef<AbortController>();
 
   const reload = async (target = folder) =>
@@ -66,7 +75,10 @@ export default function SlackPage() {
       setHandle(next);
       setFolder(nextFolder);
       setError(undefined);
-      await reload(nextFolder);
+      const loaded = await loadExport(nextFolder);
+      setData(loaded);
+      // 이 폴더에서 쓰던 설정을 그대로 보여준다.
+      setFileOptions(loaded?.manifest.fileOptions ?? DEFAULT_FILE_OPTIONS);
     } catch (e) {
       if ((e as DOMException).name !== "AbortError")
         setError("폴더를 열지 못했습니다.");
@@ -82,23 +94,17 @@ export default function SlackPage() {
     setRunning(true);
     setError(undefined);
     try {
-      const manifest = await runExport({
+      await runExport({
         client: createSlackClient(session.token, { onWait: setWaiting }),
         folder,
         download: (url) => downloadSlackFile(url, session.token),
         full,
+        fileOptions,
         signal: controller.signal,
         // 백업 중에는 폴더를 열 때 읽은 내용을 그대로 보여주고, 끝나면 다시 읽는다.
         onProgress: setProgress,
       });
-      const failed = Object.values(manifest.conversations).filter(
-        (c) => c.error,
-      ).length;
-      message.success(
-        failed
-          ? `백업을 마쳤습니다. ${failed}개 대화는 받지 못했습니다.`
-          : "백업을 마쳤습니다.",
-      );
+      message.success("백업을 마쳤습니다.");
     } catch (e) {
       if (e instanceof SlackError && AUTH_ERRORS.has(e.code)) {
         setSession(undefined);
@@ -123,9 +129,57 @@ export default function SlackPage() {
     }
   }
 
+  // 이미 받은 사진을 WebP로 줄인다(원본은 지운다). 슬랙 로그인 없이 폴더만으로 된다.
+  async function compressPhotos() {
+    if (!folder || !handle || !data) return;
+    if (!(await ensurePermission(handle)))
+      return setError("폴더에 쓸 권한이 없습니다. 폴더를 다시 열어 주세요.");
+    const controller = new AbortController();
+    abort.current = controller;
+    setRunning(true);
+    setError(undefined);
+    setCompressing("사진을 찾는 중");
+    try {
+      const result = await compressExisting({
+        folder,
+        manifest: data.manifest,
+        signal: controller.signal,
+        onProgress: (r) =>
+          setCompressing(
+            `${r.conversation}/${r.total} 대화 · 사진 ${r.count}장 · ${mb(r.before)} → ${mb(r.after)}`,
+          ),
+      });
+      message.success(
+        result.count
+          ? `사진 ${result.count}장을 압축했습니다. ${mb(result.before)} → ${mb(result.after)}`
+          : "더 압축할 사진이 없습니다.",
+      );
+    } catch (e) {
+      if ((e as DOMException).name === "AbortError")
+        message.info("압축을 멈췄습니다. 다시 누르면 남은 사진만 압축합니다.");
+      else
+        setError(`압축 중 오류: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      abort.current = undefined;
+      setRunning(false);
+      setCompressing(undefined);
+      await reload();
+    }
+  }
+
+  const toggle = (key: FileKind | "compressPhotos", value: boolean) =>
+    setFileOptions((current) => ({ ...current, [key]: value }));
+
   const manifest = data?.manifest;
+  // 탈퇴한 계정·지운 앱과의 DM은 슬랙이 channel_not_found로 막는다. 받을 방법도 없고
+  // 중요한 대화도 아니라 알리지 않는다. 그 밖의 실패만 이름으로 보여준다.
   const failed = manifest
-    ? data!.conversations.filter((c) => manifest.conversations[c.id]?.error)
+    ? data!.conversations.filter((c) => {
+        const error = manifest.conversations[c.id]?.error;
+        return (
+          error && !(error === "channel_not_found" && (c.is_im || c.is_mpim))
+        );
+      })
     : [];
   const exportButtons = !manifest ? (
     <Button
@@ -192,6 +246,54 @@ export default function SlackPage() {
         )}
       </div>
 
+      {folder && (
+        <div className="slk-toolbar slk-options">
+          <span className="slk-muted">받을 파일</span>
+          {(
+            [
+              ["photos", "사진"],
+              ["videos", "동영상"],
+              ["files", "파일"],
+            ] as const
+          ).map(([key, label]) => (
+            <Checkbox
+              key={key}
+              checked={fileOptions[key]}
+              disabled={running}
+              onChange={(e) => toggle(key, e.target.checked)}
+            >
+              {label}
+            </Checkbox>
+          ))}
+          <Checkbox
+            checked={fileOptions.photos && fileOptions.compressPhotos}
+            disabled={running || !fileOptions.photos}
+            onChange={(e) => toggle("compressPhotos", e.target.checked)}
+          >
+            사진 압축 <span className="slk-muted">(WebP, 최대 2048px)</span>
+          </Checkbox>
+          {manifest && (
+            <Button
+              disabled={running}
+              onClick={compressPhotos}
+              title="이 폴더에 이미 받은 사진을 WebP로 줄이고 원본은 지웁니다."
+            >
+              받은 사진 압축
+            </Button>
+          )}
+          <span className="slk-muted">
+            빼거나 다시 넣은 파일 종류는 이후에 받는 메시지부터 적용됩니다.
+          </span>
+        </div>
+      )}
+
+      {running && compressing && (
+        <div className="slk-progress">
+          <span>사진 압축 · {compressing}</span>
+          <Button onClick={() => abort.current?.abort()}>멈추기</Button>
+        </div>
+      )}
+
       {error && (
         <Alert
           type="error"
@@ -231,7 +333,7 @@ export default function SlackPage() {
           description={failed
             .map(
               (c) =>
-                `${c.name ?? c.id} (${manifest!.conversations[c.id].error})`,
+                `${conversationLabel(data!, c)} (${manifest!.conversations[c.id].error})`,
             )
             .join(", ")}
         />
@@ -270,3 +372,5 @@ export default function SlackPage() {
     </div>
   );
 }
+
+const mb = (bytes: number) => `${(bytes / 1048576).toFixed(1)}MB`;

@@ -107,17 +107,28 @@ export function fileUrl(folder: Folder, path: string) {
 }
 
 /** undefined = 읽는 중, null = 없음 */
-export function useFileUrl(folder: Folder, path: string | undefined) {
+/** paths를 차례로 보고 처음 있는 파일(압축본 → 원본). undefined = 읽는 중, null = 없음 */
+export function useFileUrl(
+  folder: Folder,
+  paths: string | string[] | undefined,
+) {
   const [url, setUrl] = useState<string | null | undefined>();
+  const key = [paths ?? []].flat().join("\n");
   useEffect(() => {
     let alive = true;
     setUrl(undefined);
-    if (!path) return setUrl(null);
-    fileUrl(folder, path).then((next) => alive && setUrl(next));
+    if (!key) return setUrl(null);
+    (async () => {
+      for (const path of key.split("\n")) {
+        const next = await fileUrl(folder, path);
+        if (next) return alive && setUrl(next);
+      }
+      if (alive) setUrl(null);
+    })();
     return () => {
       alive = false;
     };
-  }, [folder, path]);
+  }, [folder, key]);
   return url;
 }
 

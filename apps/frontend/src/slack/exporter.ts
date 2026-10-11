@@ -10,6 +10,15 @@ import {
   type SlackClient,
 } from "./slackClient";
 import { readJson, safeName, writeJson, type Folder } from "./folder";
+import {
+  compressedPath,
+  compressImage,
+  DEFAULT_FILE_OPTIONS,
+  fileKind,
+  filePath,
+  savedFilePaths,
+  type FileOptions,
+} from "./files";
 import type {
   ConversationState,
   Manifest,
@@ -37,6 +46,10 @@ export type ExportOptions = {
   /** 슬랙 파일 주소를 받아 내용을 돌려준다(백엔드 프록시 경유). */
   download: (url: string) => Promise<Blob>;
   full?: boolean;
+  /** 받을 파일 종류와 사진 압축. 새 실행이면 manifest에 남겨서 이어 하기·동기화가 같은 설정을 쓴다. */
+  fileOptions?: FileOptions;
+  /** 사진 압축(테스트에서 바꿔 끼운다) */
+  compress?: (blob: Blob) => Promise<Blob | null>;
   onProgress?: (progress: Progress) => void;
   signal?: AbortSignal;
 };
@@ -49,9 +62,6 @@ function monthEnd(month: string) {
   const [year, m] = month.split("-").map(Number);
   return (Date.UTC(year, m, 1) - KST) / 1000;
 }
-
-export const filePath = (file: SlackFile) =>
-  `files/${file.id}/${safeName(file.name ?? file.id)}`;
 
 /** oldest 이전 메시지는 그대로 두고, 그 뒤는 새로 받은 것으로 바꾼다(그 사이 지워진 메시지는 빠진다). */
 export function mergeWindow(
@@ -77,6 +87,8 @@ export async function runExport({
   folder,
   download,
   full = false,
+  fileOptions,
+  compress = compressImage,
   onProgress,
   signal,
 }: ExportOptions): Promise<Manifest> {
@@ -103,8 +115,11 @@ export async function runExport({
       startedAt: new Date().toISOString(),
       finishedAt: null,
       fullRun: full,
+      fileOptions,
       conversations,
     };
+  } else if (fileOptions) {
+    manifest.fileOptions = fileOptions;
   }
   const run = manifest;
   const saveManifest = () => writeJson(folder, "manifest.json", run);
@@ -115,6 +130,24 @@ export async function runExport({
     if (!url || (await folder.exists(path))) return;
     try {
       await folder.write(path, await download(url));
+    } catch {
+      // 지워졌거나 권한이 없는 파일. 뷰어가 "파일을 불러올 수 없음"으로 보여준다.
+    }
+  }
+
+  // 첨부 파일: 고른 종류만, 사진은 압축본(.webp)으로. 이미 받은 것(원본이든 압축본이든)은 건너뛴다.
+  const options = run.fileOptions ?? DEFAULT_FILE_OPTIONS;
+  async function saveMessageFile(file: SlackFile) {
+    const url = file.url_private_download ?? file.url_private;
+    const kind = fileKind(file);
+    if (!url || !options[kind]) return;
+    for (const path of savedFilePaths(file))
+      if (await folder.exists(path)) return;
+    try {
+      const blob = await download(url);
+      const target = options.compressPhotos ? compressedPath(file) : null;
+      const smaller = target ? await compress(blob) : null;
+      await folder.write(smaller ? target! : filePath(file), smaller ?? blob);
     } catch {
       // 지워졌거나 권한이 없는 파일. 뷰어가 "파일을 불러올 수 없음"으로 보여준다.
     }
@@ -226,10 +259,7 @@ export async function runExport({
           (m) => m.files ?? [],
         )) {
           if (file.mode !== "tombstone" && file.mode !== "hidden_by_limit")
-            await saveFile(
-              filePath(file),
-              file.url_private_download ?? file.url_private,
-            );
+            await saveMessageFile(file);
         }
       }
 

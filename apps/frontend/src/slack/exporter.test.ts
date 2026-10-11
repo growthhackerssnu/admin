@@ -285,6 +285,61 @@ describe("runExport", () => {
     expect(manifest.conversations.C1.done).toBe(true);
   });
 
+  it("skips excluded file kinds and compresses photos into webp", async () => {
+    const folder = memoryFolder();
+    const { client } = fakeSlack({
+      history: {
+        C1: [
+          {
+            ts: july,
+            files: [
+              {
+                id: "F1",
+                name: "a.png",
+                mimetype: "image/png",
+                url_private: "https://files.slack.com/F1",
+              },
+              {
+                id: "F2",
+                name: "b.mp4",
+                mimetype: "video/mp4",
+                url_private: "https://files.slack.com/F2",
+              },
+              {
+                id: "F3",
+                name: "c.pdf",
+                mimetype: "application/pdf",
+                url_private: "https://files.slack.com/F3",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const manifest = await runExport({
+      client,
+      folder,
+      download,
+      fileOptions: {
+        photos: true,
+        videos: false,
+        files: false,
+        compressPhotos: true,
+      },
+      compress: async () => new Blob(["webp"]),
+    });
+    expect(folder.files.has("files/F1/a.webp")).toBe(true);
+    expect(folder.files.has("files/F1/a.png")).toBe(false);
+    expect(folder.files.has("files/F2/b.mp4")).toBe(false);
+    expect(folder.files.has("files/F3/c.pdf")).toBe(false);
+    expect(manifest.fileOptions).toEqual({
+      photos: true,
+      videos: false,
+      files: false,
+      compressPhotos: true,
+    });
+  });
+
   it("marks a file that cannot be downloaded without failing the conversation", async () => {
     const folder = memoryFolder();
     const { client } = fakeSlack({
