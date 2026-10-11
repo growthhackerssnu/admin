@@ -1,11 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-
-// 로컬 프론트(5173)와 운영 admin.ghsnu.com만 허용한다. 배포 프리뷰 URL 등은
-// ALLOWED_ORIGINS(콤마 구분)로 덮어쓴다.
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:5173,https://admin.ghsnu.com")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+import { ALLOWED_ORIGINS } from "@/lib/origins";
 
 function corsHeaders(origin: string | null): Headers {
   const headers = new Headers();
