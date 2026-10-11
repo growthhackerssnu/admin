@@ -6,7 +6,6 @@ export type Folder = {
   read(path: string): Promise<string | null>;
   write(path: string, data: string | Blob): Promise<void>;
   exists(path: string): Promise<boolean>;
-  remove(path: string): Promise<void>;
 };
 
 export async function readJson<T>(
@@ -78,15 +77,6 @@ export function fsFolder(root: FileSystemDirectoryHandle): Folder {
     readBlob,
     read: async (path) => (await readBlob(path))?.text() ?? null,
     exists: async (path) => (await readBlob(path)) !== null,
-    async remove(path) {
-      const parts = path.split("/");
-      const name = parts.pop()!;
-      try {
-        await (await dir(parts, false)).removeEntry(name);
-      } catch {
-        // 이미 없다
-      }
-    },
     async write(path, data) {
       const writable = await (await file(path, true)).createWritable();
       await writable.write(data);
@@ -118,7 +108,6 @@ export function memoryFolder(
           : value.text();
     },
     exists: async (path) => files.has(path),
-    remove: async (path) => void files.delete(path),
     write: async (path, data) => void files.set(path, data),
   };
 }

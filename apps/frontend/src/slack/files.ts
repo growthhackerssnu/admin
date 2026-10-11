@@ -1,7 +1,7 @@
 // 첨부 파일 분류(사진·동영상·파일), 폴더 안 경로, 사진 압축.
 // 압축한 사진은 확장자를 .webp로 바꿔 저장한다(뷰어는 .webp를 먼저 찾고, 없으면 원래 이름을 찾는다).
-import { readJson, safeName, type Folder } from "./folder";
-import type { Manifest, SlackFile, SlackMessage } from "./types";
+import { safeName } from "./folder";
+import type { SlackFile } from "./types";
 
 export type FileKind = "photos" | "videos" | "files";
 export type FileOptions = Record<FileKind, boolean> & {
@@ -69,55 +69,4 @@ export async function compressImage(blob: Blob): Promise<Blob | null> {
   } catch {
     return null;
   }
-}
-
-export type CompressResult = { count: number; before: number; after: number };
-
-/** 이미 받은 사진을 압축본으로 바꾼다(원본은 지운다). */
-export async function compressExisting({
-  folder,
-  manifest,
-  compress = compressImage,
-  onProgress,
-  signal,
-}: {
-  folder: Folder;
-  manifest: Manifest;
-  compress?: (blob: Blob) => Promise<Blob | null>;
-  onProgress?: (
-    result: CompressResult & { conversation: number; total: number },
-  ) => void;
-  signal?: AbortSignal;
-}): Promise<CompressResult> {
-  const result: CompressResult = { count: 0, before: 0, after: 0 };
-  const ids = Object.keys(manifest.conversations);
-  for (const [index, id] of ids.entries()) {
-    for (const month of manifest.conversations[id].months) {
-      const messages =
-        (await readJson<SlackMessage[]>(
-          folder,
-          `messages/${id}/${month}.json`,
-        )) ?? [];
-      for (const file of messages
-        .flatMap((m) => [m, ...(m.replies ?? [])])
-        .flatMap((m) => m.files ?? [])) {
-        signal?.throwIfAborted();
-        const target = compressedPath(file);
-        const original = filePath(file);
-        if (!target || target === original || (await folder.exists(target)))
-          continue;
-        const blob = await folder.readBlob(original);
-        if (!blob) continue;
-        const smaller = await compress(blob);
-        if (!smaller) continue;
-        await folder.write(target, smaller);
-        await folder.remove(original);
-        result.count += 1;
-        result.before += blob.size;
-        result.after += smaller.size;
-      }
-    }
-    onProgress?.({ ...result, conversation: index + 1, total: ids.length });
-  }
-  return result;
 }
