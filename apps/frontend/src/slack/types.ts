@@ -14,12 +14,24 @@ export type SlackFile = {
 
 export type SlackReaction = { name: string; count: number; users?: string[] };
 
+export type SlackBotProfile = {
+  id?: string;
+  name?: string;
+  icons?: { image_36?: string; image_48?: string; image_72?: string };
+};
+
+/** bots.json 한 줄: 봇 이름과 폴더 안 아이콘 경로 */
+export type BotInfo = { name?: string; icon?: string };
+
 export type SlackMessage = {
   ts: string;
   type?: string;
   subtype?: string;
   user?: string;
   bot_id?: string;
+  bot_profile?: SlackBotProfile;
+  /** thread_broadcast(채널에도 보낸 스레드 답글)이면 부모 메시지 */
+  root?: SlackMessage;
   username?: string;
   text?: string;
   thread_ts?: string;

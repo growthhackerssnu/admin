@@ -4,7 +4,9 @@ import { FileText } from "lucide-react";
 import type { SlackFile, SlackMessage, SlackReaction } from "../types";
 import { fileKind, savedFilePaths } from "../files";
 import {
+  avatarPaths,
   conversationLabel,
+  dayLabel,
   messageAuthor,
   timeLabel,
   useFileUrl,
@@ -78,21 +80,53 @@ export function useMrkdwnContext(data: ExportData): MrkdwnContext {
 
 export function Avatar({
   data,
-  userId,
+  message,
+  small,
 }: {
   data: ExportData;
-  userId?: string;
+  message: Pick<SlackMessage, "user" | "bot_id">;
+  small?: boolean;
 }) {
-  const image = userId ? data.users.get(userId)?.profile?.image_72 : undefined;
-  const ext = image?.split("?")[0].match(/\.(\w{2,5})$/)?.[1] ?? "png";
-  const url = useFileUrl(
-    data.folder,
-    image ? `avatars/${userId}.${ext}` : undefined,
-  );
+  const url = useFileUrl(data.folder, avatarPaths(data, message));
+  const className = `slk-avatar${small ? " slk-avatar-small" : ""}`;
   return url ? (
-    <img className="slk-avatar" src={url} alt="" />
+    <img className={className} src={url} alt="" />
   ) : (
-    <span className="slk-avatar slk-avatar-empty" />
+    <span className={`${className} slk-avatar-empty`} />
+  );
+}
+
+// 슬랙처럼 답글 단 사람 사진(최대 5명) + "답글 N개" + 마지막 답글 시각
+function RepliesBar({
+  data,
+  message,
+  onOpen,
+}: {
+  data: ExportData;
+  message: SlackMessage;
+  onOpen: () => void;
+}) {
+  const replies = message.replies ?? [];
+  const repliers = [
+    ...new Map(
+      replies.map((r) => [r.user ?? r.bot_id ?? r.username ?? r.ts, r]),
+    ).values(),
+  ].slice(0, 5);
+  const last = replies[replies.length - 1];
+  return (
+    <button type="button" className="slk-replies" onClick={onOpen}>
+      <span className="slk-reply-avatars">
+        {repliers.map((r) => (
+          <Avatar key={r.ts} data={data} message={r} small />
+        ))}
+      </span>
+      <b>답글 {replies.length}개</b>
+      {last && (
+        <span className="slk-muted">
+          마지막 답글 {dayLabel(last.ts)} {timeLabel(last.ts)}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -172,6 +206,8 @@ export function MessageView({
   compact,
   focused,
   onOpenThread,
+  onOpenBroadcastThread,
+  inThread,
 }: {
   data: ExportData;
   ctx: MrkdwnContext;
@@ -179,7 +215,12 @@ export function MessageView({
   compact: boolean;
   focused?: boolean;
   onOpenThread?: (message: SlackMessage) => void;
+  /** 채널에도 보낸 스레드 답글의 "스레드에 답글" 줄을 눌렀을 때(부모 ts) */
+  onOpenBroadcastThread?: (threadTs: string) => void;
+  /** 스레드 패널 안이면 "채널에도 보냄" 표시 */
+  inThread?: boolean;
 }) {
+  const broadcast = message.subtype === "thread_broadcast";
   return (
     <div
       className={`slk-message${compact ? " slk-compact" : ""}${focused ? " slk-focused" : ""}`}
@@ -189,14 +230,31 @@ export function MessageView({
         {compact ? (
           <span className="slk-hover-time">{timeLabel(message.ts)}</span>
         ) : (
-          <Avatar data={data} userId={message.user} />
+          <Avatar data={data} message={message} />
         )}
       </div>
       <div className="slk-body">
+        {broadcast && !inThread && (
+          <button
+            type="button"
+            className="slk-broadcast"
+            onClick={() =>
+              message.thread_ts && onOpenBroadcastThread?.(message.thread_ts)
+            }
+          >
+            스레드에 답글:{" "}
+            <span>
+              {(message.root?.text ?? "").replace(/\s+/g, " ").slice(0, 80)}
+            </span>
+          </button>
+        )}
         {!compact && (
           <div className="slk-meta">
             <b>{messageAuthor(data, message)}</b>
             <span>{timeLabel(message.ts)}</span>
+            {broadcast && inThread && (
+              <span className="slk-broadcast-tag">채널에도 보냄</span>
+            )}
           </div>
         )}
         {message.text && (
@@ -216,13 +274,11 @@ export function MessageView({
           </div>
         )}
         {!!message.replies?.length && onOpenThread && (
-          <button
-            type="button"
-            className="slk-replies"
-            onClick={() => onOpenThread(message)}
-          >
-            답글 {message.replies.length}개
-          </button>
+          <RepliesBar
+            data={data}
+            message={message}
+            onOpen={() => onOpenThread(message)}
+          />
         )}
       </div>
     </div>

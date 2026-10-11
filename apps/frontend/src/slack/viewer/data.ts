@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { readJson, type Folder } from "../folder";
 import type {
+  BotInfo,
   Manifest,
   SlackConversation,
   SlackMessage,
@@ -18,6 +19,8 @@ export type ExportData = {
   emoji: Record<string, string>;
   /** 사용자 그룹 id → 핸들(cm). 예전 백업엔 없을 수 있다. */
   userGroups: Map<string, string>;
+  /** bot_id → 이름·아이콘(bots.json). 예전 백업엔 없을 수 있다. */
+  bots: Map<string, BotInfo>;
 };
 
 export async function loadExport(folder: Folder): Promise<ExportData | null> {
@@ -32,6 +35,11 @@ export async function loadExport(folder: Folder): Promise<ExportData | null> {
     conversations:
       (await readJson<SlackConversation[]>(folder, "conversations.json")) ?? [],
     emoji: (await readJson<Record<string, string>>(folder, "emoji.json")) ?? {},
+    bots: new Map(
+      Object.entries(
+        (await readJson<Record<string, BotInfo>>(folder, "bots.json")) ?? {},
+      ),
+    ),
     userGroups: new Map(
       ((await readJson<SlackUserGroup[]>(folder, "usergroups.json")) ?? []).map(
         (g) => [g.id, g.handle],
@@ -62,12 +70,34 @@ export const userName = (data: ExportData, id: string | undefined) => {
   );
 };
 
+// 웹훅처럼 메시지마다 이름을 정하는 봇(bot_message + username)은 그 이름이 우선이다.
 export function messageAuthor(data: ExportData, message: SlackMessage) {
-  if (message.user) return userName(data, message.user);
+  if (message.subtype === "bot_message" && message.username)
+    return message.username;
+  if (message.user && data.users.has(message.user))
+    return userName(data, message.user);
   return (
-    message.username ??
-    (message.bot_profile as { name?: string } | undefined)?.name ??
-    "봇"
+    message.username ||
+    message.bot_profile?.name ||
+    (message.bot_id && data.bots.get(message.bot_id)?.name) ||
+    (message.user ? userName(data, message.user) : "봇")
+  );
+}
+
+/** 사람이면 프로필 사진, 봇이면 봇 아이콘(둘 다 있으면 사람 사진이 먼저). */
+export function avatarPaths(
+  data: ExportData,
+  message: Pick<SlackMessage, "user" | "bot_id">,
+) {
+  const image = message.user
+    ? data.users.get(message.user)?.profile?.image_72
+    : undefined;
+  const ext = image?.split("?")[0].match(/\.(\w{2,5})$/)?.[1] ?? "png";
+  const botIcon = message.bot_id
+    ? data.bots.get(message.bot_id)?.icon
+    : undefined;
+  return [image && `avatars/${message.user}.${ext}`, botIcon].filter(
+    (p): p is string => !!p,
   );
 }
 

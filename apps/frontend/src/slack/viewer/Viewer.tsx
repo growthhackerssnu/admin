@@ -181,6 +181,7 @@ export function Viewer({ data }: { data: ExportData }) {
                     message={reply}
                     compact={isCompact(all[i - 1], reply)}
                     focused={reply.ts === thread.focusTs}
+                    inThread
                   />
                 ))}
               </div>

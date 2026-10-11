@@ -429,3 +429,50 @@
   font-size: 13px;
   gap: 8px 16px;
 }
+.slk-avatar-small {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+.slk-replies {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  margin-left: -6px;
+  border-radius: 6px;
+}
+.slk-replies:hover {
+  background: #fff;
+  outline: 1px solid var(--ds-gray-200);
+}
+.slk-replies .slk-muted {
+  font-weight: 400;
+  font-size: 12px;
+}
+.slk-reply-avatars {
+  display: inline-flex;
+  gap: 2px;
+}
+.slk-broadcast {
+  display: block;
+  border: 0;
+  background: none;
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--ds-gray-600);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.slk-broadcast span {
+  color: var(--ds-link);
+}
+.slk-broadcast-tag {
+  font-size: 12px;
+  color: var(--ds-gray-600);
+}
