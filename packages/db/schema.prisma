@@ -1562,6 +1562,26 @@ model ResearchTask {
   @@schema("dh")
 }
 
+// Gemini 호출 한 번의 사용량. 비용은 저장하지 않고 조회할 때 단가를 곱한다 — 단가가
+// 바뀌어도 과거 행을 고칠 필요가 없게 하기 위해서다. Gemini API 키가 이 GCP 결제
+// 계정 밖의 프로젝트에 있어 청구서로는 LLM 비용을 볼 수 없으므로, 관리자 비용 화면이
+// 이 표를 합산한다. append-only.
+model AiUsageEvent {
+  id             String   @id @default(cuid())
+  model          String
+  operation      String
+  status         String
+  inputTokens    Int      @default(0) @map("input_tokens")
+  outputTokens   Int      @default(0) @map("output_tokens")
+  webSearchCalls Int      @default(0) @map("web_search_calls")
+  durationMs     Int      @map("duration_ms")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("ai_usage_events")
+  @@schema("dh")
+}
+
 // ---------- NUT 재무 ----------
 
 enum NutBucketKind {

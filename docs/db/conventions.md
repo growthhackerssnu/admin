@@ -161,6 +161,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | `human_fit_decisions` | 사람의 판단 이력. append-only | 미정 |
 | `company_persons`, `contact_channels`, `candidate_contacts` | 관계자·연락 창구·후보별 창구 평가 | 아니오 (연락처) |
 | `research_tasks` | 비동기 조사 작업. error는 재시도 필터를 위해 세 컬럼으로 펴뒀다 | 미정 |
+| `ai_usage_events` | Gemini 호출별 토큰·검색 사용량(append-only). portal 관리자 비용 화면은 이 표를 직접 읽지 않고 `src/dh/lib/listup/aiUsage.ts`의 합계 함수만 쓴다 | 아니오 |
 
 #### 수집(Collection) — human review 파이프라인
 
