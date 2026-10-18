@@ -265,3 +265,33 @@ export function getGhbotTokenSecret(token: string, tokenId: string) {
     { token },
   );
 }
+
+// --- 관리자: 비용 ---
+
+// 청구서가 아니라 사용량 × 단가 추정치다(백엔드 src/portal/lib/costs.ts).
+export interface CostLine {
+  key: string;
+  category: "server" | "llm";
+  name: string;
+  usage: string;
+  costUsd: number | null;
+  error?: string;
+}
+
+export interface CostSummary {
+  period: { start: string; end: string };
+  currency: "USD";
+  totals: {
+    serverUsd: number;
+    llmUsd: number;
+    totalUsd: number;
+    forecastUsd: number;
+    complete: boolean;
+  };
+  lines: CostLine[];
+  llmTrackingSince: string | null;
+}
+
+export function getCostSummary(token: string) {
+  return request<CostSummary>("/api/v1/admin/costs", { token });
+}

@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { recordAiUsage } from "./aiUsage";
 import type { AiCallMetric } from "./localObservability";
 
 export const LISTUP_GEMINI_MODEL =
@@ -66,10 +67,19 @@ function interactionUsageOf(usage?: {
 
 type CallOptions = { onComplete?: (metric: AiCallMetric) => void };
 
+// 호출자의 onComplete 앞에 사용량 기록을 끼운다(관리자 비용 화면용).
+function tracked(operation: string, options: CallOptions) {
+  return (metric: AiCallMetric) => {
+    recordAiUsage(operation, metric);
+    options.onComplete?.(metric);
+  };
+}
+
 export async function runWebSearch(
   input: string,
   options: CallOptions = {},
 ): Promise<WebSearchResult> {
+  const onComplete = tracked("web_search", options);
   const startedMs = performance.now();
   try {
     const response = await client().models.generateContent({
@@ -97,7 +107,7 @@ export async function runWebSearch(
       webSearchCallCount: grounding?.webSearchQueries?.length ?? 0,
       ...usage,
     };
-    options.onComplete?.({
+    onComplete({
       status: "succeeded",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),
@@ -106,7 +116,7 @@ export async function runWebSearch(
     });
     return result;
   } catch (error) {
-    options.onComplete?.({
+    onComplete({
       status: "failed",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),
@@ -126,6 +136,7 @@ export async function runRequiredWebSearch(
   input: string,
   options: CallOptions = {},
 ): Promise<WebSearchResult> {
+  const onComplete = tracked("required_web_search", options);
   const startedMs = performance.now();
   try {
     const response = await client().interactions.create({
@@ -168,7 +179,7 @@ export async function runRequiredWebSearch(
       webSearchCallCount,
       ...usage,
     };
-    options.onComplete?.({
+    onComplete({
       status: "succeeded",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),
@@ -177,7 +188,7 @@ export async function runRequiredWebSearch(
     });
     return result;
   } catch (error) {
-    options.onComplete?.({
+    onComplete({
       status: "failed",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),
@@ -192,6 +203,7 @@ export async function runStructuredOutput<T>(
   schema: Record<string, unknown>,
   options: CallOptions = {},
 ) {
+  const onComplete = tracked("structured_output", options);
   const startedMs = performance.now();
   try {
     const response = await client().models.generateContent({
@@ -207,7 +219,7 @@ export async function runStructuredOutput<T>(
       value: JSON.parse(response.text ?? "") as T,
       ...usage,
     };
-    options.onComplete?.({
+    onComplete({
       status: "succeeded",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),
@@ -216,7 +228,7 @@ export async function runStructuredOutput<T>(
     });
     return result;
   } catch (error) {
-    options.onComplete?.({
+    onComplete({
       status: "failed",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),

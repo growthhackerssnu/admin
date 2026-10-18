@@ -12,6 +12,8 @@ vi.mock("@google/genai", () => ({
   },
 }));
 
+vi.mock("./aiUsage", () => ({ recordAiUsage: vi.fn() }));
+
 import {
   runRequiredWebSearch,
   runStructuredOutput,

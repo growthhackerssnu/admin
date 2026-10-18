@@ -25,6 +25,11 @@ const AdminMembers = lazy(() =>
     default: m.AdminMembers,
   })),
 );
+const AdminCosts = lazy(() =>
+  import("./portal/pages/AdminCosts").then((m) => ({
+    default: m.AdminCosts,
+  })),
+);
 const AdminGhbotTokens = lazy(() =>
   import("./portal/pages/AdminGhbotTokens").then((m) => ({
     default: m.AdminGhbotTokens,
@@ -136,6 +141,7 @@ function Root() {
                 <Route path="/hr/admin" element={<HrAdminQueue />} />
                 <Route path="/admin" element={<AdminMembers />} />
                 <Route path="/admin/ghbot" element={<AdminGhbotTokens />} />
+                <Route path="/admin/costs" element={<AdminCosts />} />
                 {/* 대협·NUT도 그핵드인·관리자와 같은 밝은 앱 화면(테마·폰트)으로 보인다. */}
                 <Route
                   path="/dh"
