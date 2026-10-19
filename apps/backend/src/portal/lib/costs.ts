@@ -50,7 +50,7 @@ type Rates = ReturnType<typeof costRates>;
 async function accessToken() {
   if (process.env.GCP_ACCESS_TOKEN) return process.env.GCP_ACCESS_TOKEN;
   const res = await fetch(
-    "http://metadata.google.internal/computeMetadata/v1/instance/service-account/token",
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
     { headers: { "Metadata-Flavor": "Google" } },
   );
   if (!res.ok) throw new Error(`GCP metadata token: HTTP ${res.status}`);
