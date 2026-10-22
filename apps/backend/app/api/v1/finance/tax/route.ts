@@ -13,7 +13,7 @@ export const GET = withApiHandler(async (req, { requestId }) => {
 const key = z.string().regex(/^(fy:\d{4}:(reserve-rate|business-paid|other-paid)|vat:\d{4}-[12]:(input-tax|vat-included))$/);
 
 export const POST = withApiHandler(async (req, { requestId }) => {
-  const body = await parseBody(req, z.object({ fy: z.number().int(), key, value: z.number().finite().nonnegative() }));
+  const body = await parseBody(req, z.object({ fy: z.number().int(), key, value: z.number().finite().nonnegative().nullable() }));
   await setTaxInput(body.key, body.value);
   return { body: successBody(await getTaxOverview(body.fy), requestId) };
 });

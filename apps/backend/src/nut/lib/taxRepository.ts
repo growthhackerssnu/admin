@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { toPayMethod, type PayMethod } from "./payMethod";
 
 // 세금 탭. 회계연도(사업연도)는 12월 1일 ~ 11월 30일이라 운영팀 반기와 다르다.
 // 회계연도 N = (N-1)년 12월 1일 ~ N년 11월 30일. 계산은 모든 반기의 회계 행을 날짜로 모아서 한다.
@@ -23,6 +24,18 @@ export function fiscalYearRange(fy: number) {
 export function countsForFiscalYear(date: string, fy: number, bizCard: boolean) {
   const { start, end } = fiscalYearRange(fy);
   return date <= end && (date >= start || (bizCard && date >= `${fy - 1}-12-01`));
+}
+
+// 학회 돈으로 직접 낸 지출(법인카드·법인계좌이체)인지. 개인카드는 회원이 먼저 낸 것이라 아니다.
+const paidByCorp = (claim?: { payMethod: string }) => !!claim && toPayMethod(claim.payMethod) !== "personal_card";
+
+// 부가세 매입세액 자동 계산. 과세 사업에 쓴 지출(손금 분류)의 합계금액에는 부가세 10/110이 들어 있다고 본다.
+// 개인카드는 법인 명의 증빙이 아니라 공제되지 않고, 인건비·세금·사업소득 지급 등은 손금 분류가 아니거나
+// 부가세가 없어 이미 걸러진다. 직접 적은 거래는 결제 수단을 모르니 법인이 낸 것으로 본다.
+export function autoInputTax(rows: Array<{ expense: number; taxClass: string; payMethod?: PayMethod }>) {
+  const eligible = rows.filter((row) => row.taxClass === "tax_deductible_expense" && row.payMethod !== "personal_card");
+  const spend = eligible.reduce((total, row) => total + row.expense, 0);
+  return { spend, count: eligible.length, tax: Math.floor((spend * 10) / 110) };
 }
 
 export function fiscalYearOf(date: string) {
@@ -78,7 +91,12 @@ async function inputs(keys: string[]) {
   return new Map(rows.map((row) => [row.key, row.value]));
 }
 
-export async function setTaxInput(key: string, value: number) {
+// value가 null이면 직접 입력한 값을 지워서 자동 계산으로 되돌린다.
+export async function setTaxInput(key: string, value: number | null) {
+  if (value === null) {
+    await prisma.nutTaxInput.deleteMany({ where: { key } });
+    return;
+  }
   await prisma.nutTaxInput.upsert({ where: { key }, update: { value }, create: { key, value } });
 }
 
@@ -115,14 +133,14 @@ export async function getTaxOverview(requestedFy?: number | null) {
   // 청구서로 들어온 지출은 법인카드인지 개인 카드인지, 영수증 Slack 스레드가 어딘지 안다(직접 적은 행은 모른다).
   const claims = await prisma.nutClaim.findMany({
     where: { ledgerEntryId: { in: entries.map((entry) => entry.id) } },
-    select: { ledgerEntryId: true, prepaid: true, slackLink: true },
+    select: { ledgerEntryId: true, payMethod: true, slackLink: true },
   });
   const claimByLedger = new Map(claims.map((claim) => [claim.ledgerEntryId!, claim]));
   const inFy = entries.filter((entry) =>
-    countsForFiscalYear(dateOnly(entry.transactionDate), fy, claimByLedger.get(entry.id)?.prepaid === false),
+    countsForFiscalYear(dateOnly(entry.transactionDate), fy, paidByCorp(claimByLedger.get(entry.id))),
   );
-  const cardOf = (claim?: { prepaid: boolean; slackLink: string | null }) =>
-    claim ? { card: claim.prepaid ? ("personal" as const) : ("biz" as const), slackLink: claim.slackLink ?? undefined } : {};
+  const cardOf = (claim?: { payMethod: string; slackLink: string | null }) =>
+    claim ? { payMethod: toPayMethod(claim.payMethod), slackLink: claim.slackLink ?? undefined } : {};
 
   const sum = (rows: typeof entries, taxClass: string, field: "income" | "expense") =>
     rows.filter((row) => row.taxClass === taxClass).reduce((total, row) => total + toNumber(row[field]), 0);
@@ -158,8 +176,29 @@ export async function getTaxOverview(requestedFy?: number | null) {
     const included = (stored.get(`vat:${period.key}:vat-included`) ?? 1) === 1;
     const supply = included ? Math.round(receipts / 1.1) : receipts;
     const outputTax = Math.round(supply * 0.1);
-    const inputTax = stored.get(`vat:${period.key}:input-tax`) ?? 0;
-    return { ...period, receipts, included, supply, outputTax, inputTax, payable: outputTax - inputTax };
+    // 직접 고친 값이 있으면 그걸, 없으면 지출에서 자동으로 계산한다.
+    const auto = autoInputTax(
+      rows.map((row) => ({
+        expense: toNumber(row.expense),
+        taxClass: row.taxClass,
+        payMethod: claimByLedger.get(row.id) ? toPayMethod(claimByLedger.get(row.id)!.payMethod) : undefined,
+      })),
+    );
+    const manual = stored.get(`vat:${period.key}:input-tax`);
+    const inputTax = manual ?? auto.tax;
+    return {
+      ...period,
+      receipts,
+      included,
+      supply,
+      outputTax,
+      inputTax,
+      inputTaxAuto: auto.tax,
+      inputTaxSpend: auto.spend,
+      inputTaxCount: auto.count,
+      inputTaxManual: manual !== undefined,
+      payable: outputTax - inputTax,
+    };
   });
 
   const withheld = withholding(stored.get(`fy:${fy}:business-paid`) ?? 0, stored.get(`fy:${fy}:other-paid`) ?? 0);

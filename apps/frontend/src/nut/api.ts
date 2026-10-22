@@ -4,6 +4,7 @@ import type {
   Billing,
   Excuse,
   FinanceOverview,
+  PayMethod,
   TaxClass,
   TaxOverview,
 } from "./types";
@@ -97,8 +98,8 @@ export const claimApi = {
   reject: (id: string, reason: string) =>
     send("claims", "PATCH", { id, type: "reject", reason }),
   reopen: (id: string) => send("claims", "PATCH", { id, type: "reopen" }),
-  setCard: (id: string, prepaid: boolean) =>
-    send("claims", "PATCH", { id, type: "card", prepaid }),
+  setCard: (id: string, payMethod: PayMethod) =>
+    send("claims", "PATCH", { id, type: "card", payMethod }),
   pay: (id: string, date: string, bucket?: string, teamId?: string | null) =>
     send("claims", "PATCH", { id, type: "pay", date, bucket, teamId }),
 };
@@ -203,7 +204,7 @@ export function fetchTax(fy?: number) {
   return request<TaxOverview>(`/api/v1/finance/tax${fy ? `?fy=${fy}` : ""}`);
 }
 
-export function saveTaxInput(fy: number, key: string, value: number) {
+export function saveTaxInput(fy: number, key: string, value: number | null) {
   return request<TaxOverview>("/api/v1/finance/tax", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -1816,8 +1816,10 @@ model NutClaim {
   bucket             String
   status             NutClaimStatus
   source             String
-  // true = 개인이 먼저 내고 돌려받음(영수증 필요), false = 법인카드 결제.
+  // true = 개인이 먼저 내고 돌려받음(영수증 필요), false = 학회가 직접 냄. payMethod === "personal_card"와 항상 같다.
   prepaid            Boolean        @default(false)
+  // biz_card(법인카드) | personal_card(개인카드) | biz_transfer(법인계좌이체)
+  payMethod          String         @default("biz_card") @map("pay_method")
   slackLink          String?        @map("slack_link")
   memberId           String?        @map("member_id")
   bankAccount        String?        @map("bank_account")

@@ -71,7 +71,7 @@ describe("POST /api/slack/events", () => {
       expect.objectContaining({
         id: "claim-slack-Fx1",
         amount: 23500,
-        prepaid: true,
+        payMethod: "personal_card",
         // 환급 계좌 명단에서 찾은 사람의 이름과 계좌를 쓴다.
         claimant: "김주형",
         source: "Slack",
@@ -88,24 +88,26 @@ describe("POST /api/slack/events", () => {
     expect(createClaim).toHaveBeenCalledWith("2026-2h", expect.objectContaining({ claimant: "홍길동", bankAccount: null }));
   });
 
-  it("marks biz card claims as not prepaid and keeps the Slack thread link", async () => {
+  it("marks biz card claims as biz_card and keeps the Slack thread link", async () => {
     await post(step("good", { biz_card: "true", thread_link: "https://ghsnu.slack.com/archives/C1/p1700000000000100" }));
     expect(createClaim).toHaveBeenCalledWith(
       "2026-2h",
-      expect.objectContaining({ prepaid: false, slackLink: "https://ghsnu.slack.com/archives/C1/p1700000000000100" }),
+      expect.objectContaining({ payMethod: "biz_card", slackLink: "https://ghsnu.slack.com/archives/C1/p1700000000000100" }),
     );
     await post(step("good", { biz_card: ["법인카드"] }));
-    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: false }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ payMethod: "biz_card" }));
     // 실제 양식의 '청구 종류?' 드롭다운 두 선택지.
     await post(step("good", { biz_card: "학회카드 사용 후 내용 기록" }));
-    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: false }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ payMethod: "biz_card" }));
     await post(step("good", { biz_card: "개인카드 혹은 계좌이체 후 청구" }));
-    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ prepaid: true }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ payMethod: "personal_card" }));
+    await post(step("good", { biz_card: "법인계좌이체 후 내용 기록" }));
+    expect(createClaim).toHaveBeenLastCalledWith("2026-2h", expect.objectContaining({ payMethod: "biz_transfer" }));
   });
 
   it("treats an unchecked box as a personal card and drops non-Slack links", async () => {
     await post(step("good", { biz_card: "false", thread_link: "javascript:alert(1)" }));
-    expect(createClaim).toHaveBeenCalledWith("2026-2h", expect.objectContaining({ prepaid: true, slackLink: null }));
+    expect(createClaim).toHaveBeenCalledWith("2026-2h", expect.objectContaining({ payMethod: "personal_card", slackLink: null }));
   });
 
   it("records the roll call's lists under the roster names", async () => {

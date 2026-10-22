@@ -20,7 +20,7 @@ const viewer = { memberId: "nobody", canEdit: true };
   const slack = o.budgetTree.find(n => n.name === "Slack")!; const spent0 = slack.actual;
   const major0 = o.budgetTree.find(n => n.id === o.budgetTree.find(x => x.id === slack.parentId)!.parentId)!;
   // claim -> pay -> ledger + spent
-  await r.createClaim(p, { memberId: "m1", claimant: "테스트", date: "2026-10-01", detail: "e2e 청구", amount: 12345, bucket: "미분류", bankAccount: "토스 1", prepaid: true, source: "NUT" });
+  await r.createClaim(p, { memberId: "m1", claimant: "테스트", date: "2026-10-01", detail: "e2e 청구", amount: 12345, bucket: "미분류", bankAccount: "토스 1", payMethod: "personal_card", source: "NUT" });
   o = await r.getFinanceOverview(p, { memberId: "m2", canEdit: false });
   const c = o.claims.find(x => x.detail === "e2e 청구")!; assert.equal(c.bankAccount, undefined, "account hidden from others");
   await assert.rejects(r.actOnClaim(c.id, { type: "pay", date: "2026-10-02" }, "rev"), /예산 항목/);

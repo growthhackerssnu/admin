@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { BudgetNode, FinanceOverview, TaxClass } from "./types";
+import type { BudgetNode, FinanceOverview, PayMethod, TaxClass } from "./types";
 
 export function money(value: number) {
   return value.toLocaleString("ko-KR") + "원";
@@ -162,3 +162,18 @@ export function Meter({
     </div>
   );
 }
+
+export const payMethodLabel: Record<PayMethod, string> = {
+  biz_card: "법인카드",
+  personal_card: "개인카드",
+  biz_transfer: "법인계좌이체",
+};
+
+export const payMethodOptions = (Object.keys(payMethodLabel) as PayMethod[]).map((value) => ({
+  value,
+  label: payMethodLabel[value],
+}));
+
+// 개인카드만 주황 칩, 나머지(학회 돈으로 직접 낸 것)는 같은 색.
+export const payMethodChipClass = (method: PayMethod) =>
+  "nut-card-chip nut-card-chip--" + (method === "personal_card" ? "personal" : "biz");

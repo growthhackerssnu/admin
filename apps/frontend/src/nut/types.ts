@@ -145,8 +145,9 @@ export interface Claim {
   bucket: string;
   status: ClaimStatus;
   source: string;
-  // true = 개인 카드(돌려줄 돈, 영수증 필요), false = 법인카드.
+  // true = 개인카드(돌려줄 돈, 영수증 필요). payMethod === "personal_card"와 같다.
   prepaid: boolean;
+  payMethod: PayMethod;
   slackLink?: string;
   mine: boolean;
   bankAccount?: string;
@@ -258,6 +259,11 @@ export interface TaxOverview {
     supply: number;
     outputTax: number;
     inputTax: number;
+    // 지출에서 자동으로 계산한 매입세액과 그 근거. inputTaxManual이면 직접 고친 값이 inputTax다.
+    inputTaxAuto: number;
+    inputTaxSpend: number;
+    inputTaxCount: number;
+    inputTaxManual: boolean;
     payable: number;
   }>;
   withholding: {
@@ -272,11 +278,13 @@ export interface TaxOverview {
     detail: string;
     amount: number;
     taxClass: TaxClass;
-    // 청구서로 들어온 행만: 법인카드 / 개인 카드(영수증은 slackLink 스레드).
-    card?: "biz" | "personal";
+    // 청구서로 들어온 행만: 법인카드 / 개인카드 / 법인계좌이체(영수증은 slackLink 스레드).
+    payMethod?: PayMethod;
     slackLink?: string;
   }>;
 }
+
+export type PayMethod = "biz_card" | "personal_card" | "biz_transfer";
 
 export type AttendanceType = "late" | "absent" | "quest";
 export type Excuse = "excused" | "partial" | "unexcused";

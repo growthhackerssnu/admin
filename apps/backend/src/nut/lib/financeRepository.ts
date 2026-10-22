@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 import { normalizeName } from "@/portal/lib/normalize";
+import { toPayMethod, type PayMethod } from "./payMethod";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -665,6 +666,7 @@ export async function getFinanceOverview(
         status: claim.status,
         source: claim.source,
         prepaid: claim.prepaid,
+        payMethod: toPayMethod(claim.payMethod),
         slackLink: claim.slackLink ?? undefined,
         mine: claim.memberId === viewer.memberId,
         bankAccount: canSeeAccount ? (claim.bankAccount ?? fallback ?? undefined) : undefined,
@@ -994,6 +996,7 @@ export async function deleteLedgerEntry(id: string) {
 
 export class ClaimStateError extends Error {}
 
+
 // 청구서는 Slack 워크플로 단계(app/api/slack/events)에서만 만든다. id를 주면 그 id로 한 번만
 // 만든다(Slack은 응답이 늦으면 같은 이벤트를 다시 보낸다).
 export async function createClaim(
@@ -1007,7 +1010,7 @@ export async function createClaim(
     amount: number;
     bucket: string;
     bankAccount?: string | null;
-    prepaid: boolean;
+    payMethod: PayMethod;
     slackLink?: string | null;
     note?: string | null;
     source: "NUT" | "Slack";
@@ -1027,7 +1030,8 @@ export async function createClaim(
       amount: BigInt(Math.max(0, Math.round(input.amount))),
       bucket: input.bucket,
       bankAccount: input.bankAccount || null,
-      prepaid: input.prepaid,
+      prepaid: input.payMethod === "personal_card",
+      payMethod: input.payMethod,
       slackLink: input.slackLink || null,
       note: input.note || null,
       status: "review",
@@ -1045,7 +1049,7 @@ export async function actOnClaim(
     | { type: "approve"; bucket?: string }
     | { type: "reject"; reason: string }
     | { type: "reopen" }
-    | { type: "card"; prepaid: boolean }
+    | { type: "card"; payMethod: PayMethod }
     | { type: "pay"; date: string; bucket?: string; teamId?: string | null },
   reviewerMemberId: string,
 ) {
@@ -1057,7 +1061,7 @@ export async function actOnClaim(
     const reviewed = { reviewedByMemberId: reviewerMemberId, reviewedAt: new Date() };
     if (action.type === "card") {
       // 결제 수단은 상태와 상관없이 고친다(Slack 양식에서 잘못 체크한 경우).
-      await tx.nutClaim.update({ where: { id }, data: { prepaid: action.prepaid } });
+      await tx.nutClaim.update({ where: { id }, data: { payMethod: action.payMethod, prepaid: action.payMethod === "personal_card" } });
     } else if (action.type === "approve") {
       if (claim.status !== "review") throw new ClaimStateError("검토 중인 청구서만 승인할 수 있습니다.");
       await tx.nutClaim.update({ where: { id }, data: { status: "approved", bucket, rejectReason: null, ...reviewed } });
