@@ -8,6 +8,9 @@ import {
   expenseCategories,
   incomeCategories,
   money,
+  payMethodChipClass,
+  payMethodLabel,
+  payMethodOptions,
   defaultTeamId,
   signed,
   taxClassFor,
@@ -15,7 +18,7 @@ import {
   teamTarget,
   useNut,
 } from "../shared";
-import type { LedgerEntry, TaxClass } from "../types";
+import type { LedgerEntry, PayMethod, TaxClass } from "../types";
 
 export const taxClassLabel: Record<TaxClass, string> = {
   taxable_gain: "과세 수익",
@@ -422,9 +425,9 @@ function LedgerEditor({
     teamId: entry.teamId ?? null,
     taxClass: entry.taxClass,
   });
-  // 청구서에서 온 행은 결제 수단(법인카드/개인카드)을 여기서 고친다. 값은 청구서에 있다.
+  // 청구서에서 온 행은 결제 수단(법인카드/개인카드/법인계좌이체)을 여기서 고친다. 값은 청구서에 있다.
   const claim = data.claims.find((item) => item.id === entry.claimId);
-  const [prepaid, setPrepaid] = useState(claim?.prepaid);
+  const [payMethod, setPayMethod] = useState(claim?.payMethod);
   const teams = teamsFor(data, value.bucket);
   const options =
     entry.type === "expense"
@@ -520,12 +523,9 @@ function LedgerEditor({
           <label>
             결제 수단
             <Segmented
-              value={prepaid ? "personal" : "biz"}
-              options={[
-                { value: "biz", label: "법인카드" },
-                { value: "personal", label: "개인카드" },
-              ]}
-              onChange={(card) => setPrepaid(card === "personal")}
+              value={payMethod}
+              options={payMethodOptions}
+              onChange={(method) => setPayMethod(method as PayMethod)}
             />
           </label>
         )}
@@ -578,8 +578,8 @@ function LedgerEditor({
           onClick={async () => {
             if (
               await run(async () => {
-                if (claim && prepaid !== undefined && prepaid !== claim.prepaid)
-                  await claimApi.setCard(claim.id, prepaid);
+                if (claim && payMethod && payMethod !== claim.payMethod)
+                  await claimApi.setCard(claim.id, payMethod);
                 return ledgerApi.update(entry.id, value);
               }, "거래를 고쳤습니다.")
             )
@@ -599,12 +599,8 @@ function CardChip({ claimId }: { claimId?: string }) {
   const claim = data.claims.find((item) => item.id === claimId);
   if (!claim) return null;
   return (
-    <span
-      className={
-        "nut-card-chip nut-card-chip--" + (claim.prepaid ? "personal" : "biz")
-      }
-    >
-      {claim.prepaid ? "개인카드" : "법인카드"}
+    <span className={payMethodChipClass(claim.payMethod)}>
+      {payMethodLabel[claim.payMethod]}
     </span>
   );
 }

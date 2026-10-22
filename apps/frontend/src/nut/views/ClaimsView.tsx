@@ -1,5 +1,5 @@
 import { PersonLink } from "../../lib/PersonLink";
-import { Input, Segmented, Select } from "antd";
+import { Dropdown, Input, Segmented, Select } from "antd";
 import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { claimApi } from "../api";
@@ -8,18 +8,21 @@ import {
   defaultTeamId,
   expenseCategories,
   money,
+  payMethodChipClass,
+  payMethodLabel,
+  payMethodOptions,
   shortDate,
   teamsFor,
   useNut,
 } from "../shared";
-import type { Claim, ClaimStatus } from "../types";
+import type { Claim, ClaimStatus, PayMethod } from "../types";
 import { statusLabel } from "./OverviewView";
 
 type Filter = "todo" | "mine" | ClaimStatus | "all";
 
 // 청구서: Slack 청구서 워크플로로 들어온 청구를 총무가 승인·반려·지급한다.
 // 지급하면 거래 내역에 자동으로 기록된다. 다른 회원은 진행 상황만 본다.
-// 법인카드 결제는 돌려줄 돈 없이 기록만 하고, 개인 카드 결제는 영수증이 있는 Slack 스레드를 잇는다.
+// 법인카드·법인계좌이체는 돌려줄 돈 없이 기록만 하고, 개인카드 결제는 영수증이 있는 Slack 스레드를 잇는다.
 export default function ClaimsView() {
   const { data } = useNut();
   const manage = data.viewer.canEdit;
@@ -194,27 +197,36 @@ function ClaimRow({ claim }: { claim: Claim }) {
   );
 }
 
-// 법인카드 / 개인카드 칩. 총무는 눌러서 바꾼다(Slack 양식에서 잘못 체크했을 때).
+// 결제 수단 칩(법인카드 / 개인카드 / 법인계좌이체). 총무는 눌러서 바꾼다(Slack 양식에서 잘못 골랐을 때).
 function CardChip({ claim }: { claim: Claim }) {
   const { data, run } = useNut();
-  const label = claim.prepaid ? "개인카드" : "법인카드";
-  const className =
-    "nut-card-chip nut-card-chip--" + (claim.prepaid ? "personal" : "biz");
+  const label = payMethodLabel[claim.payMethod];
+  const className = payMethodChipClass(claim.payMethod);
   if (!data.viewer.canEdit) return <span className={className}>{label}</span>;
   return (
-    <button
-      type="button"
-      className={className + " nut-card-chip--button"}
-      title={`${claim.prepaid ? "법인카드" : "개인카드"}로 바꾸기`}
-      onClick={() =>
-        void run(
-          () => claimApi.setCard(claim.id, !claim.prepaid),
-          `${claim.prepaid ? "법인카드" : "개인카드"}로 바꿨습니다.`,
-        )
-      }
+    <Dropdown
+      trigger={["click"]}
+      menu={{
+        items: payMethodOptions.map(({ value, label }) => ({ key: value, label })),
+        selectedKeys: [claim.payMethod],
+        onClick: ({ key }) => {
+          const next = key as PayMethod;
+          if (next !== claim.payMethod)
+            void run(
+              () => claimApi.setCard(claim.id, next),
+              `${payMethodLabel[next]}로 바꿨습니다.`,
+            );
+        },
+      }}
     >
-      {label}
-    </button>
+      <button
+        type="button"
+        className={className + " nut-card-chip--button"}
+        title="결제 수단 바꾸기"
+      >
+        {label}
+      </button>
+    </Dropdown>
   );
 }
 
@@ -313,7 +325,7 @@ function PayForm({ claim, onDone }: FormProps) {
       <p className="nut-hint nut-inline-form__wide">
         {claim.prepaid
           ? `${money(claim.amount)}을 지급 완료로 바꾸고 거래 내역에 지출로 기록합니다.`
-          : `법인카드 결제라 돌려줄 돈은 없습니다. ${money(claim.amount)}을 거래 내역에 지출로 기록합니다.`}
+          : `${payMethodLabel[claim.payMethod]}로 냈으니 돌려줄 돈은 없습니다. ${money(claim.amount)}을 거래 내역에 지출로 기록합니다.`}
       </p>
       <div className="nut-form-actions">
         <Button type="text" onClick={onDone}>
@@ -328,7 +340,7 @@ function PayForm({ claim, onDone }: FormProps) {
                 () => claimApi.pay(claim.id, date, bucket, teamId),
                 claim.prepaid
                   ? `${claim.claimant}님에게 ${money(claim.amount)} 지급을 기록했습니다.`
-                  : `법인카드 ${money(claim.amount)} 결제를 기록했습니다.`,
+                  : `${payMethodLabel[claim.payMethod]} ${money(claim.amount)} 결제를 기록했습니다.`,
               )
             )
               onDone();

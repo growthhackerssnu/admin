@@ -1,6 +1,7 @@
 import {
   App as AntApp,
   Alert,
+  Button,
   InputNumber,
   Segmented,
   Select,
@@ -9,8 +10,8 @@ import {
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { fetchTax, ledgerApi, saveTaxInput } from "../api";
-import { money, shortDate, useNut } from "../shared";
-import type { TaxClass, TaxOverview } from "../types";
+import { money, payMethodLabel, shortDate, useNut } from "../shared";
+import type { PayMethod, TaxClass, TaxOverview } from "../types";
 import { taxClassLabel } from "./LedgerView";
 
 // 세금: 회계연도(12월 1일 ~ 11월 30일) 기준 법인세, 달력 반기 기준 부가세, 원천징수세.
@@ -21,7 +22,7 @@ export default function TaxView() {
   const canEdit = data.viewer.canEdit;
   const [tax, setTax] = useState<TaxOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [card, setCard] = useState<"all" | "biz" | "personal">("all");
+  const [card, setCard] = useState<"all" | PayMethod>("all");
 
   const load = useCallback(async (fy?: number) => {
     try {
@@ -37,7 +38,7 @@ export default function TaxView() {
     void load();
   }, [load]);
 
-  async function saveInput(key: string, value: number) {
+  async function saveInput(key: string, value: number | null) {
     if (!tax) return;
     try {
       setTax(await saveTaxInput(tax.fiscalYear, key, value));
@@ -66,10 +67,10 @@ export default function TaxView() {
   const c = tax.corporate;
   const fyLabel = (fy: number) => `${fy} 회계연도`;
   const shown = tax.entries.filter(
-    (entry) => card === "all" || entry.card === card,
+    (entry) => card === "all" || entry.payMethod === card,
   );
   const missingReceipts = shown.filter(
-    (entry) => entry.card === "personal" && !entry.slackLink,
+    (entry) => entry.payMethod === "personal_card" && !entry.slackLink,
   ).length;
   return (
     <div className="nut-tax">
@@ -186,7 +187,7 @@ export default function TaxView() {
             <h2 id="vat">부가세</h2>
             <p className="nut-panel__sub">
               달력 기준 1기(1~6월)·2기(7~12월). 과세 수익 입금액에서 공급가액을
-              계산합니다.
+              계산합니다. 매입세액은 지출 내역에서 자동으로 계산합니다.
             </p>
           </div>
         </header>
@@ -227,32 +228,53 @@ export default function TaxView() {
                   <dd>{money(period.outputTax)}</dd>
                 </div>
                 <div>
-                  <dt>− 매입세액 (받은 세금계산서)</dt>
+                  <dt>
+                    − 매입세액
+                    <span className="nut-hint">
+                      {period.inputTaxManual
+                        ? `직접 입력 (자동 계산 ${money(period.inputTaxAuto)})`
+                        : `자동: 공제 가능 지출 ${money(period.inputTaxSpend)} (${period.inputTaxCount}건) × 10/110`}
+                    </span>
+                  </dt>
                   <dd>
                     {canEdit ? (
-                      <InputNumber
-                        size="small"
-                        min={0}
-                        defaultValue={period.inputTax}
-                        addonAfter="원"
-                        className="nut-tax__amount"
-                        formatter={(input) =>
-                          input ? Number(input).toLocaleString("ko-KR") : ""
-                        }
-                        parser={(input) =>
-                          Number((input ?? "").replace(/[^\d]/g, ""))
-                        }
-                        onBlur={(event) => {
-                          const value = Number(
-                            event.target.value.replace(/[^\d]/g, "") || 0,
-                          );
-                          if (value !== period.inputTax)
-                            void saveInput(
-                              `vat:${period.key}:input-tax`,
-                              value,
+                      <>
+                        <InputNumber
+                          key={`${period.key}:${period.inputTax}`}
+                          size="small"
+                          min={0}
+                          defaultValue={period.inputTax}
+                          addonAfter="원"
+                          className="nut-tax__amount"
+                          formatter={(input) =>
+                            input ? Number(input).toLocaleString("ko-KR") : ""
+                          }
+                          parser={(input) =>
+                            Number((input ?? "").replace(/[^\d]/g, ""))
+                          }
+                          onBlur={(event) => {
+                            const value = Number(
+                              event.target.value.replace(/[^\d]/g, "") || 0,
                             );
-                        }}
-                      />
+                            if (value !== period.inputTax)
+                              void saveInput(
+                                `vat:${period.key}:input-tax`,
+                                value,
+                              );
+                          }}
+                        />
+                        {period.inputTaxManual && (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() =>
+                              void saveInput(`vat:${period.key}:input-tax`, null)
+                            }
+                          >
+                            자동으로
+                          </Button>
+                        )}
+                      </>
                     ) : (
                       money(period.inputTax)
                     )}
@@ -347,8 +369,9 @@ export default function TaxView() {
             value={card}
             options={[
               { value: "all", label: "전체" },
-              { value: "biz", label: "법인카드" },
-              { value: "personal", label: "개인 카드" },
+              { value: "biz_card", label: payMethodLabel.biz_card },
+              { value: "personal_card", label: payMethodLabel.personal_card },
+              { value: "biz_transfer", label: payMethodLabel.biz_transfer },
             ]}
             onChange={(value) => setCard(value as typeof card)}
           />
@@ -378,8 +401,7 @@ export default function TaxView() {
                 <strong>{entry.detail}</strong>
                 <span>
                   {shortDate(entry.date)} · {entry.bucket}
-                  {entry.card === "biz" && " · 법인카드"}
-                  {entry.card === "personal" && " · 개인 카드"}
+                  {entry.payMethod && ` · ${payMethodLabel[entry.payMethod]}`}
                   {entry.slackLink ? (
                     <>
                       {" · "}
@@ -392,7 +414,7 @@ export default function TaxView() {
                       </a>
                     </>
                   ) : (
-                    entry.card === "personal" && (
+                    entry.payMethod === "personal_card" && (
                       <span className="nut-negative">
                         {" "}
                         · 영수증 스레드 없음

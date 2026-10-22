@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordArrival, recordRollCall, type Person } from "@/nut/lib/attendance";
 import { createClaim, findRefundAccount, resolvePeriodId } from "@/nut/lib/financeRepository";
+import { type PayMethod } from "@/nut/lib/payMethod";
 import { normalizeName } from "@/portal/lib/normalize";
 
 // Slack 앱 "GH NUT"(A0C802VMHK2)의 Events API 수신점. 워크플로 단계 세 개를 처리한다:
@@ -91,13 +92,15 @@ function parseAmount(value: Inputs["amount"]) {
   return Number.isFinite(amount) && amount > 0 ? Math.round(amount) : null;
 }
 
-// 양식의 '청구 종류?' 드롭다운("학회카드 사용 후 내용 기록" / "개인카드 혹은 계좌이체 후 청구").
+// 양식의 '청구 종류?' 드롭다운("학회카드 사용 후 내용 기록" / "개인카드 혹은 계좌이체 후 청구" / 법인계좌이체).
 // 불리언이나 다른 선택지 이름("법인카드" 등)으로 와도 읽는다.
-// 비어 있으면 개인 카드로 본다(영수증을 챙기는 쪽이 안전하다).
-function paidWithBizCard(value: Inputs["biz_card"]) {
+// 비어 있으면 개인카드로 본다(영수증을 챙기는 쪽이 안전하다).
+function payMethodOf(value: Inputs["biz_card"]): PayMethod {
   const text = (Array.isArray(value) ? value.join(",") : String(value ?? "")).trim();
-  if (/개인/.test(text)) return false;
-  return /^(true|yes|y|o|예|네)$/i.test(text) || /법인|학회\s*카드|biz|business|corporate/i.test(text);
+  if (/개인/.test(text)) return "personal_card";
+  if (/법인\s*계좌|계좌\s*이체|이체/.test(text)) return "biz_transfer";
+  const bizCard = /^(true|yes|y|o|예|네)$/i.test(text) || /법인|학회\s*카드|biz|business|corporate/i.test(text);
+  return bizCard ? "biz_card" : "personal_card";
 }
 
 // 영수증을 찾아볼 Slack 스레드. 화면에서 href로 쓰므로 Slack https 링크만 받는다.
@@ -172,8 +175,8 @@ async function registerClaim(executionId: string, inputs: Inputs, token: string)
     bucket: inputs.bucket?.trim() || "미분류",
     // 양식에 계좌가 없으면 환급 계좌 명단(NUT '환급 계좌' 탭)에서 채운다.
     bankAccount: inputs.bank_account?.trim() || account?.bankAccount || null,
-    // 개인 카드면 선결제 후지급(회원이 먼저 내고 학회가 돌려준다), 법인카드면 돌려줄 돈이 없다.
-    prepaid: !paidWithBizCard(inputs.biz_card),
+    // 개인카드면 선결제 후지급(회원이 먼저 내고 학회가 돌려준다), 법인카드·법인계좌이체면 돌려줄 돈이 없다.
+    payMethod: payMethodOf(inputs.biz_card),
     slackLink: slackLinkOf(inputs.thread_link),
     note: inputs.note?.trim() || null,
     source: "Slack",

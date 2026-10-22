@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { corporateTax, countsForFiscalYear, fiscalYearOf, fiscalYearRange, withholding } from "./taxRepository";
+import { autoInputTax, corporateTax, countsForFiscalYear, fiscalYearOf, fiscalYearRange, withholding } from "./taxRepository";
 
 describe("NUT tax", () => {
   it("uses the Dec 1 – Nov 30 fiscal year, starting the first one on 2026-10-11", () => {
@@ -30,5 +30,16 @@ describe("NUT tax", () => {
     const result = withholding(1_000_000, 1_000_000);
     expect(result.business.national + result.business.local).toBe(33_000);
     expect(result.other.national + result.other.local).toBe(88_000);
+  });
+
+  it("estimates input VAT as 10/110 of deductible spending, excluding personal-card claims", () => {
+    const result = autoInputTax([
+      { expense: 11_000, taxClass: "tax_deductible_expense", payMethod: "biz_card" },
+      { expense: 22_000, taxClass: "tax_deductible_expense", payMethod: "biz_transfer" },
+      { expense: 33_000, taxClass: "tax_deductible_expense" },
+      { expense: 55_000, taxClass: "tax_deductible_expense", payMethod: "personal_card" },
+      { expense: 99_000, taxClass: "non_tax_deductible_expense", payMethod: "biz_card" },
+    ]);
+    expect(result).toEqual({ spend: 66_000, count: 3, tax: 6_000 });
   });
 });
