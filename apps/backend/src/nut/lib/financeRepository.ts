@@ -667,6 +667,7 @@ export async function getFinanceOverview(
         source: claim.source,
         prepaid: claim.prepaid,
         payMethod: toPayMethod(claim.payMethod),
+        taxInvoice: claim.taxInvoice,
         slackLink: claim.slackLink ?? undefined,
         mine: claim.memberId === viewer.memberId,
         bankAccount: canSeeAccount ? (claim.bankAccount ?? fallback ?? undefined) : undefined,
@@ -1050,6 +1051,7 @@ export async function actOnClaim(
     | { type: "reject"; reason: string }
     | { type: "reopen" }
     | { type: "card"; payMethod: PayMethod }
+    | { type: "taxInvoice"; value: boolean }
     | { type: "pay"; date: string; bucket?: string; teamId?: string | null },
   reviewerMemberId: string,
 ) {
@@ -1062,6 +1064,8 @@ export async function actOnClaim(
     if (action.type === "card") {
       // 결제 수단은 상태와 상관없이 고친다(Slack 양식에서 잘못 체크한 경우).
       await tx.nutClaim.update({ where: { id }, data: { payMethod: action.payMethod, prepaid: action.payMethod === "personal_card" } });
+    } else if (action.type === "taxInvoice") {
+      await tx.nutClaim.update({ where: { id }, data: { taxInvoice: action.value } });
     } else if (action.type === "approve") {
       if (claim.status !== "review") throw new ClaimStateError("검토 중인 청구서만 승인할 수 있습니다.");
       await tx.nutClaim.update({ where: { id }, data: { status: "approved", bucket, rejectReason: null, ...reviewed } });

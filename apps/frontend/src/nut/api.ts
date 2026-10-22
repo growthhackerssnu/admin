@@ -98,6 +98,8 @@ export const claimApi = {
   reject: (id: string, reason: string) =>
     send("claims", "PATCH", { id, type: "reject", reason }),
   reopen: (id: string) => send("claims", "PATCH", { id, type: "reopen" }),
+  setTaxInvoice: (id: string, value: boolean) =>
+    send("claims", "PATCH", { id, type: "taxInvoice", value }),
   setCard: (id: string, payMethod: PayMethod) =>
     send("claims", "PATCH", { id, type: "card", payMethod }),
   pay: (id: string, date: string, bucket?: string, teamId?: string | null) =>

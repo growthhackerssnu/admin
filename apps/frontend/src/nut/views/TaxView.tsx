@@ -233,7 +233,7 @@ export default function TaxView() {
                     <span className="nut-hint">
                       {period.inputTaxManual
                         ? `직접 입력 (자동 계산 ${money(period.inputTaxAuto)})`
-                        : `자동: 공제 가능 지출 ${money(period.inputTaxSpend)} (${period.inputTaxCount}건) × 10/110`}
+                        : `자동: 공제 가능 지출 ${money(period.inputTaxSpend)} (${period.inputTaxCount}건: 법인카드 + 세금계산서 받은 건) × 10/110`}
                     </span>
                   </dt>
                   <dd>
@@ -402,6 +402,8 @@ export default function TaxView() {
                 <span>
                   {shortDate(entry.date)} · {entry.bucket}
                   {entry.payMethod && ` · ${payMethodLabel[entry.payMethod]}`}
+                  {entry.payMethod && entry.payMethod !== "biz_card" &&
+                    (entry.taxInvoice ? " · 세금계산서 받음" : " · 세금계산서 없음")}
                   {entry.slackLink ? (
                     <>
                       {" · "}

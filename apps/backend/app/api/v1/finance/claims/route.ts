@@ -14,6 +14,7 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
       z.object({ id: z.string(), type: z.literal("reject"), reason: z.string().trim().min(1, "반려 사유를 적어주세요.") }),
       z.object({ id: z.string(), type: z.literal("reopen") }),
       z.object({ id: z.string(), type: z.literal("card"), payMethod: z.enum(PAY_METHODS) }),
+      z.object({ id: z.string(), type: z.literal("taxInvoice"), value: z.boolean() }),
       z.object({ id: z.string(), type: z.literal("pay"), date: dateString, bucket: z.string().trim().optional(), teamId: z.string().nullish() }),
     ]),
   );

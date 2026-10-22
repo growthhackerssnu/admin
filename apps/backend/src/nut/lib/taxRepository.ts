@@ -30,10 +30,17 @@ export function countsForFiscalYear(date: string, fy: number, bizCard: boolean) 
 const paidByCorp = (claim?: { payMethod: string }) => !!claim && toPayMethod(claim.payMethod) !== "personal_card";
 
 // 부가세 매입세액 자동 계산. 과세 사업에 쓴 지출(손금 분류)의 합계금액에는 부가세 10/110이 들어 있다고 본다.
-// 개인카드는 법인 명의 증빙이 아니라 공제되지 않고, 인건비·세금·사업소득 지급 등은 손금 분류가 아니거나
-// 부가세가 없어 이미 걸러진다. 직접 적은 거래는 결제 수단을 모르니 법인이 낸 것으로 본다.
-export function autoInputTax(rows: Array<{ expense: number; taxClass: string; payMethod?: PayMethod }>) {
-  const eligible = rows.filter((row) => row.taxClass === "tax_deductible_expense" && row.payMethod !== "personal_card");
+// 법인카드는 카드 전표가 증빙이라 그대로 넣는다. 개인카드·법인계좌이체는 세금계산서·지출증빙을 받았다고
+// 체크한 것만 넣는다. 인건비·세금·사업소득 지급 등은 손금 분류가 아니거나 부가세가 없어 이미 걸러진다.
+// 직접 적은 거래는 결제 수단을 모르니 법인이 낸 것으로 본다.
+export function autoInputTax(
+  rows: Array<{ expense: number; taxClass: string; payMethod?: PayMethod; taxInvoice?: boolean }>,
+) {
+  const eligible = rows.filter(
+    (row) =>
+      row.taxClass === "tax_deductible_expense" &&
+      (row.payMethod === undefined || row.payMethod === "biz_card" || row.taxInvoice === true),
+  );
   const spend = eligible.reduce((total, row) => total + row.expense, 0);
   return { spend, count: eligible.length, tax: Math.floor((spend * 10) / 110) };
 }
@@ -133,14 +140,16 @@ export async function getTaxOverview(requestedFy?: number | null) {
   // 청구서로 들어온 지출은 법인카드인지 개인 카드인지, 영수증 Slack 스레드가 어딘지 안다(직접 적은 행은 모른다).
   const claims = await prisma.nutClaim.findMany({
     where: { ledgerEntryId: { in: entries.map((entry) => entry.id) } },
-    select: { ledgerEntryId: true, payMethod: true, slackLink: true },
+    select: { ledgerEntryId: true, payMethod: true, taxInvoice: true, slackLink: true },
   });
   const claimByLedger = new Map(claims.map((claim) => [claim.ledgerEntryId!, claim]));
   const inFy = entries.filter((entry) =>
     countsForFiscalYear(dateOnly(entry.transactionDate), fy, paidByCorp(claimByLedger.get(entry.id))),
   );
-  const cardOf = (claim?: { payMethod: string; slackLink: string | null }) =>
-    claim ? { payMethod: toPayMethod(claim.payMethod), slackLink: claim.slackLink ?? undefined } : {};
+  const cardOf = (claim?: { payMethod: string; taxInvoice: boolean; slackLink: string | null }) =>
+    claim
+      ? { payMethod: toPayMethod(claim.payMethod), taxInvoice: claim.taxInvoice, slackLink: claim.slackLink ?? undefined }
+      : {};
 
   const sum = (rows: typeof entries, taxClass: string, field: "income" | "expense") =>
     rows.filter((row) => row.taxClass === taxClass).reduce((total, row) => total + toNumber(row[field]), 0);
@@ -178,11 +187,15 @@ export async function getTaxOverview(requestedFy?: number | null) {
     const outputTax = Math.round(supply * 0.1);
     // 직접 고친 값이 있으면 그걸, 없으면 지출에서 자동으로 계산한다.
     const auto = autoInputTax(
-      rows.map((row) => ({
-        expense: toNumber(row.expense),
-        taxClass: row.taxClass,
-        payMethod: claimByLedger.get(row.id) ? toPayMethod(claimByLedger.get(row.id)!.payMethod) : undefined,
-      })),
+      rows.map((row) => {
+        const claim = claimByLedger.get(row.id);
+        return {
+          expense: toNumber(row.expense),
+          taxClass: row.taxClass,
+          payMethod: claim ? toPayMethod(claim.payMethod) : undefined,
+          taxInvoice: claim?.taxInvoice,
+        };
+      }),
     );
     const manual = stored.get(`vat:${period.key}:input-tax`);
     const inputTax = manual ?? auto.tax;

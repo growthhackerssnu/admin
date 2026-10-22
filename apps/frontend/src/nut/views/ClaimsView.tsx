@@ -1,5 +1,5 @@
 import { PersonLink } from "../../lib/PersonLink";
-import { Dropdown, Input, Segmented, Select } from "antd";
+import { Checkbox, Dropdown, Input, Segmented, Select } from "antd";
 import { useState } from "react";
 import { AppButton as Button } from "@/components/ui/app-button";
 import { claimApi } from "../api";
@@ -133,6 +133,9 @@ function ClaimRow({ claim }: { claim: Claim }) {
         {claim.prepaid && claim.bankAccount && (
           <span className="nut-claim__meta">입금 계좌 {claim.bankAccount}</span>
         )}
+        {claim.payMethod !== "biz_card" && (
+          <TaxInvoiceCheck claim={claim} />
+        )}
         {claim.note && (
           <span className="nut-claim__meta">메모: {claim.note}</span>
         )}
@@ -194,6 +197,32 @@ function ClaimRow({ claim }: { claim: Claim }) {
       )}
       {form === "pay" && <PayForm claim={claim} onDone={() => setForm(null)} />}
     </li>
+  );
+}
+
+// 개인카드·법인계좌이체는 학회 사업자번호로 세금계산서·지출증빙을 받아야 부가세 매입세액으로 공제된다.
+function TaxInvoiceCheck({ claim }: { claim: Claim }) {
+  const { data, run } = useNut();
+  if (!data.viewer.canEdit)
+    return (
+      <span className="nut-claim__meta">
+        {claim.taxInvoice ? "세금계산서·지출증빙 받음" : "세금계산서·지출증빙 없음"}
+      </span>
+    );
+  return (
+    <Checkbox
+      checked={claim.taxInvoice}
+      onChange={(event) =>
+        void run(
+          () => claimApi.setTaxInvoice(claim.id, event.target.checked),
+          event.target.checked
+            ? "세금계산서·지출증빙을 받은 것으로 표시했습니다."
+            : "세금계산서·지출증빙 표시를 해제했습니다.",
+        )
+      }
+    >
+      세금계산서·지출증빙 받음 (부가세 매입세액 공제)
+    </Checkbox>
   );
 }
 
