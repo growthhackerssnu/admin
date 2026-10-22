@@ -148,6 +148,8 @@ export interface Claim {
   // true = 개인카드(돌려줄 돈, 영수증 필요). payMethod === "personal_card"와 같다.
   prepaid: boolean;
   payMethod: PayMethod;
+  // 세금계산서·지출증빙을 받았는지(개인카드·법인계좌이체는 이게 있어야 매입세액 공제).
+  taxInvoice: boolean;
   slackLink?: string;
   mine: boolean;
   bankAccount?: string;
@@ -280,6 +282,7 @@ export interface TaxOverview {
     taxClass: TaxClass;
     // 청구서로 들어온 행만: 법인카드 / 개인카드 / 법인계좌이체(영수증은 slackLink 스레드).
     payMethod?: PayMethod;
+    taxInvoice?: boolean;
     slackLink?: string;
   }>;
 }

@@ -1820,6 +1820,8 @@ model NutClaim {
   prepaid            Boolean        @default(false)
   // biz_card(법인카드) | personal_card(개인카드) | biz_transfer(법인계좌이체)
   payMethod          String         @default("biz_card") @map("pay_method")
+  // 세금계산서·지출증빙을 받았는지. 개인카드·법인계좌이체는 이게 있어야 매입세액 공제 대상.
+  taxInvoice         Boolean        @default(false) @map("tax_invoice")
   slackLink          String?        @map("slack_link")
   memberId           String?        @map("member_id")
   bankAccount        String?        @map("bank_account")

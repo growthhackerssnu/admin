@@ -32,14 +32,16 @@ describe("NUT tax", () => {
     expect(result.other.national + result.other.local).toBe(88_000);
   });
 
-  it("estimates input VAT as 10/110 of deductible spending, excluding personal-card claims", () => {
+  it("estimates input VAT as 10/110 of deductible spending; card-less claims need a tax invoice", () => {
     const result = autoInputTax([
       { expense: 11_000, taxClass: "tax_deductible_expense", payMethod: "biz_card" },
-      { expense: 22_000, taxClass: "tax_deductible_expense", payMethod: "biz_transfer" },
+      { expense: 22_000, taxClass: "tax_deductible_expense", payMethod: "biz_transfer", taxInvoice: true },
       { expense: 33_000, taxClass: "tax_deductible_expense" },
       { expense: 55_000, taxClass: "tax_deductible_expense", payMethod: "personal_card" },
+      { expense: 44_000, taxClass: "tax_deductible_expense", payMethod: "biz_transfer" },
+      { expense: 77_000, taxClass: "tax_deductible_expense", payMethod: "personal_card", taxInvoice: true },
       { expense: 99_000, taxClass: "non_tax_deductible_expense", payMethod: "biz_card" },
     ]);
-    expect(result).toEqual({ spend: 66_000, count: 3, tax: 6_000 });
+    expect(result).toEqual({ spend: 143_000, count: 4, tax: 13_000 });
   });
 });
