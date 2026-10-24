@@ -20,8 +20,9 @@ import { signOut } from "../../lib/supabase";
 // side pane)이 서로 다른 목록을 보여주면 안 되기 때문이다.
 // 결정 배경: ARCHITECTURE_PORTAL.md §2, §3.1
 //
-// 모양: 갈 수 있는 곳마다 화면을 3~4등분하는 큼직한 둥근 타일(2026-10-02).
-// 앱마다 동일한 공통 표면과 타이포를 사용한다. 설명 문구는 초안이다.
+// 모양: 짙은 남색 무대 위에 갈 수 있는 곳마다 큼직한 둥근 타일(2026-10-02 브랜드 테마를
+// 되살림). 타일 색은 디자인 시스템 브랜드 램프(--ds-brand-*)에서 앱마다 고정해서, 어느
+// role로 들어와도 같은 앱은 같은 색이다. 설명 문구는 초안이다.
 const TILE: Record<
   AppKey,
   { en: string; desc: string; bg: string; tone: "dark" | "light" }
@@ -29,44 +30,44 @@ const TILE: Record<
   admin: {
     en: "ADMIN",
     desc: "회원 관리·권한 설정",
-    bg: "var(--background)",
+    bg: "var(--ds-brand-800)",
     tone: "light",
   },
   dh: {
     en: "DH BOT",
     desc: "기업 리스트업·컨택 업무",
-    bg: "var(--background)",
-    tone: "light",
+    bg: "var(--ds-brand-200)",
+    tone: "dark",
   },
   hr: {
     en: "GHedIn",
     desc: "알럼나이 디렉토리·프로필",
-    bg: "var(--background)",
-    tone: "light",
+    bg: "var(--ds-brand-400)",
+    tone: "dark",
   },
   projects: {
     en: "PROJECTS",
     desc: "그핵 프로젝트 백서",
-    bg: "var(--background)",
+    bg: "var(--ds-brand-700)",
     tone: "light",
   },
   nut: {
     en: "NUT",
     desc: "재무·운영 현황",
-    bg: "var(--background)",
-    tone: "light",
+    bg: "var(--ds-brand-300)",
+    tone: "dark",
   },
   attendance: {
     en: "ROLL CALL",
     desc: "출석·지각 기록과 벌점·벌금",
-    bg: "var(--background)",
+    bg: "var(--ds-brand-900)",
     tone: "light",
   },
   slack: {
     en: "SLACK BACKUP",
     desc: "내 슬랙 메시지를 내 컴퓨터에 백업·열람",
-    bg: "var(--background)",
-    tone: "light",
+    bg: "var(--ds-brand-500)",
+    tone: "dark",
   },
 };
 
@@ -111,7 +112,7 @@ export function Index() {
 
   if (session === undefined || (session && !me && !error)) {
     return (
-      <AuthStage>
+      <AuthStage vivid>
         <AuthLoading />
       </AuthStage>
     );
@@ -134,7 +135,7 @@ export function Index() {
   const apps = reachableApps(me.role, { slackBackup: me.slackBackup });
 
   return (
-    <AuthStage>
+    <AuthStage vivid>
       <div className="index-layout">
         <div className="index-head">
           <div>
@@ -160,7 +161,7 @@ export function Index() {
                 className={`index-tile index-tile-${tile.tone}`}
                 style={{
                   background: tile.bg,
-                  color: "var(--ds-text-strong)",
+                  color: tile.tone === "dark" ? "#fff" : "var(--ds-brand-100)",
                 }}
               >
                 <div className="index-tile-top">
