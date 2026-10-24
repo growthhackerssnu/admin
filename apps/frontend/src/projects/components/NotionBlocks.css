@@ -91,13 +91,16 @@
   padding: 0;
 }
 
+/* 본문보다 좁은 이미지(차트·로고)는 가운데에 둔다 */
 .notion-image {
   margin: 0 0 var(--ds-space-3);
+  text-align: center;
 }
 .notion-image img {
   display: block;
   max-width: 100%;
   height: auto;
+  margin: 0 auto;
   border-radius: var(--radius);
 }
 .notion-image figcaption {
