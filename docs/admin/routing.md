@@ -7,6 +7,7 @@ admin.ghsnu.com  (Vercel, apps/frontend — 단일 SPA, 라우터 하나)
   /  /login  /index  /admin        portal
   /dh  /dh/listup                  대협봇
   /hr  /hr/people/:id  /hr/requests  /hr/admin   그핵드인
+  /projects  /projects/:id          프로젝트(백서 — 모든 role, alumni는 참여한 것만 본문)
   /nut                             NUT
   /attendance                      출석체크(NUT 반기·API를 같이 쓴다)
         │  fetch + Authorization: Bearer <supabase access token>
@@ -17,7 +18,7 @@ api.ghsnu.com    (Cloud Run, apps/backend — Next.js API 전용)
 
 - **프론트**: 모든 화면이 `apps/frontend/src/main.tsx`의 라우트 하나에 들어 있다. 화면 간 이동(`SidePane`, 로그인 후 리다이렉트, 로그인 필요 시 `/login`)은 전부 React Router 내부 이동이라 새로고침이 없다. 루트 `vercel.json`이 모든 경로를 `index.html`로 돌린다(SPA fallback).
 - **대협**: `/dh`는 사람 검토 화면이다. 현재는 샘플 데이터가 브라우저에 저장된다. 이전 `/dh/listup` 주소는 `/dh`로 이동하며, 실데이터 API 연결은 별도 작업이다.
-- **백엔드**: 접두사 없이 `/api/...`. 경로가 겹치던 두 곳만 이름을 바꿨다 — hr의 "내 정보"는 `/api/v1/people/me`(portal은 `/api/v1/me`), 쓰이지 않던 hr 스캐폴딩 `/api/v1/ping`은 삭제(nut의 `/api/v1/ping`만 남음).
+- **백엔드**: 접두사 없이 `/api/...`. 경로가 겹치던 두 곳만 이름을 바꿨다 — hr의 "내 정보"는 `/api/v1/people/me`(portal은 `/api/v1/me`), 쓰이지 않던 hr 스캐폴딩 `/api/v1/ping`은 삭제(nut의 `/api/v1/ping`만 남음). 프로젝트 앱의 API는 dh의 `/api/v1/projects`와 겹치지 않게 `/api/v1/whitepapers`다.
 - **CORS**: 프론트와 API가 다른 origin이므로 `apps/backend/middleware.ts`가 `https://admin.ghsnu.com`과 `http://localhost:5173`을 허용한다.
 
 ## 세션

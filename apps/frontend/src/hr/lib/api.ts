@@ -105,11 +105,14 @@ export interface PersonDetail extends PersonSummary {
   careersText: string;
   activitiesText: string;
   projectsText: string;
+  /** projectsText를 "\n"으로 나눈 줄마다 이어질 프로젝트(백서) ID, 없으면 null. */
+  projectsTextLinks: (string | null)[];
 }
 
 export async function getPerson(notionPageId: string, token: string): Promise<PersonDetail> {
   const person = await request<PersonDetail>(`/api/v1/people/${notionPageId}`, { token });
-  return { ...person, jobField: toStringArray(person.jobField) };
+  // 이 필드가 생기기 전 배포된 서버도 잠깐 응답할 수 있어 빈 배열로 맞춘다.
+  return { ...person, jobField: toStringArray(person.jobField), projectsTextLinks: person.projectsTextLinks ?? [] };
 }
 
 // --- 수정 제출 (ARCHITECTURE.md §12.3, §12.3.1) ---

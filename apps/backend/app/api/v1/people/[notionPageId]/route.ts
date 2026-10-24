@@ -1,6 +1,7 @@
 import { withApiHandler } from "@/hr/lib/apiHandler";
 import { ApiError, successBody } from "@/hr/lib/errors";
 import { getPersonDetail } from "@/hr/lib/peopleCache";
+import { getProjectTextLinks } from "@/hr/lib/whitepapers";
 
 // GET /api/v1/people/:notionPageId — 프로필 상세 화면(/hr/people/:id) 조회
 // 모드가 쓴다(ARCHITECTURE.md §12.3). 본인 여부·수정 가능 여부 판단은
@@ -10,5 +11,8 @@ import { getPersonDetail } from "@/hr/lib/peopleCache";
 export const GET = withApiHandler<{ notionPageId: string }>(async (_req, { params, requestId }) => {
   const person = await getPersonDetail(params.notionPageId);
   if (!person) throw new ApiError("NOT_FOUND", "해당 알럼나이를 찾을 수 없습니다.");
-  return { body: successBody(person, requestId) };
+  // Projects 자유 텍스트 줄마다 이어질 백서 ID(줄 순서 그대로, 없으면 null).
+  // 프로필 캐시와 따로 두고 응답할 때 백서 목록과 맞춘다.
+  const projectsTextLinks = await getProjectTextLinks(person.notionPageId, person.projectsText);
+  return { body: successBody({ ...person, projectsTextLinks }, requestId) };
 });

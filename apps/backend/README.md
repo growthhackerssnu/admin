@@ -43,6 +43,8 @@ npm test -w apps/backend
 | `RESEND_API_KEY` | resend.com → API Keys | portal 가입 OTP 메일 |
 | `NOTION_API_KEY` | notion.so/my-integrations → integration 토큰 | hr 디렉토리·승인(Notion 읽기/쓰기) |
 | `NOTION_PEOPLE_DATABASE_ID` | Notion People DB의 database ID(integration에 공유 필요) | hr 디렉토리 |
+| `NOTION_PROJECTS_DATABASE_ID` | Notion Projects DB의 database ID(integration에 공유 필요) | 프로젝트 앱(`/projects`)·프로필 Projects 링크 |
+| 선택: `SUPABASE_SERVICE_ROLE_KEY` | Supabase → API → `service_role` | hr 프로필 사진·프로젝트 썸네일 자동 동기화(없으면 건너뜀) |
 | 선택: `RESEND_FROM_ADDRESS`, `LISTUP_*`, `ALLOWED_ORIGINS` | `.env.example` 참고. `ALLOWED_ORIGINS` 기본값은 `http://localhost:5173,https://admin.ghsnu.com` | |
 
 **로컬 스크립트에만 필요한 값** (Cloud Run엔 불필요)
