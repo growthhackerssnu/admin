@@ -17,12 +17,12 @@ import {
   ProjectsApiError,
   type Project,
 } from "../api";
-import { matchesProject } from "../lib/filter";
+import { groupByQuarter, matchesProject } from "../lib/filter";
 import { ProjectThumbnail } from "../components/ProjectThumbnail";
 import "./ProjectList.css";
 
 // 프로젝트(/projects) — Notion Projects DB의 프로젝트 백서 목록. 서버가 최신 분기순으로
-// 주고, 검색(기업·한줄설명·참여자·산업)과 분기·기술분류·내 프로젝트 필터는 메모리에서
+// 주고, 화면은 분기별로 묶어 보여준다. 검색(기업·한줄설명·참여자·산업)과 분기·기술분류·내 프로젝트 필터는 메모리에서
 // 거른다. alumni는 참여한 프로젝트만 백서 본문을 보고, 나머지는 개요만 본다(자물쇠 표시).
 export function ProjectList() {
   const session = useSession();
@@ -100,6 +100,8 @@ export function ProjectList() {
       ),
     [projects, search, quarters, technologies, mineOnly],
   );
+
+  const groups = useMemo(() => groupByQuarter(filtered), [filtered]);
 
   if (session === undefined || session === null || (!projects && !error)) {
     return <LoadingScreen />;
@@ -194,17 +196,27 @@ export function ProjectList() {
             style={{ marginTop: 48 }}
           />
         ) : (
-          <div className="project-grid">
-            {filtered.map((p) => (
-              <ProjectCard
-                key={p.notionPageId}
-                project={p}
-                onIntent={() =>
-                  prefetchProject(p.notionPageId, session.user.id)
-                }
-              />
-            ))}
-          </div>
+          groups.map((group) => (
+            <section key={group.quarter ?? "none"} className="project-quarter">
+              <h2 className="project-quarter-title">
+                {group.label}
+                <span className="project-quarter-count">
+                  {group.projects.length}건
+                </span>
+              </h2>
+              <div className="project-grid">
+                {group.projects.map((p) => (
+                  <ProjectCard
+                    key={p.notionPageId}
+                    project={p}
+                    onIntent={() =>
+                      prefetchProject(p.notionPageId, session.user.id)
+                    }
+                  />
+                ))}
+              </div>
+            </section>
+          ))
         )}
       </main>
     </AppShell>
@@ -233,10 +245,7 @@ function ProjectCard({
         className="project-card"
         cover={<ProjectThumbnail project={project} />}
       >
-        <div className="project-card-head">
-          <div className="project-card-title">{project.title}</div>
-          {project.quarter && <Tag>{project.quarter}</Tag>}
-        </div>
+        <div className="project-card-title">{project.title}</div>
         {(project.oneLiner ?? project.publicTitle) && (
           <div className="project-card-oneliner">
             {project.oneLiner ?? project.publicTitle}

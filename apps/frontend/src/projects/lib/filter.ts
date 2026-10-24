@@ -38,3 +38,34 @@ export function matchesProject(
 function normalize(text: string) {
   return text.replace(/\s+/g, "").toLowerCase();
 }
+
+export interface QuarterGroup {
+  quarter: string | null;
+  label: string;
+  projects: Project[];
+}
+
+// 목록을 분기별로 묶는다. 서버가 최신 분기순으로 주므로 등장 순서를 그대로 쓰고,
+// 분기가 없는 프로젝트는 맨 뒤 "분기 미정"으로 모은다.
+export function groupByQuarter(projects: Project[]): QuarterGroup[] {
+  const groups = new Map<string | null, Project[]>();
+  for (const p of projects) {
+    const list = groups.get(p.quarter) ?? [];
+    list.push(p);
+    groups.set(p.quarter, list);
+  }
+  return [...groups]
+    .sort(([a], [b]) => Number(a === null) - Number(b === null))
+    .map(([quarter, list]) => ({
+      quarter,
+      label: quarterLabel(quarter),
+      projects: list,
+    }));
+}
+
+// "25-2Q" → "2025년 2분기"
+export function quarterLabel(quarter: string | null): string {
+  if (!quarter) return "분기 미정";
+  const match = quarter.match(/^(\d{2})-(\d)Q/);
+  return match ? `20${match[1]}년 ${match[2]}분기` : quarter;
+}

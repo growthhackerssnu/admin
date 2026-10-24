@@ -22,6 +22,36 @@
   min-width: 160px;
 }
 
+/* 분기 묶음: 제목 + 카드 격자 */
+.project-quarter + .project-quarter {
+  margin-top: var(--ds-space-8, 40px);
+}
+.project-quarter-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin: 0 0 var(--ds-space-3);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ds-text-strong);
+}
+.project-quarter-title::before {
+  content: "";
+  width: 4px;
+  height: 1.05em;
+  border-radius: 2px;
+  background: linear-gradient(var(--ds-brand-500), var(--ds-brand-300));
+}
+.project-quarter-count {
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ds-brand-300);
+  background: var(--ds-brand-900);
+}
+
 .project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -56,13 +86,6 @@
 }
 .project-card-link:active .project-card {
   border-color: var(--hr-primary, var(--ds-link));
-}
-
-.project-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--ds-space-2);
 }
 
 .project-card-title {
