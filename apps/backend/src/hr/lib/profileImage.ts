@@ -65,7 +65,29 @@ export async function uploadProfileImage(
   pageId: string,
   sourceUrl: string,
 ): Promise<{ publicUrl: string; originalBytes: number; resizedBytes: number }> {
-  const original = await fetch(sourceUrl);
+  return uploadResizedImage(storage, {
+    path: `${pageId}.jpg`,
+    sourceUrl,
+    width: RESIZE_SIZE,
+    height: RESIZE_SIZE,
+    fit: "cover",
+  });
+}
+
+// 프로필 사진과 프로젝트 썸네일(whitepaperThumbnails.ts)이 같이 쓰는 본체. 썸네일도
+// 같은 공개 버킷의 "whitepapers/" 아래에 둔다(버킷을 새로 만들지 않으려고).
+export async function uploadResizedImage(
+  storage: SupabaseClient,
+  opts: {
+    path: string;
+    sourceUrl: string;
+    width: number;
+    height: number;
+    // cover: 꽉 채우고 잘라냄(사진). contain: 전부 보이게 줄이고 남는 곳은 흰색(로고).
+    fit: "cover" | "contain";
+  },
+): Promise<{ publicUrl: string; originalBytes: number; resizedBytes: number }> {
+  const original = await fetch(opts.sourceUrl);
   if (!original.ok) throw new Error(`이미지 다운로드 실패: HTTP ${original.status}`);
   const originalBuffer = Buffer.from(await original.arrayBuffer());
 
@@ -74,20 +96,20 @@ export async function uploadProfileImage(
   // 실제로 돌려 두지 않으면 사진이 옆으로 누운 채 저장된다.
   const resized = await sharp(originalBuffer)
     .rotate()
-    .resize(RESIZE_SIZE, RESIZE_SIZE, { fit: "cover" })
+    .resize(opts.width, opts.height, { fit: opts.fit, background: "#ffffff" })
+    .flatten({ background: "#ffffff" }) // 투명 PNG 로고가 JPEG에서 검게 나오지 않게
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer();
 
-  const path = `${pageId}.jpg`;
   const { error } = await storage.storage
     .from(PROFILE_IMAGE_BUCKET)
     // cacheControl 1년: 같은 경로를 덮어쓰지 않는 한 안 바뀐다 — egress 절약.
-    .upload(path, resized, { contentType: "image/jpeg", upsert: true, cacheControl: "31536000" });
+    .upload(opts.path, resized, { contentType: "image/jpeg", upsert: true, cacheControl: "31536000" });
   if (error) throw error;
 
   const {
     data: { publicUrl },
-  } = storage.storage.from(PROFILE_IMAGE_BUCKET).getPublicUrl(path);
+  } = storage.storage.from(PROFILE_IMAGE_BUCKET).getPublicUrl(opts.path);
 
   // 같은 경로에 덮어쓰므로(사진 교체 시) 브라우저가 1년 캐시(cacheControl)를 든 채
   // 옛 사진을 계속 보여주지 않도록, 저장하는 URL에 버전(?v=)을 붙인다. 브라우저는 주소

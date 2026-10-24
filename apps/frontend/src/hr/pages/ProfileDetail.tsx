@@ -1,6 +1,6 @@
 import { AppButton as Button } from "@/components/ui/app-button";
 import { AppTag as Tag } from "@/components/ui/app-tag";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   App as AntApp,
@@ -32,6 +32,7 @@ import {
   type PersonDetail,
   toStringArray,
 } from "../lib/api";
+import { projectPath } from "../../projects/api";
 import { useSession } from "../../lib/useSession";
 import { signOut } from "../../lib/supabase";
 import "./ProfileDetail.css";
@@ -251,7 +252,7 @@ function ProfileView({
 
       <ProfileSection title="Careers" text={person.careersText} />
       <ProfileSection title="Activities" text={person.activitiesText} />
-      <ProfileSection title="Projects" text={person.projectsText} />
+      <ProjectsSection person={person} />
 
       {isOwnProfile && (
         <Button type="primary" onClick={onEdit}>
@@ -267,6 +268,43 @@ function ProfileSection({ title, text }: { title: string; text: string }) {
     <section className="profile-section section-gap">
       <Typography.Title level={5}>{title}</Typography.Title>
       <pre className="profile-section-text">{text || "-"}</pre>
+    </section>
+  );
+}
+
+// 본인이 쓴 Projects 텍스트를 그대로 보여주되, 그핵 프로젝트로 확인된 줄은 그 프로젝트
+// 백서(/projects/:id)로 링크한다. 줄 → 프로젝트 매칭은 서버가 한다(projectTextMatch.ts).
+// 불릿("- ")은 링크 밖에 둔다.
+function ProjectsSection({ person }: { person: PersonDetail }) {
+  if (!person.projectsText) return <ProfileSection title="Projects" text="" />;
+  return (
+    <section className="profile-section section-gap">
+      <Typography.Title level={5}>Projects</Typography.Title>
+      <pre className="profile-section-text">
+        {person.projectsText.split("\n").map((line, i) => {
+          const projectId = person.projectsTextLinks[i];
+          const [, bullet = "", body = line] =
+            line.match(/^(\s*-\s+)?(.*)$/) ?? [];
+          return (
+            <Fragment key={i}>
+              {i > 0 && "\n"}
+              {projectId ? (
+                <>
+                  {bullet}
+                  <Link
+                    to={projectPath(projectId)}
+                    className="profile-project-link"
+                  >
+                    {body}
+                  </Link>
+                </>
+              ) : (
+                line
+              )}
+            </Fragment>
+          );
+        })}
+      </pre>
     </section>
   );
 }

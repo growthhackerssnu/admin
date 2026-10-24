@@ -2,7 +2,7 @@
 
 대협 어드민을 새로 구현하기 위한 업무 설계, 클릭 목업, 프론트·백엔드 구현입니다. PR #3의 자료를 유지하고 이전 서비스 구현은 제거했습니다. `apps/frontend`(`/dh`)에 샘플 어댑터를 쓰는 프론트, `apps/backend`(`src/dh`)에 API 계약 구현이 진행 중입니다(조회 API 완료, 쓰기·비동기 작업은 진행 중). 프론트-백엔드 실 연결(liveRepository)은 아직입니다.
 
-`admin.ghsnu.com` 통합 어드민 포털(로그인·회원 관리 `/`·`/admin`, 대협봇 `/dh`, 그핵드인 `/hr`, NUT `/nut`)을 모노레포로 운영합니다. 배포 단위는 두 개입니다.
+`admin.ghsnu.com` 통합 어드민 포털(로그인·회원 관리 `/`·`/admin`, 대협봇 `/dh`, 그핵드인 `/hr`, 프로젝트 `/projects`, NUT `/nut`)을 모노레포로 운영합니다. 배포 단위는 두 개입니다.
 
 - **프론트 — `admin.ghsnu.com`, Vercel 프로젝트 하나**(`apps/frontend`, 루트 `vercel.json`). 포털·대협봇·그핵드인·NUT이 라우터 하나를 쓰는 단일 SPA라 화면 간 이동에 새로고침이 없습니다. 설정은 [apps/frontend/README.md](apps/frontend/README.md).
 - **백엔드 — `api.ghsnu.com`, Cloud Run 서비스 하나**(`apps/backend`, 루트 `Dockerfile`, `.github/workflows/deploy-backend.yml`). 모든 API가 `/api/...` 아래에 있습니다. 설정은 [apps/backend/README.md](apps/backend/README.md).

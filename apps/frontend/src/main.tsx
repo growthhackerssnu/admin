@@ -62,6 +62,16 @@ const HrProfileDetail = lazy(() =>
 const HrMyRequests = lazy(() =>
   import("./hr/pages/MyRequests").then((m) => ({ default: m.MyRequests })),
 );
+const ProjectList = lazy(() =>
+  import("./projects/pages/ProjectList").then((m) => ({
+    default: m.ProjectList,
+  })),
+);
+const ProjectDetail = lazy(() =>
+  import("./projects/pages/ProjectDetail").then((m) => ({
+    default: m.ProjectDetail,
+  })),
+);
 const HrAdminQueue = lazy(() =>
   import("./hr/pages/AdminQueue").then((m) => ({ default: m.AdminQueue })),
 );
@@ -73,11 +83,13 @@ const SlackCallback = lazy(() => import("./slack/OAuthCallback"));
 // 화면 코드를 불러오는 짧은 동안 보이는 자리표시. 로그인·index는 공통 배경 화면이라 같은 색
 // 바탕만 깔아서(CSS 파일이 아직 안 왔으므로 인라인) 흰/회색 스켈레톤이 번쩍이지 않게 한다.
 const AUTH_PATHS = ["/", "/login", "/index"];
-// 밝은 앱 화면(hr·회원 관리·dh·nut)의 주소 — 이 화면들은 파란 점 로딩 화면을 쓴다.
+// 밝은 앱 화면(hr·프로젝트·회원 관리·dh·nut)의 주소 — 이 화면들은 파란 점 로딩 화면을 쓴다.
 function isAppScreenPath(pathname: string) {
   return (
     pathname === "/hr" ||
     pathname.startsWith("/hr/") ||
+    pathname === "/projects" ||
+    pathname.startsWith("/projects/") ||
     pathname === "/admin" ||
     pathname === "/dh" ||
     pathname === "/nut" ||
@@ -139,6 +151,12 @@ function Root() {
                 />
                 <Route path="/hr/requests" element={<HrMyRequests />} />
                 <Route path="/hr/admin" element={<HrAdminQueue />} />
+                {/* 프로젝트(백서)는 모든 role이 들어온다 — 본문 열람 범위는 백엔드가 정한다. */}
+                <Route path="/projects" element={<ProjectList />} />
+                <Route
+                  path="/projects/:notionPageId"
+                  element={<ProjectDetail />}
+                />
                 <Route path="/admin" element={<AdminMembers />} />
                 <Route path="/admin/ghbot" element={<AdminGhbotTokens />} />
                 <Route path="/admin/costs" element={<AdminCosts />} />

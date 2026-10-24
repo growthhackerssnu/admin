@@ -44,6 +44,12 @@ const TILE: Record<
     bg: "var(--background)",
     tone: "light",
   },
+  projects: {
+    en: "PROJECTS",
+    desc: "그핵 프로젝트 백서",
+    bg: "var(--background)",
+    tone: "light",
+  },
   nut: {
     en: "NUT",
     desc: "재무·운영 현황",
