@@ -22,8 +22,9 @@ import { CACHE_TTL_MS, memoryGet, memorySet, singleFlight } from "./memoryCache"
 import type { MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { callNotionRateLimited, extractMultiSelect, extractPropertyText, getNotionClient } from "./notion";
 import { getPeopleList } from "./peopleCache";
-import { matchProjectLines } from "./projectTextMatch";
+import { companyName, matchProjectLines } from "./projectTextMatch";
 import { getPublicProject, type PublicProjectRecord } from "./publicProjects";
+import { companyLogoUrl } from "./companyLogos";
 import { getThumbnailUrls, scheduleThumbnailSync, type ThumbnailCandidate } from "./whitepaperThumbnails";
 import { copyWhitepaperImages, NOTION_URL_SAFE_MS, signWhitepaperImages } from "./whitepaperImages";
 
@@ -87,7 +88,8 @@ export type WhitepaperDetail = WhitepaperSummary & {
   blocks: WhitepaperBlock[];
 };
 
-// 응답할 때 붙이는 값: 썸네일(홈페이지 로고 복사본 → Notion에서 옮긴 이미지 순), 홈페이지 제목,
+// 응답할 때 붙이는 값: 썸네일(홈페이지 로고 복사본 → Notion에서 옮긴 이미지 → 같은 기업의 다른
+// 프로젝트 썸네일 → 따로 올려둔 기업 로고 순, resolveThumbnails), 홈페이지 제목,
 // 그리고 보는 사람 기준의 참여 여부·본문 열람 가능 여부. 목록 캐시엔 없다.
 export type WhitepaperListItem = WhitepaperSummary & {
   thumbnailUrl: string | null;
@@ -120,7 +122,8 @@ export async function getViewer(member: MemberWithOpsRoles): Promise<Viewer> {
 
 export async function listWhitepapersFor(viewer: Viewer): Promise<WhitepaperListItem[]> {
   const [list, thumbnails] = await Promise.all([getWhitepaperList(), getThumbnailUrls()]);
-  return list.map((w) => toListItem(w, viewer, thumbnails));
+  const resolved = resolveThumbnails(list, thumbnails);
+  return list.map((w) => toListItem(w, viewer, resolved));
 }
 
 export async function getWhitepaperFor(viewer: Viewer, notionPageId: string): Promise<WhitepaperView | null> {
@@ -129,7 +132,7 @@ export async function getWhitepaperFor(viewer: Viewer, notionPageId: string): Pr
   if (!summary) return null;
   const pub = getPublicProject(summary.notionPageId);
   const item: WhitepaperView = {
-    ...toListItem(summary, viewer, thumbnails),
+    ...toListItem(summary, viewer, resolveThumbnails(list, thumbnails)),
     publicInfo: pub
       ? { sourceUrl: pub.sourceUrl, nameKo: pub.nameKo, nameEn: pub.nameEn, headline: pub.headline, blocks: pub.blocks }
       : null,
@@ -141,16 +144,38 @@ export async function getWhitepaperFor(viewer: Viewer, notionPageId: string): Pr
   return { ...item, notionUrl: detail.notionUrl, blocks: await signWhitepaperImages(detail.blocks) };
 }
 
-function toListItem(w: WhitepaperSummary, viewer: Viewer, thumbnails: Record<string, string>): WhitepaperListItem {
+function toListItem(w: WhitepaperSummary, viewer: Viewer, thumbnails: Map<string, string>): WhitepaperListItem {
   const isMine = Boolean(viewer.notionPageId && w.members.some((m) => sameNotionId(m.notionPageId, viewer.notionPageId!)));
   const pub = getPublicProject(w.notionPageId);
   return {
     ...w,
-    thumbnailUrl: pub?.thumbnailUrl ?? thumbnails[w.notionPageId] ?? null,
+    thumbnailUrl: thumbnails.get(w.notionPageId) ?? null,
     publicTitle: pub?.headline.join(" ") || null,
     isMine,
     canRead: viewer.fullAccess || isMine,
   };
+}
+
+// 프로젝트 ID → 썸네일 URL. 자기 이미지(홈페이지 로고 복사본 → Notion에서 옮긴 이미지)가 없으면
+// 같은 기업의 다른 프로젝트(재수주) 썸네일을 최신 분기 것부터 빌려 쓰고, 그것도 없으면 따로
+// 올려둔 기업 로고(companyLogos.ts)를 쓴다.
+function resolveThumbnails(list: WhitepaperSummary[], thumbnails: Record<string, string>): Map<string, string> {
+  const own = new Map<string, string>();
+  const byCompany = new Map<string, string>();
+  for (const w of list) {
+    const url = getPublicProject(w.notionPageId)?.thumbnailUrl ?? thumbnails[w.notionPageId];
+    if (!url) continue;
+    own.set(w.notionPageId, url);
+    const company = companyName(w.title);
+    if (!byCompany.has(company)) byCompany.set(company, url); // 목록이 최신 분기순이라 먼저 나온 게 최신
+  }
+  const resolved = new Map<string, string>();
+  for (const w of list) {
+    const company = companyName(w.title);
+    const url = own.get(w.notionPageId) ?? byCompany.get(company) ?? companyLogoUrl(company);
+    if (url) resolved.set(w.notionPageId, url);
+  }
+  return resolved;
 }
 
 function projectsDatabaseId(): string {

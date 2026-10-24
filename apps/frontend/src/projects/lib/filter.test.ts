@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Project } from "../api";
-import { matchesProject } from "./filter";
+import { groupByQuarter, matchesProject } from "./filter";
 
 const project: Project = {
   notionPageId: "p1",
@@ -51,5 +51,29 @@ describe("matchesProject", () => {
     expect(
       matchesProject({ ...project, isMine: true }, { ...none, mineOnly: true }),
     ).toBe(true);
+  });
+});
+
+describe("groupByQuarter", () => {
+  const at = (id: string, quarter: string | null): Project => ({
+    ...project,
+    notionPageId: id,
+    quarter,
+  });
+
+  it("keeps server order and puts projects without a quarter last", () => {
+    const groups = groupByQuarter([
+      at("a", "26-1Q"),
+      at("x", null),
+      at("b", "26-1Q"),
+      at("c", "25-4Q"),
+    ]);
+    expect(
+      groups.map((g) => [g.label, g.projects.map((p) => p.notionPageId)]),
+    ).toEqual([
+      ["2026년 1분기", ["a", "b"]],
+      ["2025년 4분기", ["c"]],
+      ["분기 미정", ["x"]],
+    ]);
   });
 });

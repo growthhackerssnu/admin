@@ -144,11 +144,91 @@ body.portal-theme-active,
 .login-card .stack {
   gap: var(--layout-field-gap);
 }
+/* ---------- index(앱 선택): 짙은 남색 무대 + 색 타일 ----------
+   2026-10-02 브랜드 테마(40a53a4)의 무대·타일을 디자인 시스템 브랜드 램프로 되살렸다. */
+body.portal-theme-active:has(.auth-stage-vivid) {
+  background: var(--ds-brand-100);
+}
+.auth-stage-vivid {
+  overflow: hidden;
+  isolation: isolate;
+  color: #fff;
+  background: var(--ds-brand-100);
+}
+.auth-stage-vivid .auth-backdrop {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(58% 52% at 80% 6%, rgb(1 85 184 / 0.55), transparent 70%),
+    radial-gradient(
+      48% 48% at 8% 92%,
+      rgb(125 175 232 / 0.24),
+      transparent 72%
+    ),
+    linear-gradient(
+      155deg,
+      var(--ds-brand-100) 0%,
+      var(--ds-brand-200) 55%,
+      var(--ds-brand-300) 100%
+    );
+}
+/* 은은한 격자: 가운데는 보이고 가장자리는 사라진다 */
+.auth-stage-vivid .auth-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(229 239 249 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(229 239 249 / 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(
+    ellipse at 50% 42%,
+    #000 18%,
+    transparent 74%
+  );
+  mask-image: radial-gradient(ellipse at 50% 42%, #000 18%, transparent 74%);
+}
+/* 아주 느리게 일렁이는 빛(모션 줄이기 설정에선 정지) */
+.auth-stage-vivid .auth-backdrop::before {
+  content: "";
+  position: absolute;
+  width: 62vmax;
+  height: 62vmax;
+  right: -18vmax;
+  top: -24vmax;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    rgb(125 175 232 / 0.22),
+    transparent
+  );
+}
+@media (prefers-reduced-motion: no-preference) {
+  .auth-stage-vivid .auth-backdrop::before {
+    animation: auth-drift 26s ease-in-out infinite alternate;
+  }
+}
+@keyframes auth-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-8vmax, 6vmax, 0) scale(1.12);
+  }
+}
+.auth-stage-vivid .auth-loading span {
+  background: var(--ds-brand-800);
+}
+
 .index-layout {
   min-height: 100dvh;
-  max-width: var(--layout-page-max);
+  max-width: 1280px;
   margin: 0 auto;
-  padding: var(--layout-section-gap) var(--layout-inset);
+  padding: 36px 40px 40px;
+  display: flex;
+  flex-direction: column;
 }
 .index-head {
   display: flex;
@@ -158,102 +238,155 @@ body.portal-theme-active,
 }
 .index-role-chip {
   display: inline-block;
-  margin-bottom: var(--layout-control-gap);
-  padding: var(--ds-space-1) var(--ds-space-3);
-  border-radius: var(--radius);
-  background: var(--ds-gray-200);
-  color: var(--ds-text-strong);
-  font-size: var(--ds-type-caption);
-  font-weight: 600;
+  margin-bottom: 14px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--ds-brand-800);
+  color: var(--ds-brand-100);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
 }
 .index-head h1 {
-  margin: 0 0 var(--layout-label-gap);
-  font-size: var(--ds-type-headline-4);
-  font-weight: 600;
-  line-height: 1.3;
-  color: var(--ds-text-strong);
+  margin: 0 0 8px;
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  color: #fff;
 }
 .index-head p {
   margin: 0;
-  font-size: var(--ds-type-body-1);
-  color: var(--ds-gray-700);
+  font-size: 16px;
+  color: rgb(229 239 249 / 0.86);
 }
+.portal-theme .index-logout:is(.ant-btn, .ds-compat-button) {
+  border-color: rgb(229 239 249 / 0.4);
+  background: transparent;
+  color: #fff;
+}
+.portal-theme .index-logout:is(.ant-btn, .ds-compat-button):hover {
+  border-color: #fff;
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+/* 큼직한 둥근 타일: 화면을 나눠 채운다. 5·7개면 마지막 타일이 남는 칸까지 넓힌다. */
 .index-tiles {
+  flex: 1;
   display: grid;
-  gap: var(--layout-inset);
-  margin-top: var(--layout-section-gap);
-}
-.index-tiles-3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-.index-tiles-4 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 32px;
 }
 .index-tiles-1,
 .index-tiles-2 {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
+.index-tiles-3,
+.index-tiles-5,
+.index-tiles-6 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.index-tiles-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.index-tiles-7 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.index-tiles-5 .index-tile:last-child,
+.index-tiles-7 .index-tile:last-child {
+  grid-column: span 2;
+}
 .index-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 220px;
+  min-height: 200px;
   min-width: 0;
-  padding: var(--layout-group-gap);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--ds-text-strong);
+  padding: 28px 30px;
+  overflow: hidden;
+  border-radius: 28px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
   text-decoration: none;
   transition:
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+/* 타일 모서리의 큰 원 장식 */
+.index-tile::after {
+  content: "";
+  position: absolute;
+  right: -70px;
+  top: -70px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.08);
+  pointer-events: none;
+}
+.index-tile-light::after {
+  background: rgb(0 21 46 / 0.07);
 }
 .index-tile-top {
+  position: relative;
   display: flex;
   justify-content: space-between;
-  font-size: var(--ds-type-caption);
-  font-weight: 600;
-  color: var(--ds-gray-700);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  opacity: 0.8;
 }
 .index-tile-bottom {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--layout-field-gap);
+  gap: 16px;
 }
 .index-tile-name {
-  font-size: var(--ds-type-headline-5);
-  font-weight: 600;
-  line-height: 1.3;
+  font-size: clamp(26px, 2.6vw, 36px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
 }
 .index-tile-desc {
-  margin-top: var(--layout-label-gap);
-  font-size: var(--ds-type-body-2);
-  color: var(--ds-gray-700);
+  margin-top: 8px;
+  font-size: 15px;
+  opacity: 0.86;
 }
 .index-tile-arrow {
   flex: none;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius);
-  color: var(--ds-action-primary);
-  background: var(--ds-brand-900);
-  font-size: var(--ds-type-body-1);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.18);
+  font-size: 18px;
+  transition: transform 0.25s ease;
+}
+.index-tile-light .index-tile-arrow {
+  background: rgb(0 21 46 / 0.12);
 }
 .index-tile:focus-visible {
-  outline: 2px solid var(--ds-focus);
+  outline: 3px solid #fff;
   outline-offset: 3px;
 }
+/* hover는 마우스가 있는 기기에서만 */
 @media (hover: hover) {
   .index-tile:hover {
-    border-color: var(--ds-surface-selected-border);
-    box-shadow: 0 4px 16px var(--ds-shadow);
+    transform: translateY(-6px);
+    box-shadow: 0 26px 54px rgb(0 2 5 / 0.45);
+  }
+  .index-tile:hover .index-tile-arrow {
+    transform: translateX(5px);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .index-tile {
+  .index-tile,
+  .index-tile-arrow {
     transition: none;
   }
 }
@@ -265,11 +398,26 @@ body.portal-theme-active,
   .login-brand h1 {
     font-size: var(--ds-type-headline-4);
   }
+  .index-layout {
+    padding: 28px 20px 32px;
+  }
+  .index-tiles {
+    grid-auto-rows: auto;
+  }
   .index-tiles-3 {
     grid-template-columns: minmax(0, 1fr);
   }
+  .index-tiles-5,
+  .index-tiles-6,
+  .index-tiles-7 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .index-tiles-5 .index-tile:last-child,
+  .index-tiles-7 .index-tile:last-child {
+    grid-column: span 2;
+  }
   .index-tile {
-    min-height: 190px;
+    min-height: 180px;
   }
 }
 @media (max-width: 599px) {
@@ -280,12 +428,20 @@ body.portal-theme-active,
   .login-card-foot {
     padding-inline: var(--layout-inset);
   }
-  .index-tiles-4 {
+  .index-tiles-4,
+  .index-tiles-5,
+  .index-tiles-6,
+  .index-tiles-7 {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .index-tiles-5 .index-tile:last-child,
+  .index-tiles-7 .index-tile:last-child {
+    grid-column: auto;
   }
   .index-tile {
     min-height: 150px;
-    padding: var(--layout-inset);
+    padding: 22px;
+    border-radius: 24px;
   }
   .index-head {
     flex-direction: column;
