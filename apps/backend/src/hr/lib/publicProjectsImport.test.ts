@@ -1,28 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { matchPublicProjects, parseDetail, parseGallery, type PublicProject } from "./publicProjects";
+import { matchPublicProjects, parseDetail, parseGallery, type PublicProject } from "./publicProjectsImport";
 
-// 홈페이지 마크업을 줄인 모양(줄마다 <div>, 기업명 줄은 span 둘).
+// 홈페이지 마크업을 줄인 모양(줄마다 <div>, 기업명 줄은 span 둘, 구역 제목은 굵은 fsize25).
 const DETAIL = `<html><head><title>25-3Q | Kooky</title></head><body>
 <nav><div>PROJECT</div><div>HOME &nbsp;｜ ACTIVITIES ｜ PROJECT</div></nav>
-<div class="desc"><div><span>쿠키</span><span>&nbsp;| Kooky</span></div><div><span>&#8203;</span><br></div>
+<div class="desc"><div><span class="fsize60">쿠키</span><span>&nbsp;| Kooky</span></div><div><span>&#8203;</span><br></div>
 <div><span>K-pop 아티스트의 도시별 인기지수 산출 모델 고도화</span></div></div>
-<div class="desc"><div><span>프로젝트 소개</span></div><div><br></div>
-<div><span>도시별 인기지수를 만들었습니다.</span></div><div><br></div>
-<div><span>세부 목표</span>:</div><div>&#8203;<br></div>
-<div><span>1. 지도 학습 기반 예측 모델 설계</span></div>
-<div><span>&nbsp; &nbsp; 1-1. 피처 설계</span></div>
-<div><span>2. 비지도 학습 기반 추천 모델 설계</span></div>
-<div><span>로드맵</span></div><div>본문</div></div>
-</body></html>`;
+<div class="desc"><div><span style="font-weight: 700;" class="fsize25">프로젝트 소개</span></div><div><br></div>
+<div><span class="fsize16">도시별 인기지수를 만들었습니다.</span></div>
+<div><span style="font-weight: 700;" class="fsize16"><u>1. 지도 학습 기반 예측 모델 설계</u></span></div>
+<div><img src="https://lh3.example/roadmap.png" alt="주제1.png"><br></div>
+<div><span style="font-weight: 700;" class="fsize25">PM 소회</span></div>
+<blockquote><div><span>좋았던 점은 무엇인가요?</span></div></blockquote><ol><li class="fsize16"><div>새 도메인을 경험했습니다.</div></li><li><div>팀워크가 좋았습니다.</div></li></ol>
+</div></body></html>`;
 
 describe("parseDetail", () => {
-  it("reads company names, headline, intro and goals", () => {
+  it("reads company names, headline and ordered body blocks", () => {
     expect(parseDetail(DETAIL)).toEqual({
       nameKo: "쿠키",
       nameEn: "Kooky",
       headline: ["K-pop 아티스트의 도시별 인기지수 산출 모델 고도화"],
-      intro: ["도시별 인기지수를 만들었습니다."],
-      goals: ["1. 지도 학습 기반 예측 모델 설계", "1-1. 피처 설계", "2. 비지도 학습 기반 추천 모델 설계"],
+      blocks: [
+        { type: "heading", text: "프로젝트 소개" },
+        { type: "text", text: "도시별 인기지수를 만들었습니다." },
+        { type: "text", text: "1. 지도 학습 기반 예측 모델 설계", bold: true },
+        { type: "image", url: "https://lh3.example/roadmap.png" },
+        { type: "heading", text: "PM 소회" },
+        { type: "text", text: "좋았던 점은 무엇인가요?", quote: true },
+        { type: "text", text: "새 도메인을 경험했습니다.", list: true },
+        { type: "text", text: "팀워크가 좋았습니다.", list: true },
+      ],
     });
   });
 
@@ -44,7 +51,7 @@ describe("parseGallery", () => {
 
 function pub(label: string, nameKo: string, nameEn: string): PublicProject {
   const quarter = label.slice(0, 5);
-  return { url: label, label, quarter, isSide: label.includes("Side"), imageUrl: null, nameKo, nameEn, headline: [], intro: [], goals: [] };
+  return { url: label, label, quarter, isSide: label.includes("Side"), imageUrl: null, nameKo, nameEn, headline: [], blocks: [] };
 }
 
 describe("matchPublicProjects", () => {

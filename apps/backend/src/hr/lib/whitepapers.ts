@@ -5,7 +5,8 @@
 // 공개 범위: admin·acting은 모든 백서 본문을 본다. alumni는 본인이 참여한(참여인원에
 // 있는) 프로젝트만 본문을 보고, 나머지는 개요(분기·산업·기술·참여자·썸네일)만 본다.
 // 개요만 보는 경우엔 본문을 아예 응답에 싣지 않는다(화면에서 가리는 게 아니라).
-// 홈페이지(ghsnu.com/PROJECT)에 공개된 소개는 누구에게나 붙인다(publicProjects.ts).
+// 홈페이지(ghsnu.com/PROJECT)에 공개된 소개는 누구에게나 붙인다. 홈페이지를 읽지 않고
+// 스크립트로 복사해 둔 것을 쓴다(publicProjects.ts).
 //
 // 캐시는 people과 같은 3단(서버 메모리 → hr.people_cache → Notion)이고, 같은
 // people_cache 테이블을 "whitepapers"·"whitepaper:<id>" 키로 같이 쓴다(사람 키는
@@ -17,7 +18,7 @@ import type { MemberWithOpsRoles } from "@/portal/lib/opsRoles";
 import { callNotionRateLimited, extractMultiSelect, extractPropertyText, getNotionClient } from "./notion";
 import { getPeopleList } from "./peopleCache";
 import { matchProjectLines } from "./projectTextMatch";
-import { fetchPublicProjects, matchPublicProjects, type PublicProject } from "./publicProjects";
+import { getPublicProject, type PublicProjectRecord } from "./publicProjects";
 import { getThumbnailUrls, scheduleThumbnailSync, type ThumbnailCandidate } from "./whitepaperThumbnails";
 
 const PROPERTY = {
@@ -76,7 +77,7 @@ export type WhitepaperDetail = WhitepaperSummary & {
   blocks: WhitepaperBlock[];
 };
 
-// 응답할 때 붙이는 값: 썸네일(홈페이지 로고 → Notion에서 옮긴 이미지 순), 홈페이지 제목,
+// 응답할 때 붙이는 값: 썸네일(홈페이지 로고 복사본 → Notion에서 옮긴 이미지 순), 홈페이지 제목,
 // 그리고 보는 사람 기준의 참여 여부·본문 열람 가능 여부. 목록 캐시엔 없다.
 export type WhitepaperListItem = WhitepaperSummary & {
   thumbnailUrl: string | null;
@@ -86,7 +87,7 @@ export type WhitepaperListItem = WhitepaperSummary & {
 };
 
 // 홈페이지 공개 소개(누구나 봄). 홈페이지에 없는 프로젝트(24-3Q 이전 등)는 null.
-export type PublicInfo = Pick<PublicProject, "url" | "nameKo" | "nameEn" | "headline" | "intro" | "goals">;
+export type PublicInfo = Pick<PublicProjectRecord, "sourceUrl" | "nameKo" | "nameEn" | "headline" | "blocks">;
 
 // canRead가 false면 notionUrl·blocks가 없다.
 export type WhitepaperView = WhitepaperListItem & {
@@ -107,29 +108,20 @@ export async function getViewer(member: MemberWithOpsRoles): Promise<Viewer> {
   };
 }
 
-type Extras = { thumbnails: Record<string, string>; publics: Map<string, PublicProject> };
-
-async function loadExtras(list: WhitepaperSummary[]): Promise<Extras> {
-  const [thumbnails, publics] = await Promise.all([getThumbnailUrls(), getPublicProjects()]);
-  return { thumbnails, publics: matchPublicProjects(publics, list) };
-}
-
 export async function listWhitepapersFor(viewer: Viewer): Promise<WhitepaperListItem[]> {
-  const list = await getWhitepaperList();
-  const extras = await loadExtras(list);
-  return list.map((w) => toListItem(w, viewer, extras));
+  const [list, thumbnails] = await Promise.all([getWhitepaperList(), getThumbnailUrls()]);
+  return list.map((w) => toListItem(w, viewer, thumbnails));
 }
 
 export async function getWhitepaperFor(viewer: Viewer, notionPageId: string): Promise<WhitepaperView | null> {
-  const list = await getWhitepaperList();
+  const [list, thumbnails] = await Promise.all([getWhitepaperList(), getThumbnailUrls()]);
   const summary = list.find((w) => sameNotionId(w.notionPageId, notionPageId));
   if (!summary) return null;
-  const extras = await loadExtras(list);
-  const pub = extras.publics.get(summary.notionPageId);
+  const pub = getPublicProject(summary.notionPageId);
   const item: WhitepaperView = {
-    ...toListItem(summary, viewer, extras),
+    ...toListItem(summary, viewer, thumbnails),
     publicInfo: pub
-      ? { url: pub.url, nameKo: pub.nameKo, nameEn: pub.nameEn, headline: pub.headline, intro: pub.intro, goals: pub.goals }
+      ? { sourceUrl: pub.sourceUrl, nameKo: pub.nameKo, nameEn: pub.nameEn, headline: pub.headline, blocks: pub.blocks }
       : null,
   };
   // 본문을 못 보는 사람에겐 Notion 본문을 읽지도 않고 개요·공개 소개만 준다.
@@ -138,32 +130,16 @@ export async function getWhitepaperFor(viewer: Viewer, notionPageId: string): Pr
   return detail ? { ...item, notionUrl: detail.notionUrl, blocks: detail.blocks } : item;
 }
 
-function toListItem(w: WhitepaperSummary, viewer: Viewer, { thumbnails, publics }: Extras): WhitepaperListItem {
+function toListItem(w: WhitepaperSummary, viewer: Viewer, thumbnails: Record<string, string>): WhitepaperListItem {
   const isMine = Boolean(viewer.notionPageId && w.members.some((m) => sameNotionId(m.notionPageId, viewer.notionPageId!)));
-  const pub = publics.get(w.notionPageId);
+  const pub = getPublicProject(w.notionPageId);
   return {
     ...w,
-    thumbnailUrl: pub?.imageUrl ?? thumbnails[w.notionPageId] ?? null,
+    thumbnailUrl: pub?.thumbnailUrl ?? thumbnails[w.notionPageId] ?? null,
     publicTitle: pub?.headline.join(" ") || null,
     isMine,
     canRead: viewer.fullAccess || isMine,
   };
-}
-
-// 홈페이지는 자주 안 바뀌고 상세 페이지를 수십 개 받아야 해서 6시간 캐시한다.
-const PUBLIC_TTL_MS = 6 * 60 * 60 * 1000;
-// 홈페이지가 안 열리면 5분 동안은 다시 시도하지 않고 빈 목록으로 넘어간다.
-const PUBLIC_RETRY_MS = 5 * 60 * 1000;
-
-async function getPublicProjects(): Promise<PublicProject[]> {
-  try {
-    return (await readThrough("public-projects", fetchPublicProjects, PUBLIC_TTL_MS)) ?? [];
-  } catch (err) {
-    console.error("[public-projects] 홈페이지 프로젝트를 읽지 못했습니다.", err);
-    // memoryGet은 fetchedAt + TTL로 만료를 재므로, 5분 뒤 만료되도록 과거 시각으로 넣는다.
-    memorySet("public-projects", [], Date.now() - PUBLIC_TTL_MS + PUBLIC_RETRY_MS);
-    return [];
-  }
 }
 
 function projectsDatabaseId(): string {
@@ -173,17 +149,13 @@ function projectsDatabaseId(): string {
 }
 
 // peopleCache.ts와 같은 순서로 캐시를 읽는다. build가 null이면(없는 백서) 캐시하지 않는다.
-async function readThrough<T>(
-  key: string,
-  build: () => Promise<T | null>,
-  ttlMs = CACHE_TTL_MS,
-): Promise<T | null> {
-  const inMemory = memoryGet<T>(key, ttlMs);
+async function readThrough<T>(key: string, build: () => Promise<T | null>): Promise<T | null> {
+  const inMemory = memoryGet<T>(key);
   if (inMemory) return inMemory;
 
   return singleFlight(key, async () => {
     const row = await prisma.peopleCache.findUnique({ where: { key } });
-    if (row && Date.now() - row.fetchedAt.getTime() < ttlMs) {
+    if (row && Date.now() - row.fetchedAt.getTime() < CACHE_TTL_MS) {
       const data = row.data as unknown as T;
       memorySet(key, data, row.fetchedAt.getTime());
       return data;

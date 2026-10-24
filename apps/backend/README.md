@@ -51,7 +51,7 @@ npm test -w apps/backend
 
 | 이름 | 스크립트 |
 |---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` (Supabase → API → `service_role`, 절대 프론트에 넣지 않음) | `images:migrate` |
+| `SUPABASE_SERVICE_ROLE_KEY` (Supabase → API → `service_role`, 절대 프론트에 넣지 않음) | `images:migrate`, `public-projects:import` |
 
 ### GH Bot 구성원 토큰 연동
 
@@ -64,8 +64,12 @@ npm test -w apps/backend
 | `GHBOT_AUTH_SHARED_SECRET` | ghbot MCP 서버와 동일하게 설정하는 서버 간 인증 비밀값. |
 
 ghbot은 `/api/v1/internal/ghbot/authenticate`로 토큰 해시 대조를 요청한다. 이 API는 사용자용 API가 아니며, 공유 비밀값 없이 호출하면 실패한다. ghbot 서비스에 admin DB 접속 문자열이나 Supabase service-role 키를 넣지 않는다.
-| `NOTION_PROJECTS_DATABASE_ID`, `NOTION_PROJECT_*` | `past-projects:import` |
+| `NOTION_PROJECTS_DATABASE_ID`, `NOTION_PROJECT_*` | `past-projects:import`, `public-projects:import` |
 | `NOTION_COHORT_PROPERTY` 등 | `people:import` |
+
+### 홈페이지 프로젝트 소개 복사 (`public-projects:import`)
+
+프로젝트 앱(`/projects`)이 누구에게나 보여주는 홈페이지 공개 소개는 서버가 홈페이지를 읽지 않고, 저장해 둔 복사본(`src/hr/data/publicProjects.json`, 이미지는 Storage `hr-profile-photos/public-projects/`)을 쓴다. 홈페이지(ghsnu.com/PROJECT)에 프로젝트가 추가·수정되면 `npm run public-projects:import`(먼저 `-- --dry-run`으로 Notion 프로젝트와의 매칭 확인)를 돌리고 바뀐 JSON을 커밋한다.
 
 ## Cloud Run 배포 (`api.ghsnu.com`)
 

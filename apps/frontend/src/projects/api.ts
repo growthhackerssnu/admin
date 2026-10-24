@@ -82,14 +82,20 @@ export interface WhitepaperBlock {
   columns?: WhitepaperBlock[][];
 }
 
-/** 홈페이지에 공개된 소개. 누구나 본다. */
+/** 홈페이지 공개 소개 본문 한 줄(서버에 저장된 복사본, 이미지도 복사본). */
+export type PublicBlock =
+  | { type: "heading"; text: string }
+  | { type: "text"; text: string; bold?: true; list?: true; quote?: true }
+  | { type: "image"; url: string };
+
+/** 홈페이지(ghsnu.com/PROJECT)에 공개된 소개를 복사해 둔 것. 누구나 본다. */
 export interface PublicInfo {
-  url: string;
+  /** 원본 홈페이지 주소(출처 표시용) */
+  sourceUrl: string;
   nameKo: string | null;
   nameEn: string | null;
   headline: string[];
-  intro: string[];
-  goals: string[];
+  blocks: PublicBlock[];
 }
 
 /** canRead가 false면 notionUrl·blocks가 없다. */
