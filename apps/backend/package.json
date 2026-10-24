@@ -19,7 +19,8 @@
     "people:import": "dotenv -e .env.local -- tsx scripts/portal/importPeopleDirectory.ts",
     "images:migrate": "dotenv -e .env.local -- tsx scripts/hr/migrateProfileImages.ts",
     "images:baseline": "dotenv -e .env.local -- tsx scripts/hr/seedImageBaseline.ts",
-    "public-projects:import": "dotenv -e .env.local -- tsx scripts/hr/importPublicProjects.ts"
+    "public-projects:import": "dotenv -e .env.local -- tsx scripts/hr/importPublicProjects.ts",
+    "whitepapers:warm": "dotenv -e .env.local -- tsx scripts/hr/warmWhitepapers.ts"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",

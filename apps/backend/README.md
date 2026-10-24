@@ -71,6 +71,10 @@ ghbot은 `/api/v1/internal/ghbot/authenticate`로 토큰 해시 대조를 요청
 
 프로젝트 앱(`/projects`)이 누구에게나 보여주는 홈페이지 공개 소개는 서버가 홈페이지를 읽지 않고, 저장해 둔 복사본(`src/hr/data/publicProjects.json`, 이미지는 Storage `hr-profile-photos/public-projects/`)을 쓴다. 홈페이지(ghsnu.com/PROJECT)에 프로젝트가 추가·수정되면 `npm run public-projects:import`(먼저 `-- --dry-run`으로 Notion 프로젝트와의 매칭 확인)를 돌리고 바뀐 JSON을 커밋한다.
 
+### 백서 상세 미리 만들기 (`whitepapers:warm`)
+
+백서 상세는 처음 열 때 Notion을 수십 번 읽어 ~10초가 걸리고, 한 번 만들면 Notion에서 수정될 때까지 캐시(`hr.people_cache`의 `whitepaper-body:<id>`)를 쓴다. 본문 이미지는 비공개 버킷 `hr-whitepaper-images`에 복사되고(처음 쓸 때 자동 생성), 볼 수 있는 사람에게만 1시간짜리 서명 URL로 나간다. 서버가 목록을 갱신할 때 몇 개씩 미리 만들지만, 배포 직후나 Notion에서 백서를 많이 고친 뒤엔 `npm run whitepapers:warm`으로 한 번에 채운다.
+
 ## Cloud Run 배포 (`api.ghsnu.com`)
 
 `main`에 백엔드 관련 변경(`apps/backend`, `packages/auth`, `packages/db/schema.prisma`, `package-lock.json`, `Dockerfile`)이 push되면 `.github/workflows/deploy-backend.yml`이 저장소 루트의 `Dockerfile`로 이미지를 빌드해 Artifact Registry에 올리고 Cloud Run 서비스 `admin-backend`에 배포한다. GCP 인증은 Workload Identity Federation이다(저장소 변수 `GCP_PROJECT_ID`·`GCP_REGION`·`GCP_WIF_PROVIDER`·`GCP_DEPLOY_SA`). 수동 배포는 Actions에서 `workflow_dispatch`.

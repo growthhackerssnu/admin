@@ -120,8 +120,37 @@ export async function getProjects(userId: string): Promise<Project[]> {
   return whitepapers;
 }
 
-export function getProject(notionPageId: string): Promise<ProjectDetail> {
-  return request<ProjectDetail>(`/api/v1/whitepapers/${notionPageId}`);
+// 목록에서 받아둔 개요 — 상세를 받기 전에 머리 부분을 바로 그리는 데 쓴다.
+export function peekProject(
+  userId: string,
+  notionPageId: string,
+): Project | undefined {
+  return lastLists.get(userId)?.find((p) => p.notionPageId === notionPageId);
+}
+
+// 상세는 사용자별로 10분 동안 재사용한다(본문 이미지 서명 URL은 1시간 유효). 카드에
+// 마우스를 올리거나 누르는 순간 미리 받아 두면(prefetchProject) 클릭했을 때 바로 뜬다.
+const DETAIL_REUSE_MS = 10 * 60 * 1000;
+const details = new Map<
+  string,
+  { at: number; promise: Promise<ProjectDetail> }
+>();
+
+export function getProject(
+  notionPageId: string,
+  userId: string,
+): Promise<ProjectDetail> {
+  const key = `${userId}:${notionPageId}`;
+  const hit = details.get(key);
+  if (hit && Date.now() - hit.at < DETAIL_REUSE_MS) return hit.promise;
+  const promise = request<ProjectDetail>(`/api/v1/whitepapers/${notionPageId}`);
+  details.set(key, { at: Date.now(), promise });
+  promise.catch(() => details.delete(key)); // 실패는 재사용하지 않는다
+  return promise;
+}
+
+export function prefetchProject(notionPageId: string, userId: string): void {
+  getProject(notionPageId, userId).catch(() => {});
 }
 
 // 프로필 등 다른 앱에서 백서로 잇는 주소.
