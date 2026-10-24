@@ -18,6 +18,7 @@ import {
   type PublicInfo,
 } from "../api";
 import { NotionBlocks } from "../components/NotionBlocks";
+import { PublicBlocks } from "../components/PublicBlocks";
 import { ProjectThumbnail } from "../components/ProjectThumbnail";
 import "./ProjectDetail.css";
 
@@ -182,7 +183,8 @@ export function ProjectDetail() {
   );
 }
 
-// 홈페이지(ghsnu.com/PROJECT)에 공개된 소개 — 누구나 본다.
+// 홈페이지(ghsnu.com/PROJECT)에 공개된 소개 — 누구나 본다. 서버에 저장된 복사본이라
+// 홈페이지를 다시 읽지 않는다(이미지도 Storage 복사본).
 function PublicSection({ info }: { info: PublicInfo }) {
   return (
     <>
@@ -190,7 +192,7 @@ function PublicSection({ info }: { info: PublicInfo }) {
         프로젝트 소개{" "}
         <span className="project-section-note">홈페이지 공개</span>
       </h2>
-      <section className="project-public section-gap">
+      <section className="project-public notion-body section-gap">
         {info.headline.length > 0 && (
           <div className="project-public-headline">
             {info.headline.map((line, i) => (
@@ -198,25 +200,13 @@ function PublicSection({ info }: { info: PublicInfo }) {
             ))}
           </div>
         )}
-        {info.intro.map((paragraph, i) => (
-          <p key={i}>{paragraph}</p>
-        ))}
-        {info.goals.length > 0 && (
-          <>
-            <div className="project-public-label">세부 목표</div>
-            <ul className="project-public-goals">
-              {info.goals.map((goal, i) => (
-                // "1-1." 같은 하위 목표는 들여쓴다.
-                <li key={i} className={/^\d+-\d+/.test(goal) ? "is-sub" : ""}>
-                  {goal}
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        <a href={info.url} target="_blank" rel="noreferrer">
-          홈페이지에서 전체 보기 ↗
-        </a>
+        <PublicBlocks blocks={info.blocks} />
+        <p className="project-public-source">
+          출처:{" "}
+          <a href={info.sourceUrl} target="_blank" rel="noreferrer">
+            그로스해커스 홈페이지
+          </a>
+        </p>
       </section>
     </>
   );

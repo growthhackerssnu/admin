@@ -74,8 +74,9 @@ export async function uploadProfileImage(
   });
 }
 
-// 프로필 사진과 프로젝트 썸네일(whitepaperThumbnails.ts)이 같이 쓰는 본체. 썸네일도
-// 같은 공개 버킷의 "whitepapers/" 아래에 둔다(버킷을 새로 만들지 않으려고).
+// 프로필 사진·프로젝트 썸네일(whitepaperThumbnails.ts)·홈페이지 소개 복사본
+// (scripts/hr/importPublicProjects.ts)이 같이 쓰는 본체. 모두 같은 공개 버킷에 경로만
+// 나눠 둔다("whitepapers/"·"public-projects/" — 버킷을 새로 만들지 않으려고).
 export async function uploadResizedImage(
   storage: SupabaseClient,
   opts: {
@@ -84,7 +85,8 @@ export async function uploadResizedImage(
     width: number;
     height: number;
     // cover: 꽉 채우고 잘라냄(사진). contain: 전부 보이게 줄이고 남는 곳은 흰색(로고).
-    fit: "cover" | "contain";
+    // inside: 비율 그대로 이 크기 안에 들어가게만 줄임(본문 이미지, 작으면 키우지 않음).
+    fit: "cover" | "contain" | "inside";
   },
 ): Promise<{ publicUrl: string; originalBytes: number; resizedBytes: number }> {
   const original = await fetch(opts.sourceUrl);
@@ -96,7 +98,11 @@ export async function uploadResizedImage(
   // 실제로 돌려 두지 않으면 사진이 옆으로 누운 채 저장된다.
   const resized = await sharp(originalBuffer)
     .rotate()
-    .resize(opts.width, opts.height, { fit: opts.fit, background: "#ffffff" })
+    .resize(opts.width, opts.height, {
+      fit: opts.fit,
+      background: "#ffffff",
+      withoutEnlargement: opts.fit === "inside",
+    })
     .flatten({ background: "#ffffff" }) // 투명 PNG 로고가 JPEG에서 검게 나오지 않게
     .jpeg({ quality: JPEG_QUALITY })
     .toBuffer();

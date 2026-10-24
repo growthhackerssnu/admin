@@ -32,26 +32,14 @@
   border: 1px solid var(--color-border);
   border-radius: var(--hr-radius-card, 14px);
   padding: var(--ds-space-5) var(--ds-space-6);
-  line-height: 1.75;
 }
 .project-public-headline {
   font-weight: 600;
   margin-bottom: var(--ds-space-2);
 }
-.project-public p {
-  margin: 0 0 var(--ds-space-2);
-}
-.project-public-label {
-  font-weight: 600;
-  margin-top: var(--ds-space-3);
-}
-.project-public-goals {
-  list-style: none;
-  padding: 0;
-  margin: var(--ds-space-1) 0 var(--ds-space-3);
-}
-.project-public-goals .is-sub {
-  padding-left: var(--ds-space-4);
+.project-public-source {
+  margin-top: var(--ds-space-4);
+  font-size: var(--ds-type-caption);
   color: var(--color-muted);
 }
 
