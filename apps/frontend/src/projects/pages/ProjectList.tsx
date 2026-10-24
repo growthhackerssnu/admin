@@ -12,6 +12,7 @@ import { signOut } from "../../lib/supabase";
 import {
   getProjects,
   peekProjects,
+  prefetchProject,
   projectPath,
   ProjectsApiError,
   type Project,
@@ -195,7 +196,13 @@ export function ProjectList() {
         ) : (
           <div className="project-grid">
             {filtered.map((p) => (
-              <ProjectCard key={p.notionPageId} project={p} />
+              <ProjectCard
+                key={p.notionPageId}
+                project={p}
+                onIntent={() =>
+                  prefetchProject(p.notionPageId, session.user.id)
+                }
+              />
             ))}
           </div>
         )}
@@ -204,10 +211,23 @@ export function ProjectList() {
   );
 }
 
-function ProjectCard({ project }: { project: Project }) {
+// onIntent: 마우스를 올리거나 누르기 시작하면 상세를 미리 받는다.
+function ProjectCard({
+  project,
+  onIntent,
+}: {
+  project: Project;
+  onIntent: () => void;
+}) {
   const pms = project.members.filter((m) => m.isPm);
   return (
-    <Link to={projectPath(project.notionPageId)} className="project-card-link">
+    <Link
+      to={projectPath(project.notionPageId)}
+      className="project-card-link"
+      onMouseEnter={onIntent}
+      onFocus={onIntent}
+      onTouchStart={onIntent}
+    >
       <Card
         size="small"
         className="project-card"

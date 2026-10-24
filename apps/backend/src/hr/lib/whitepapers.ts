@@ -9,9 +9,14 @@
 // 스크립트로 복사해 둔 것을 쓴다(publicProjects.ts).
 //
 // 캐시는 people과 같은 3단(서버 메모리 → hr.people_cache → Notion)이고, 같은
-// people_cache 테이블을 "whitepapers"·"whitepaper:<id>" 키로 같이 쓴다(사람 키는
-// "list"와 Notion 페이지 ID라 겹치지 않는다). 본문 이미지의 Notion 파일 URL은
-// 약 1시간 뒤 만료되는데, 캐시 TTL이 5분이라 만료 전에 항상 새로 받아온다.
+// people_cache 테이블을 "whitepapers"·"whitepaper-body:<id>" 키로 같이 쓴다(사람 키는
+// "list"와 Notion 페이지 ID라 겹치지 않는다).
+//   - 목록: 5분 TTL. Notion 호출 한 번이고, 행마다 페이지 수정 시각(last_edited_time)이 온다.
+//   - 상세(본문): Notion 블록을 재귀로 읽어야 해서 페이지당 수십 번 호출(~10초)이 든다.
+//     그래서 목록의 수정 시각이 그대로인 동안은 계속 쓰고(수정되면 다시 만듦), 오래되면
+//     (MAX_DETAIL_AGE_MS) 일단 보여주고 뒤에서 다시 만든다. 본문 이미지는 만들 때 비공개
+//     버킷으로 옮겨 Notion URL 만료와 상관없게 한다(whitepaperImages.ts). 목록을 다시
+//     만들 때 아직 안 만든 상세 몇 개를 뒤에서 미리 만들어 둔다(prewarm).
 import { prisma } from "@/lib/prisma";
 import { CACHE_TTL_MS, memoryGet, memorySet, singleFlight } from "./memoryCache";
 import type { MemberWithOpsRoles } from "@/portal/lib/opsRoles";
@@ -20,6 +25,7 @@ import { getPeopleList } from "./peopleCache";
 import { matchProjectLines } from "./projectTextMatch";
 import { getPublicProject, type PublicProjectRecord } from "./publicProjects";
 import { getThumbnailUrls, scheduleThumbnailSync, type ThumbnailCandidate } from "./whitepaperThumbnails";
+import { copyWhitepaperImages, NOTION_URL_SAFE_MS, signWhitepaperImages } from "./whitepaperImages";
 
 const PROPERTY = {
   title: "Name",
@@ -45,6 +51,8 @@ export type WhitepaperSummary = {
   technology: string[];
   industry: string[];
   members: WhitepaperMember[];
+  // Notion 페이지 수정 시각 — 상세 캐시가 아직 맞는지 판단하는 데 쓴다.
+  lastEditedTime: string | null;
 };
 
 export type RichTextSpan = {
@@ -70,6 +78,8 @@ export type WhitepaperBlock = {
   hasColumnHeader?: boolean; // table
   rows?: RichTextSpan[][][]; // table: 행 → 칸 → 글자
   columns?: WhitepaperBlock[][]; // column_list
+  storagePath?: string; // image: 비공개 버킷 경로(응답 때 서명 URL로 바뀜)
+  imageKey?: string; // image: 블록 id + 수정 시각(복사 경로용, 응답엔 안 나감)
 };
 
 export type WhitepaperDetail = WhitepaperSummary & {
@@ -126,8 +136,9 @@ export async function getWhitepaperFor(viewer: Viewer, notionPageId: string): Pr
   };
   // 본문을 못 보는 사람에겐 Notion 본문을 읽지도 않고 개요·공개 소개만 준다.
   if (!item.canRead) return item;
-  const detail = await getWhitepaperDetail(summary.notionPageId);
-  return detail ? { ...item, notionUrl: detail.notionUrl, blocks: detail.blocks } : item;
+  const detail = await getWhitepaperDetail(summary);
+  if (!detail) return item;
+  return { ...item, notionUrl: detail.notionUrl, blocks: await signWhitepaperImages(detail.blocks) };
 }
 
 function toListItem(w: WhitepaperSummary, viewer: Viewer, thumbnails: Record<string, string>): WhitepaperListItem {
@@ -148,37 +159,146 @@ function projectsDatabaseId(): string {
   return id;
 }
 
-// peopleCache.ts와 같은 순서로 캐시를 읽는다. build가 null이면(없는 백서) 캐시하지 않는다.
+// peopleCache.ts와 같은 순서로 캐시를 읽는다. DB에 낡은 값이라도 있으면 일단 그걸 돌려주고
+// 뒤에서 새로 만든다(만료 직후 첫 사람이 Notion을 기다리지 않게). 아예 없을 때만 기다린다.
 async function readThrough<T>(key: string, build: () => Promise<T | null>): Promise<T | null> {
   const inMemory = memoryGet<T>(key);
   if (inMemory) return inMemory;
 
-  return singleFlight(key, async () => {
-    const row = await prisma.peopleCache.findUnique({ where: { key } });
-    if (row && Date.now() - row.fetchedAt.getTime() < CACHE_TTL_MS) {
-      const data = row.data as unknown as T;
-      memorySet(key, data, row.fetchedAt.getTime());
+  const refresh = () =>
+    singleFlight(`${key}:build`, async () => {
+      const data = await build();
+      if (data === null) return null;
+      await prisma.peopleCache.upsert({
+        where: { key },
+        create: { key, data: data as unknown as object, fetchedAt: new Date() },
+        update: { data: data as unknown as object, fetchedAt: new Date() },
+      });
+      memorySet(key, data);
       return data;
-    }
-
-    const data = await build();
-    if (data === null) return null;
-    await prisma.peopleCache.upsert({
-      where: { key },
-      create: { key, data: data as unknown as object, fetchedAt: new Date() },
-      update: { data: data as unknown as object, fetchedAt: new Date() },
     });
-    memorySet(key, data);
-    return data;
-  });
+
+  const row = await singleFlight(key, () => prisma.peopleCache.findUnique({ where: { key } }));
+  if (!row) return refresh();
+  const data = row.data as unknown as T;
+  if (Date.now() - row.fetchedAt.getTime() >= CACHE_TTL_MS) {
+    void refresh().catch((err) => console.error(`[whitepapers] ${key} 재생성 실패`, err));
+  } else {
+    memorySet(key, data, row.fetchedAt.getTime());
+  }
+  return data;
 }
 
 export async function getWhitepaperList(): Promise<WhitepaperSummary[]> {
   return (await readThrough("whitepapers", buildWhitepaperList)) ?? [];
 }
 
-export async function getWhitepaperDetail(notionPageId: string): Promise<WhitepaperDetail | null> {
-  return readThrough(`whitepaper:${notionPageId}`, () => buildWhitepaperDetail(notionPageId));
+// --- 상세 캐시 ---
+
+// 수정이 없어도 이 시간이 지나면 뒤에서 다시 만든다(참여인원 이름 변경 등 반영용).
+const MAX_DETAIL_AGE_MS = 24 * 60 * 60 * 1000;
+const PREWARM_PER_RUN = 2;
+
+type DetailRecord = {
+  version: 2;
+  lastEditedTime: string | null; // 만들 때의 Notion 페이지 수정 시각
+  builtAt: number;
+  expiresAt: number | null; // Notion 서명 URL이 남아 있으면 그 만료 전 시각
+  detail: WhitepaperDetail;
+};
+
+// 5분 캐시 시절의 "whitepaper:<id>"와 형식이 달라 키를 따로 쓴다(배포 중 옛 코드와 섞이지 않게).
+const detailKey = (notionPageId: string) => `whitepaper-body:${notionPageId}`;
+
+async function loadDetailRecord(notionPageId: string): Promise<DetailRecord | null> {
+  const key = detailKey(notionPageId);
+  const inMemory = memoryGet<DetailRecord>(key, Number.POSITIVE_INFINITY);
+  if (inMemory) return inMemory;
+  const row = await prisma.peopleCache.findUnique({ where: { key } });
+  const record = row?.data as unknown as DetailRecord | undefined;
+  if (!record || record.version !== 2) return null;
+  memorySet(key, record);
+  return record;
+}
+
+function isUpToDate(record: DetailRecord, summary: WhitepaperSummary): boolean {
+  if (record.expiresAt !== null && Date.now() >= record.expiresAt) return false;
+  // 수정 시각을 모르면(이 필드가 생기기 전 목록 캐시면 undefined) 나이로만 판단한다.
+  return summary.lastEditedTime == null || record.lastEditedTime === summary.lastEditedTime;
+}
+
+export async function getWhitepaperDetail(summary: WhitepaperSummary): Promise<WhitepaperDetail | null> {
+  const record = await loadDetailRecord(summary.notionPageId);
+  if (record && isUpToDate(record, summary)) {
+    // 오래됐으면 일단 지금 것을 보여주고 뒤에서 다시 만든다.
+    if (Date.now() - record.builtAt > MAX_DETAIL_AGE_MS) {
+      void rebuildDetail(summary.notionPageId).catch((err) => console.error("[whitepapers] 상세 재생성 실패", err));
+    }
+    return record.detail;
+  }
+  return (await rebuildDetail(summary.notionPageId))?.detail ?? null;
+}
+
+function rebuildDetail(notionPageId: string): Promise<DetailRecord | null> {
+  return singleFlight(detailKey(notionPageId), async () => {
+    const detail = await buildWhitepaperDetail(notionPageId);
+    if (!detail) return null;
+    const hasExpiringUrls = await copyWhitepaperImages(detail.notionPageId, detail.blocks);
+    const builtAt = Date.now();
+    const record: DetailRecord = {
+      version: 2,
+      lastEditedTime: detail.lastEditedTime,
+      builtAt,
+      expiresAt: hasExpiringUrls ? builtAt + NOTION_URL_SAFE_MS : null,
+      detail,
+    };
+    const key = detailKey(notionPageId);
+    await prisma.peopleCache.upsert({
+      where: { key },
+      create: { key, data: record as unknown as object, fetchedAt: new Date(builtAt) },
+      update: { data: record as unknown as object, fetchedAt: new Date(builtAt) },
+    });
+    memorySet(key, record);
+    return record;
+  });
+}
+
+// 상세를 한꺼번에 미리 만든다(scripts/hr/warmWhitepapers.ts). 이미 최신인 것은 건너뛴다.
+export async function warmAllWhitepaperDetails(onEach?: (title: string, built: boolean) => void): Promise<number> {
+  let built = 0;
+  for (const summary of await getWhitepaperList()) {
+    const record = await loadDetailRecord(summary.notionPageId);
+    const fresh = Boolean(record && isUpToDate(record, summary));
+    if (!fresh) {
+      await rebuildDetail(summary.notionPageId);
+      built++;
+    }
+    onEach?.(summary.title, !fresh);
+  }
+  return built;
+}
+
+let prewarming = false;
+
+// 목록을 다시 만든 뒤, 상세가 없거나 낡은 백서 몇 개를 최근 분기부터 뒤에서 미리 만든다.
+// Notion 호출 슬롯을 사용자 요청과 같이 쓰므로 한 번에 조금씩만 한다.
+function schedulePrewarm(list: WhitepaperSummary[]): void {
+  if (prewarming) return;
+  prewarming = true;
+  void (async () => {
+    let built = 0;
+    for (const summary of list) {
+      if (built >= PREWARM_PER_RUN) break;
+      const record = await loadDetailRecord(summary.notionPageId);
+      if (record && isUpToDate(record, summary)) continue;
+      await rebuildDetail(summary.notionPageId);
+      built++;
+    }
+  })()
+    .catch((err) => console.error("[whitepapers] 상세 미리 만들기 실패", err))
+    .finally(() => {
+      prewarming = false;
+    });
 }
 
 // 프로필 "Projects" 자유 텍스트의 줄마다 이어질 백서 ID(projectTextMatch.ts). 백서를
@@ -207,7 +327,7 @@ async function buildWhitepaperList(): Promise<WhitepaperSummary[]> {
     for (const row of page.results) {
       if (!("properties" in row)) continue;
       const props = row.properties as Record<string, unknown>;
-      const summary = toSummary(row.id, props, people);
+      const summary = toSummary(row.id, props, people, "last_edited_time" in row ? row.last_edited_time : null);
       if (!summary) continue;
       list.push(summary);
       if ("last_edited_time" in row) {
@@ -225,9 +345,9 @@ async function buildWhitepaperList(): Promise<WhitepaperSummary[]> {
   scheduleThumbnailSync(thumbnailCandidates);
 
   // 최신 분기가 위로. 분기가 같으면 제목순.
-  return list.sort(
-    (a, b) => quarterKey(b.quarter) - quarterKey(a.quarter) || a.title.localeCompare(b.title, "ko"),
-  );
+  list.sort((a, b) => quarterKey(b.quarter) - quarterKey(a.quarter) || a.title.localeCompare(b.title, "ko"));
+  schedulePrewarm(list);
+  return list;
 }
 
 async function buildWhitepaperDetail(notionPageId: string): Promise<WhitepaperDetail | null> {
@@ -245,7 +365,12 @@ async function buildWhitepaperDetail(notionPageId: string): Promise<WhitepaperDe
   const parent = page.parent as { type: string; database_id?: string };
   if (parent.type !== "database_id" || !sameNotionId(parent.database_id, projectsDatabaseId())) return null;
 
-  const summary = toSummary(page.id, page.properties as Record<string, unknown>, await peopleById());
+  const summary = toSummary(
+    page.id,
+    page.properties as Record<string, unknown>,
+    await peopleById(),
+    "last_edited_time" in page ? page.last_edited_time : null,
+  );
   if (!summary) return null;
 
   return { ...summary, notionUrl: page.url, blocks: await fetchBlocks(page.id, 0) };
@@ -261,6 +386,7 @@ function toSummary(
   notionPageId: string,
   props: Record<string, unknown>,
   people: Map<string, { name: string; cohort: number }>,
+  lastEditedTime: string | null,
 ): WhitepaperSummary | null {
   const title = extractPropertyText(props[PROPERTY.title]);
   if (!title || title === TEMPLATE_TITLE) return null;
@@ -286,6 +412,7 @@ function toSummary(
     technology: extractMultiSelect(props[PROPERTY.technology]),
     industry: extractRollupMultiSelect(props[PROPERTY.industry]),
     members,
+    lastEditedTime,
   };
 }
 
@@ -332,7 +459,10 @@ function sameNotionId(a: string | undefined, b: string): boolean {
 // column_list → column → 내용 정도라 깊이 3이면 충분하지만 여유를 둔다.
 const MAX_DEPTH = 5;
 
-type NotionBlock = { id: string; type: string; has_children?: boolean } & Record<string, unknown>;
+type NotionBlock = { id: string; type: string; has_children?: boolean; last_edited_time?: string } & Record<
+  string,
+  unknown
+>;
 
 async function listChildren(blockId: string): Promise<NotionBlock[]> {
   const notion = getNotionClient();
@@ -403,7 +533,15 @@ async function convertBlock(block: NotionBlock, depth: number): Promise<Whitepap
     case "divider":
       return [{ type: "divider" }];
     case "image":
-      return [{ type: "image", url: fileUrl(body), caption: toSpans(body.caption) }];
+      return [
+        {
+          type: "image",
+          url: fileUrl(body),
+          caption: toSpans(body.caption),
+          // 이미지가 바뀌면(같은 블록에 새 파일) 수정 시각이 바뀌어 새 경로로 복사된다.
+          imageKey: `${block.id}-${(block.last_edited_time ?? "").replace(/\D/g, "")}`,
+        },
+      ];
     case "table": {
       const rows = depth < MAX_DEPTH ? await listChildren(block.id) : [];
       return [

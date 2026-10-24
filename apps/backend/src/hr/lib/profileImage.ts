@@ -82,13 +82,16 @@ export async function uploadResizedImage(
   opts: {
     path: string;
     sourceUrl: string;
+    // 기본은 공개 버킷(PROFILE_IMAGE_BUCKET). 백서 본문 이미지는 비공개 버킷에 둔다.
+    bucket?: string;
     width: number;
     height: number;
     // cover: 꽉 채우고 잘라냄(사진). contain: 전부 보이게 줄이고 남는 곳은 흰색(로고).
     // inside: 비율 그대로 이 크기 안에 들어가게만 줄임(본문 이미지, 작으면 키우지 않음).
     fit: "cover" | "contain" | "inside";
   },
-): Promise<{ publicUrl: string; originalBytes: number; resizedBytes: number }> {
+): Promise<{ publicUrl: string; path: string; originalBytes: number; resizedBytes: number }> {
+  const bucket = opts.bucket ?? PROFILE_IMAGE_BUCKET;
   const original = await fetch(opts.sourceUrl);
   if (!original.ok) throw new Error(`이미지 다운로드 실패: HTTP ${original.status}`);
   const originalBuffer = Buffer.from(await original.arrayBuffer());
@@ -108,14 +111,14 @@ export async function uploadResizedImage(
     .toBuffer();
 
   const { error } = await storage.storage
-    .from(PROFILE_IMAGE_BUCKET)
+    .from(bucket)
     // cacheControl 1년: 같은 경로를 덮어쓰지 않는 한 안 바뀐다 — egress 절약.
     .upload(opts.path, resized, { contentType: "image/jpeg", upsert: true, cacheControl: "31536000" });
   if (error) throw error;
 
   const {
     data: { publicUrl },
-  } = storage.storage.from(PROFILE_IMAGE_BUCKET).getPublicUrl(opts.path);
+  } = storage.storage.from(bucket).getPublicUrl(opts.path);
 
   // 같은 경로에 덮어쓰므로(사진 교체 시) 브라우저가 1년 캐시(cacheControl)를 든 채
   // 옛 사진을 계속 보여주지 않도록, 저장하는 URL에 버전(?v=)을 붙인다. 브라우저는 주소
@@ -123,6 +126,7 @@ export async function uploadResizedImage(
   // 무시하고 같은 파일을 준다.
   return {
     publicUrl: `${publicUrl}?v=${Date.now()}`,
+    path: opts.path,
     originalBytes: originalBuffer.length,
     resizedBytes: resized.length,
   };
