@@ -1,6 +1,6 @@
 # backend
 
-`api.ghsnu.com`의 API 서버 하나. Next.js(App Router) API 전용 앱이고 Cloud Run에 배포한다.
+`admin-backend-ebyvikzkma-du.a.run.app`(Cloud Run 기본 주소)의 API 서버 하나. Next.js(App Router) API 전용 앱이고 Cloud Run에 배포한다.
 
 모든 라우트가 `app/api/...`(→ `/api/...`)에 있고, 업무 코드는 도메인별로 나뉜다.
 
@@ -75,13 +75,14 @@ ghbot은 `/api/v1/internal/ghbot/authenticate`로 토큰 해시 대조를 요청
 
 백서 상세는 처음 열 때 Notion을 수십 번 읽어 ~10초가 걸리고, 한 번 만들면 Notion에서 수정될 때까지 캐시(`hr.people_cache`의 `whitepaper-body:<id>`)를 쓴다. 본문 이미지는 비공개 버킷 `hr-whitepaper-images`에 복사되고(처음 쓸 때 자동 생성), 볼 수 있는 사람에게만 1시간짜리 서명 URL로 나간다. 서버가 목록을 갱신할 때 몇 개씩 미리 만들지만, 배포 직후나 Notion에서 백서를 많이 고친 뒤엔 `npm run whitepapers:warm`으로 한 번에 채운다.
 
-## Cloud Run 배포 (`api.ghsnu.com`)
+## Cloud Run 배포 (`admin-backend-ebyvikzkma-du.a.run.app`)
 
 `main`에 백엔드 관련 변경(`apps/backend`, `packages/auth`, `packages/db/schema.prisma`, `package-lock.json`, `Dockerfile`)이 push되면 `.github/workflows/deploy-backend.yml`이 저장소 루트의 `Dockerfile`로 이미지를 빌드해 Artifact Registry에 올리고 Cloud Run 서비스 `admin-backend`에 배포한다. GCP 인증은 Workload Identity Federation이다(저장소 변수 `GCP_PROJECT_ID`·`GCP_REGION`·`GCP_WIF_PROVIDER`·`GCP_DEPLOY_SA`). 수동 배포는 Actions에서 `workflow_dispatch`.
 
 - 환경 변수·시크릿은 Cloud Run 서비스에 직접 넣는다. 워크플로는 이미지만 바꾼다.
 - `PORT`는 Cloud Run이 주입하고(기본 8080) `next start`가 그대로 쓴다.
-- Inngest 대시보드에 앱 URL `https://api.ghsnu.com/api/inngest`를 등록한다.
+- Inngest 앱 URL은 `https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`다. 함수를 추가·변경해 배포한 뒤엔 `curl -X PUT https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`로 다시 등록한다(대시보드의 Sync와 같다). 키(`INNGEST_SIGNING_KEY`·`INNGEST_EVENT_KEY`)는 Secret Manager에 있다.
+- `api.ghsnu.com`은 DNS만 Google을 가리키고 Cloud Run 도메인 매핑이 없어 404다. 쓰지 않는다.
 
 마이그레이션은 배포에 묶지 않았다. 새 컬럼을 읽는 코드를 push하기 **전에** 적용한다. `packages/db`에는 `.env.local`이 없으니 백엔드 것을 쓴다:
 
