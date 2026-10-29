@@ -7,6 +7,7 @@ import { getNotionClient } from "@/portal/lib/notion";
 import { normalizeCohort, normalizeName } from "@/portal/lib/normalize";
 import { memoryDelete } from "@/hr/lib/memoryCache";
 import { sortOpsRoles } from "@/portal/lib/opsRoles";
+import { notifyNewMember } from "@/portal/lib/newMemberNotice";
 
 // GET /api/v1/admin/members — 회원 명단(admin 전용). 관리 화면용으로
 // role·운영팀 직책·활성여부·가입일·최근 접속일·기수(있으면)까지 전부 내려준다.
@@ -96,6 +97,9 @@ export const POST = withApiHandler(async (req, { member, requestId }) => {
           knownEmail: email,
           claimedByMemberId: added.id,
           claimedAt: new Date(),
+          // 방금 만든 노션 페이지엔 직책·소속팀이 없다 — 운영팀 직책 동기화의 기준값(opsRoleSync.ts).
+          notionOpsRoles: [],
+          opsRolesSyncedAt: new Date(),
         },
       });
       return added;
@@ -103,6 +107,7 @@ export const POST = withApiHandler(async (req, { member, requestId }) => {
     // 그핵드인 목록 캐시를 비워서 새 사람이 바로 보이게 한다(다른 서버 인스턴스는 5분 안에 갱신).
     memoryDelete("list");
     await prisma.peopleCache.deleteMany({ where: { key: "list" } });
+    await notifyNewMember({ name, cohort: String(cohort), email, role: created.role, source: "admin" });
     return {
       status: 201,
       body: successBody({ id: created.id, notionPageId: page.id }, requestId),

@@ -224,6 +224,11 @@ function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString("ko-KR") : "—";
 }
 
+// 날짜 칸 정렬. 값이 없으면(접속한 적 없음) 가장 오래된 것으로 친다.
+function byDate(a: string | null, b: string | null) {
+  return (a ? Date.parse(a) : 0) - (b ? Date.parse(b) : 0);
+}
+
 export function AdminMembers() {
   const session = useSession();
   const { message, modal } = AntApp.useApp();
@@ -722,11 +727,23 @@ export function AdminMembers() {
         </InlineCell>
       ),
     },
-    { title: "가입일", dataIndex: "createdAt", width: 180, render: formatDate },
+    {
+      title: "가입일",
+      key: "createdAt",
+      dataIndex: "createdAt",
+      width: 180,
+      sorter: (a, b) => byDate(a.createdAt, b.createdAt),
+      sortOrder: sortOrderOf("createdAt"),
+      render: formatDate,
+    },
     {
       title: "최근 접속일",
+      key: "lastLoginAt",
       dataIndex: "lastLoginAt",
       width: 180,
+      // 한 번도 접속하지 않은 회원은 가장 오래된 것으로 친다(최근순이면 맨 뒤).
+      sorter: (a, b) => byDate(a.lastLoginAt, b.lastLoginAt),
+      sortOrder: sortOrderOf("lastLoginAt"),
       render: formatDate,
     },
   ];

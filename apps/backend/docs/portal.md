@@ -31,7 +31,7 @@
 |---|---|
 | `GET /api/v1/me` | `{userId, email, displayName, role, redirectPath}`. (hr의 "내 정보"는 별도 경로 `GET /api/v1/people/me`) `redirectPath`는 role로 고정 결정(admin→`/admin`, acting→`/dh`, alumni→`/hr`) — 프론트가 로그인 직후 이 값으로만 리다이렉트하면 된다 |
 | `GET /api/v1/admin/members` | (admin 전용) 전체 명단 — id, displayName, cohort, email, role, opsRoles(`[{opsRole, cohort}]`, 직책 → 팀원 순), active, createdAt, lastLoginAt |
-| `PATCH /api/v1/admin/members/role` | (admin 전용) `{memberIds, role: "acting", teams, office}`(한 명) · `{memberIds, role: "acting", addTeams, removeTeams}`(여럿) · `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. 한 명: `teams`로 팀원 목록을 통째로 바꾸고 `office`는 직책 이름(기수는 그 사람의 기수)·`null`(뺀다)·생략(유지). 여럿: 바꾼 팀만 넣고 빼며 각자 직책·다른 팀은 그대로(통째로 바꾸는 `teams`는 거절). admin 대상 포함 시 전체 거부 |
+| `PATCH /api/v1/admin/members/role` | (admin 전용, acting이면 노션 직책·소속팀에도 씀) `{memberIds, role: "acting", teams, office}`(한 명) · `{memberIds, role: "acting", addTeams, removeTeams}`(여럿) · `{memberIds, role: "alumni"}` — role과 운영팀 직책을 함께 변경. 한 명: `teams`로 팀원 목록을 통째로 바꾸고 `office`는 직책 이름(기수는 그 사람의 기수)·`null`(뺀다)·생략(유지). 여럿: 바꾼 팀만 넣고 빼며 각자 직책·다른 팀은 그대로(통째로 바꾸는 `teams`는 거절). admin 대상 포함 시 전체 거부 |
 | `POST /api/v1/admin/members/deactivate` | (admin 전용) `{memberIds}` — 일괄 비활성화("삭제", 실제 행은 안 지움). admin 대상·본인 계정 거부 |
 | `POST /api/v1/admin/members/reactivate` | (admin 전용) `{memberIds}` — 비활성화를 되돌림 |
 
@@ -53,6 +53,21 @@
 두 규칙은 DB의 부분 유니크 인덱스(`member_ops_roles_one_office_key`, `member_ops_roles_office_cohort_key`)와 API 양쪽에서 막는다. 비활성(`active: false`) 회원도 자리를 차지한다(비활성화는 role을 바꾸지 않기 때문이다).
 
 예전 `members.ops_role`(1인 1직책)에서 옮겨온 직책 중 그핵드인 명단에서 기수를 찾지 못한 것은 기수가 `null`이다(기수 없이 직책 이름만 보인다). 기수를 모르는 같은 직책은 한 명만 둘 수 있다. `members.ops_role` 컬럼은 이제 읽지 않으며 다음 마이그레이션에서 지운다.
+
+## 노션 동기화 (자동 가입·운영팀 직책)
+
+Inngest가 10분마다 `syncNotionMembers`(`src/portal/inngest.ts` → `src/portal/lib/notionMemberSync.ts`)를 돌린다. 손으로는 `npm run members:sync -w apps/backend`(`-- --dry-run`이면 쓰지 않고 바뀔 것만 보여준다).
+
+- **자동 가입** — 노션 People DB에 새로 생긴 행 중 이름·기수·이메일이 다 있는 사람은 노션 이메일로 `members` 행을 만들고 명단 행을 그 회원 것으로 표시한다(`peopleDirectorySync.ts`). role은 노션의 가장 최근 기수면 `acting`, 아니면 `alumni`. 그 이메일의 회원이 이미 있으면 연결만 한다. 이미 명단에 있던(가입 안 한) 사람은 건드리지 않는다. 가입 신청 흐름이 노션을 다시 읽을 때도 같은 일이 일어나서, 그 사람은 "이미 가입" 안내와 함께 노션 이메일로 로그인하라는 문구를 본다.
+- **운영팀 직책 양방향** — 노션 `직책`(select)·`소속팀`(multi_select) ↔ `core.member_ops_roles`(`opsRoleSync.ts`, 짝은 `notionOpsRoles.ts`). `회장/부회장/총무 / 내부운영팀장/대외협력팀장/HR팀장/PR팀장/교육팀장` ↔ 직책, `DH/HR/PR/EDU` ↔ 팀원. 짝이 없는 `NUT`는 무시하고 노션에 쓸 때도 남긴다. 노션은 팀장도 소속팀에 자기 팀을 넣고 어드민은 팀장만 두므로, 팀장의 자기 팀은 노션 소속팀에만 둔다(읽을 땐 빼고 쓸 땐 넣는다).
+  - acting 회원만 맞춘다. 노션 직책·소속팀은 알럼나이에게도 이력으로 남아 있어서, alumni로 내려도 노션은 지우지 않고 alumni의 노션 값은 옮기지 않는다. role 자체는 동기화로 바뀌지 않는다.
+  - 어느 쪽이 바뀌었는지는 `people_directory.notion_ops_roles`(마지막으로 맞춘 노션 값)로 가른다. 노션이 그 값에서 바뀌었으면 노션을, 아니면 어드민을 따른다. `PATCH /admin/members/role`(acting)은 저장 직후 노션에도 쓰고, 실패하면 다음 주기가 다시 쓴다.
+  - 처음 도는 행(`ops_roles_synced_at` NULL)은 노션의 지금 값을 기준으로 삼아서 어드민 쪽이 이긴다.
+  - 같은 기수의 같은 직책을 다른 회원이 이미 맡고 있으면 반영하지 않고 실패로 남긴다(다음 주기에 다시 시도).
+
+## 신규 회원 Slack 알림
+
+회원이 생기는 세 경로(직접 가입 OTP 인증, 관리자 등록 `POST /admin/members`, 노션 자동 가입) 모두 그핵드인 Slack 앱으로 #pr-알럼-업데이트(수정 요청 알림과 같은 채널)에 알린다(`src/portal/lib/newMemberNotice.ts`). `SLACK_GHEDIN_BOT_TOKEN`이 없으면 보내지 않는다.
 
 ## 접근 제어
 

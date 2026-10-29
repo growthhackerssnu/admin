@@ -3,6 +3,7 @@ import { ApiError, successBody } from "@/portal/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { hashOtp, OTP_MAX_ATTEMPTS } from "@/portal/lib/otp";
 import { verifySignupRequestSchema } from "@/portal/lib/validation/auth";
+import { notifyNewMember } from "@/portal/lib/newMemberNotice";
 
 // POST /api/auth/signup-requests/{id}/verify
 // OTP 확인 -> 성공하면 desiredEmail로 members 행 생성(role은 항상 alumni로 시작 —
@@ -65,6 +66,14 @@ export const POST = withPublicApiHandler<{ id: string }>(async (req, { params, r
       data: { status: "verified", verifiedAt: new Date() },
     });
     return created;
+  });
+
+  await notifyNewMember({
+    name: person.name,
+    cohort: person.cohort,
+    email: member.email,
+    role: member.role,
+    source: "signup",
   });
 
   return {

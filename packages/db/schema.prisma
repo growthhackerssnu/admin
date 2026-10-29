@@ -309,6 +309,11 @@ model PeopleDirectory {
   claimedByMemberId String?   @unique @map("claimed_by_member_id")
   claimedBy         Member?   @relation(fields: [claimedByMemberId], references: [id])
   claimedAt         DateTime? @map("claimed_at")
+  // 노션 "직책"·"소속팀"을 운영팀 직책으로 옮긴 값 중 마지막으로 맞춘 것. 운영팀 직책 양방향 동기화
+  // (apps/backend/src/portal/lib/opsRoleSync.ts)가 "노션이 바뀌었는지, 어드민이 바뀌었는지"를
+  // 가르는 기준이다. opsRolesSyncedAt이 NULL이면 아직 한 번도 맞추지 않은 행이다.
+  notionOpsRoles    OpsRole[] @default([]) @map("notion_ops_roles")
+  opsRolesSyncedAt  DateTime? @map("ops_roles_synced_at")
   importedAt        DateTime  @default(now()) @map("imported_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
