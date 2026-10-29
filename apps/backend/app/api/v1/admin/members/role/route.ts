@@ -5,6 +5,7 @@ import { ApiError, successBody } from "@/portal/lib/errors";
 import { withIdempotency } from "@/portal/lib/idempotency";
 import { isOfficeOpsRole, nextTeams, opsRoleTitle, sortOpsRoles } from "@/portal/lib/opsRoles";
 import { bulkRoleChangeSchema } from "@/portal/lib/validation/admin";
+import { pushOpsRolesToNotion } from "@/portal/lib/opsRoleSync";
 
 // PATCH /api/v1/admin/members/role — 여러 명을 한 번에 acting/alumni로 전환하고,
 // acting이면 운영팀 직책(임원·팀장 하나)과 팀원(여러 팀)까지 같이 지정한다.
@@ -17,6 +18,10 @@ import { bulkRoleChangeSchema } from "@/portal/lib/validation/admin";
 //   acting → 직책이나 팀원이 하나 이상 남아야 한다. 이미 acting이면 직책·팀원만 바뀐다.
 //            office를 생략하면 각자 지금 직책을 그대로 둔다(여럿을 골라 팀원만 바꿀 때).
 //   alumni → 직책·팀원을 전부 지운다. 운영팀에서 나간 것이니 남겨둘 이유가 없다.
+//
+// acting이면 저장한 뒤 노션 "직책"·"소속팀"에도 쓴다(opsRoleSync.ts). alumni로 내릴 때는 노션을
+// 건드리지 않는다 — 노션의 직책·소속팀은 그 기수 때의 이력이다. 노션 쓰기가 실패해도 저장은 그대로고
+// 주기 동기화가 다시 쓴다.
 export const PATCH = withApiHandler(async (req, { member, requestId }) => {
   requireAdmin(member);
 
@@ -143,6 +148,7 @@ export const PATCH = withApiHandler(async (req, { member, requestId }) => {
     };
   });
 
+  if (change.role === "acting") await pushOpsRolesToNotion(memberIds);
   return result;
 });
 

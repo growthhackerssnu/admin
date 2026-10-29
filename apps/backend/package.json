@@ -16,6 +16,7 @@
     "past-projects:import": "dotenv -e .env.local -- tsx scripts/dh/importPastProjects.ts",
     "members:add": "dotenv -e .env.local -- tsx scripts/portal/addMember.ts",
     "members:remove": "dotenv -e .env.local -- tsx scripts/portal/removeMember.ts",
+    "members:sync": "dotenv -e .env.local -- tsx scripts/portal/syncNotionMembers.ts",
     "people:import": "dotenv -e .env.local -- tsx scripts/portal/importPeopleDirectory.ts",
     "images:migrate": "dotenv -e .env.local -- tsx scripts/hr/migrateProfileImages.ts",
     "images:baseline": "dotenv -e .env.local -- tsx scripts/hr/seedImageBaseline.ts",

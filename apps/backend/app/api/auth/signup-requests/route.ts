@@ -54,7 +54,15 @@ export const POST = withPublicApiHandler(async (req, { requestId }) => {
   const person = matches[0]!;
 
   if (person.claimedByMemberId) {
-    throw new ApiError("VALIDATION_ERROR", "이미 가입이 완료된 회원입니다. 로그인해주세요.");
+    // 노션 명단에 추가되면 노션 이메일로 자동 가입되므로(peopleDirectorySync.ts), 어느 이메일로
+    // 로그인하면 되는지 가려서 알려준다.
+    const claimed = await prisma.member.findUnique({ where: { id: person.claimedByMemberId } });
+    throw new ApiError(
+      "VALIDATION_ERROR",
+      claimed
+        ? `이미 가입이 완료된 회원입니다. ${maskEmail(claimed.email)} 계정으로 로그인해주세요.`
+        : "이미 가입이 완료된 회원입니다. 로그인해주세요.",
+    );
   }
 
   const existingEmail = await prisma.member.findUnique({ where: { email: desiredEmail } });
