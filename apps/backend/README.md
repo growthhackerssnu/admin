@@ -90,7 +90,7 @@ ghbot은 `/api/v1/internal/ghbot/authenticate`로 토큰 해시 대조를 요청
   gcloud secrets versions destroy <이전 버전 번호> --secret=ADMIN_BACKEND_SECRETS  # 이전 버전도 요금이 붙는다
   ```
 - `PORT`는 Cloud Run이 주입하고(기본 8080) `next start`가 그대로 쓴다.
-- Inngest 앱 URL은 `https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`다. 함수를 추가·변경해 배포한 뒤엔 `curl -X PUT https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`로 다시 등록한다(대시보드의 Sync와 같다). 키(`INNGEST_SIGNING_KEY`·`INNGEST_EVENT_KEY`)는 Secret Manager에 있다.
+- Inngest 앱 URL은 `https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`다. 함수를 추가·변경해 배포한 뒤엔 `curl -X PUT https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`로 다시 등록한다(대시보드의 Sync와 같다). 키(`INNGEST_SIGNING_KEY`·`INNGEST_EVENT_KEY`)는 `ADMIN_BACKEND_SECRETS` 묶음에 있다.
 - `api.ghsnu.com`은 DNS만 Google을 가리키고 Cloud Run 도메인 매핑이 없어 404다. 쓰지 않는다.
 
 마이그레이션은 배포에 묶지 않았다. 새 컬럼을 읽는 코드를 push하기 **전에** 적용한다. `packages/db`에는 `.env.local`이 없으니 백엔드 것을 쓴다:
