@@ -12,7 +12,7 @@ admin.ghsnu.com  (Vercel, apps/frontend — 단일 SPA, 라우터 하나)
   /attendance                      출석체크(NUT 반기·API를 같이 쓴다)
         │  fetch + Authorization: Bearer <supabase access token>
         ▼
-api.ghsnu.com    (Cloud Run, apps/backend — Next.js API 전용)
+admin-backend-ebyvikzkma-du.a.run.app  (Cloud Run, apps/backend — Next.js API 전용)
   /api/auth/*  /api/v1/*  /api/inngest  /api/health
 ```
 
