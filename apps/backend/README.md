@@ -80,6 +80,15 @@ ghbot은 `/api/v1/internal/ghbot/authenticate`로 토큰 해시 대조를 요청
 `main`에 백엔드 관련 변경(`apps/backend`, `packages/auth`, `packages/db/schema.prisma`, `package-lock.json`, `Dockerfile`)이 push되면 `.github/workflows/deploy-backend.yml`이 저장소 루트의 `Dockerfile`로 이미지를 빌드해 Artifact Registry에 올리고 Cloud Run 서비스 `admin-backend`에 배포한다. GCP 인증은 Workload Identity Federation이다(저장소 변수 `GCP_PROJECT_ID`·`GCP_REGION`·`GCP_WIF_PROVIDER`·`GCP_DEPLOY_SA`). 수동 배포는 Actions에서 `workflow_dispatch`.
 
 - 환경 변수·시크릿은 Cloud Run 서비스에 직접 넣는다. 워크플로는 이미지만 바꾼다.
+- 시크릿은 Secret Manager 시크릿 하나 `ADMIN_BACKEND_SECRETS`(`{"이름": "값"}` JSON)에 묶여 있고, `scripts/start.mjs`가 시작할 때 풀어 환경 변수로 넣는다. 시크릿 버전마다 월 요금이 붙어서(6개까지 무료) 따로 두지 않는다. 비밀이 아닌 값은 Cloud Run 일반 환경 변수로 둔다. 값을 더하거나 바꿀 때(값이 화면에 안 찍힌다):
+
+  ```sh
+  gcloud secrets versions access latest --secret=ADMIN_BACKEND_SECRETS \
+    | python3 -c 'import json,sys; d=json.load(sys.stdin); d[sys.argv[1]]=sys.argv[2]; print(json.dumps(d), end="")' 이름 '값' \
+    | gcloud secrets versions add ADMIN_BACKEND_SECRETS --data-file=-
+  gcloud run services update admin-backend --region asia-northeast3 --update-secrets=ADMIN_BACKEND_SECRETS=ADMIN_BACKEND_SECRETS:latest  # 새 리비전으로 다시 읽게
+  gcloud secrets versions destroy <이전 버전 번호> --secret=ADMIN_BACKEND_SECRETS  # 이전 버전도 요금이 붙는다
+  ```
 - `PORT`는 Cloud Run이 주입하고(기본 8080) `next start`가 그대로 쓴다.
 - Inngest 앱 URL은 `https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`다. 함수를 추가·변경해 배포한 뒤엔 `curl -X PUT https://admin-backend-ebyvikzkma-du.a.run.app/api/inngest`로 다시 등록한다(대시보드의 Sync와 같다). 키(`INNGEST_SIGNING_KEY`·`INNGEST_EVENT_KEY`)는 Secret Manager에 있다.
 - `api.ghsnu.com`은 DNS만 Google을 가리키고 Cloud Run 도메인 매핑이 없어 404다. 쓰지 않는다.
