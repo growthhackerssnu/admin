@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { applyDomainExclusion } from "@/dh/lib/humanReview/domainExclusion";
 import { normalizeCollectedName } from "./startupRecipe";
 import {
   TIPS_API_BASE,
@@ -67,6 +68,7 @@ async function persistCompany(input: {
     });
     if (priorCompany) return { created: false, candidateId: priorCompany.candidates[0]?.id ?? null };
 
+    await tx.company.update({ where: { id: target.id }, data: { industryCodes: company.industryCodes } });
     const evidence = await tx.evidence.create({
       data: {
         companyId: target.id,
@@ -105,6 +107,21 @@ async function persistCompany(input: {
     });
     return { created: true, candidateId: candidate.id };
   });
+}
+
+// 이미 처리한 페이지도 매 실행마다 산업분류 코드를 갱신한다.
+// 코드 저장 전에 들어온 기존 후보의 백필과, StartupRecipe로 먼저 들어온 같은 회사(이름 일치)도 함께 처리된다.
+async function syncIndustryCodes(sourceId: string, companies: TipsCompany[]) {
+  const keys = await prisma.companyNameKey.findMany({
+    where: { sourceId, normalizedName: { in: companies.map((company) => normalizeCollectedName(company.name)) } },
+    select: { normalizedName: true, company: { select: { id: true, industryCodes: true } } },
+  });
+  const byName = new Map(keys.map((key) => [key.normalizedName, key.company]));
+  for (const company of companies) {
+    const target = byName.get(normalizeCollectedName(company.name));
+    if (!target || target.industryCodes.join() === company.industryCodes.join()) continue;
+    await prisma.company.update({ where: { id: target.id }, data: { industryCodes: company.industryCodes } });
+  }
 }
 
 async function processPage(input: {
@@ -152,15 +169,19 @@ async function processPage(input: {
       retryable: null,
     },
   });
-  if (!claimed.count) return { skipped: true, created: 0, total };
+  const companies = records.map((record) => toTipsCompany(record, filters));
+  if (!claimed.count) {
+    await syncIndustryCodes(sourceId, companies);
+    return { skipped: true, created: 0, total };
+  }
 
   try {
     let created = 0;
-    for (const record of records) {
-      const company = toTipsCompany(record, filters);
+    for (const company of companies) {
       const result = await persistCompany({ sourceId, itemId: item.id, runId, company });
       if (result.created) created += 1;
     }
+    await syncIndustryCodes(sourceId, companies);
     await prisma.collectionItem.updateMany({
       where: { id: item.id, leaseToken },
       data: { status: "completed", extractedAt: new Date(), leaseToken: null, leaseUntil: null },
@@ -239,7 +260,8 @@ export async function collectTips(options: { maxPages?: number } = {}) {
         finishedAt: new Date(),
       },
     });
-    return { pageCount, candidateCount: created, failedPageCount: failed };
+    const exclusion = await applyDomainExclusion();
+    return { pageCount, candidateCount: created, failedPageCount: failed, autoExcluded: exclusion.excluded };
   } catch (error) {
     await prisma.searchRun.update({
       where: { id: run.id },

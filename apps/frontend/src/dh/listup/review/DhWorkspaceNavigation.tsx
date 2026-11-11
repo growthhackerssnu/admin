@@ -1,4 +1,4 @@
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, FolderX } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   SidebarMenu,
@@ -25,8 +25,16 @@ export function DhWorkspaceNavigation({
       items={historyTabs}
       onChange={onChange}
       footer={
-        canManageOps && (
-          <SidebarMenu>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link to="/dh?view=auto-excluded">
+                <FolderX />
+                <span>자동 제외된 기업</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {canManageOps && (
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <Link to="/dh?view=operations">
@@ -35,8 +43,8 @@ export function DhWorkspaceNavigation({
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          </SidebarMenu>
-        )
+          )}
+        </SidebarMenu>
       }
     />
   );

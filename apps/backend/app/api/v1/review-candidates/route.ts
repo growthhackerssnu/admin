@@ -18,6 +18,10 @@ export const GET = withListupApiHandler(async (req, { member }) => {
   const reviewStatus = params.get("reviewStatus");
   const ownerId = params.get("ownerId");
   const q = params.get("q")?.trim();
+  // 기본 목록에서는 도메인 자동 제외 후보를 빼고, autoExcluded=only면 그것만 보여 준다.
+  const autoExcluded = params.get("autoExcluded");
+  if (autoExcluded && autoExcluded !== "only")
+    throw new ApiError("VALIDATION_ERROR", "autoExcluded는 only만 쓸 수 있습니다.");
   if (researchStatus && !researchStatuses.includes(researchStatus))
     throw new ApiError("VALIDATION_ERROR", "조사 상태가 올바르지 않습니다.");
   if (reviewStatus && !reviewStatuses.includes(reviewStatus))
@@ -28,6 +32,7 @@ export const GET = withListupApiHandler(async (req, { member }) => {
     throw new ApiError("VALIDATION_ERROR", "수집 기간이 올바르지 않습니다.");
   const where: Prisma.CandidateWhereInput = {
     originCollectedCompanyId: { not: null },
+    autoExcludedAt: autoExcluded === "only" ? { not: null } : null,
     ...(researchStatus ? { researchStatus: researchStatus as "queued" | "running" | "ready" | "error" } : {}),
     ...(reviewStatus ? { reviewStatus: reviewStatus as "unreviewed" | "reviewing" | "approved" | "rejected_fit" | "rejected_contact" } : {}),
     ...(ownerId ? { reviewOwnerId: ownerId === "me" ? member.id : ownerId } : {}),

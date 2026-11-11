@@ -37,6 +37,7 @@ export type TipsCompany = {
   name: string;
   summary: string;
   detailUrl: string;
+  industryCodes: string[];
 };
 
 export function tipsListUrl(page: number, size = TIPS_PAGE_SIZE) {
@@ -65,6 +66,11 @@ function parseCodeArray(raw: string | undefined) {
   } catch {
     return [];
   }
+}
+
+// Company.industryCodes에 저장하는 형식. 두 분류의 코드가 겹치지 않게 접두어를 붙인다.
+export function tipsIndustryCodes(industry12: string[], industryStd: string[]) {
+  return [...industry12.map((code) => `i12:${code}`), ...industryStd.map((code) => `std:${code}`)];
 }
 
 function labelFor(options: TipsFilterOption[] | undefined, code: string) {
@@ -129,5 +135,9 @@ export function toTipsCompany(
     name: record.name.trim(),
     summary: summary.slice(0, 500),
     detailUrl: tipsDetailUrl(record.id),
+    industryCodes: tipsIndustryCodes(
+      parseCodeArray(record.industry12Codes),
+      parseCodeArray(record.industryStdCodes),
+    ),
   };
 }

@@ -5,6 +5,7 @@ import { useKeepWarm } from "../../../lib/useKeepWarm";
 import ReviewWorkspace from "./ReviewWorkspace";
 import { LiveReviewRepository } from "./liveRepository";
 import { OperationsPage } from "./OperationsPage";
+import { AutoExcludedPage } from "./AutoExcludedPage";
 import { LiveHistoryRepository } from "./liveHistoryRepository";
 
 export default function LiveReviewWorkspace() {
@@ -35,5 +36,6 @@ export default function LiveReviewWorkspace() {
   if (authenticated === null) return <main role="status">로그인 확인 중…</main>;
   if (!authenticated) return <Navigate to="/login" replace />;
   if (params.get("view") === "operations") return <OperationsPage repository={repository} />;
+  if (params.get("view") === "auto-excluded") return <AutoExcludedPage repository={repository} />;
   return <ReviewWorkspace repository={repository} liveHistoryRepository={historyRepository} />;
 }
