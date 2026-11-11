@@ -90,7 +90,6 @@ const claimLabels: Record<string, string> = {
   target_customer: "주요 고객",
   revenue_model: "수익 모델",
   user_journey: "사용자 여정",
-  operations: "운영 방식",
   recent_change: "최근 변화",
   public_challenge: "공개된 과제",
 };
@@ -109,11 +108,15 @@ function normalizeResearch(value: CandidateDto["research"]): Research | null {
   return {
     id: value.id,
     at: value.createdAt,
-    facts: value.claims.map((claim) => ({
-      title: claimLabels[claim.category] ?? claim.category,
-      text: claim.content,
-      evidenceId: claim.evidenceIds[0] ?? "",
-    })),
+    // 7개 항목을 항상 같은 순서로 보여 주고, 근거가 없는 항목은 "공개 정보 없음"으로 표시한다.
+    facts: Object.entries(claimLabels).map(([category, title]) => {
+      const claim = value.claims.find((item) => item.category === category);
+      return {
+        title,
+        text: claim?.content ?? "공개 정보 없음",
+        evidenceId: claim?.evidenceIds[0] ?? "",
+      };
+    }),
     ideas: [],
     evidence: value.evidence.map(({ id, title, excerpt, url }) => ({ id, title, excerpt, url })),
     unknowns: value.missingInformation,
@@ -223,9 +226,12 @@ export class LiveReviewRepository implements ReviewRepository {
     };
     // 목록을 보여준 다음, 아직 상세(연구 내용 등)를 안 받아본 후보들을 백그라운드로
     // 미리 받아둔다 — 클릭했을 때 다시 기다리지 않도록 하는 캐시 예열이다.
+    // ponytail: 앞쪽 20개만 예열. 후보가 수천 개라 전부 동시에 요청하면 Cloud Run이 넘쳐
+    // 요청이 무더기로 끊긴다. 나머지는 클릭할 때 받는다.
     void Promise.allSettled(
       this.data.candidates
         .filter((c) => this.details.get(c.id)?.version !== c.version)
+        .slice(0, 20)
         .map((c) => this.loadCandidate(c.id)),
     );
     return this.data;
