@@ -114,6 +114,18 @@ function normalizeRecipient(value: RecipientDto | null): Recipient | null {
   } : null;
 }
 
+// 제품·서비스는 "이름(설명), 이름(설명)" 형식이라 괄호 밖의 ", "에서 나눠 줄 단위 목록으로 만든다.
+export function splitProducts(text: string) {
+  const items: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === "(") depth += 1;
+    else if (text[i] === ")") depth = Math.max(0, depth - 1);
+    else if (depth === 0 && text.startsWith(", ", i)) { items.push(text.slice(start, i)); start = i + 2; }
+  }
+  return [...items, text.slice(start)].map((item) => item.trim()).filter(Boolean);
+}
+
 function normalizeResearch(value: CandidateDto["research"]): Research | null {
   if (!value) return null;
   return {
@@ -124,7 +136,7 @@ function normalizeResearch(value: CandidateDto["research"]): Research | null {
       const claim = value.claims.find((item) => item.category === category);
       return {
         title,
-        text: claim?.content ?? "공개 정보 없음",
+        text: claim ? (category === "product_service" ? splitProducts(claim.content).join("\n") : claim.content) : "공개 정보 없음",
         evidenceId: claim?.evidenceIds[0] ?? "",
       };
     }),
