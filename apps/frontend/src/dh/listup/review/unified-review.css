@@ -82,6 +82,7 @@
 .uw-fact { margin-bottom: 16px; }
 .uw-fact:last-child { margin-bottom: 0; }
 .uw-fact small { font-weight: 600; color: var(--ds-gray-700); }
+.uw-fact ul { margin: 0; padding-left: 1.2em; list-style: disc; }
 .uw-state-message, .uw-empty-main { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: var(--layout-control-gap); height: 100%; color: var(--ds-gray-700); text-align: center; }
 .uw-state-message h2 { font-size: var(--workspace-title-size, var(--ds-type-headline-6)); color: var(--ds-text-strong); }
 .uw-empty { padding: 16px; color: var(--ds-gray-700); font-size: var(--ds-type-caption); }

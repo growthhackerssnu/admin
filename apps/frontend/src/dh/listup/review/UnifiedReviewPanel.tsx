@@ -172,7 +172,8 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   return <aside className="uw-details" aria-label="기업 정보">
     <header className="uw-pane-head"><h2>기업 정보</h2><WorkspaceIconButton icon="close" label="기업 정보 닫기" onClick={onClose} /></header>
     <div ref={scrollRef} className="uw-details-scroll">
-      {candidate.research && <><section><h3>기업 조사</h3>{candidate.research.facts.map((fact) => <div className="uw-fact" key={fact.title}><small>{fact.title}</small><p>{fact.text}</p></div>)}
+      {candidate.research && <><section><h3>기업 조사</h3>{candidate.research.facts.map((fact) => <div className="uw-fact" key={fact.title}><small>{fact.title}</small>{fact.text.includes("\n")
+        ? <ul>{fact.text.split("\n").map((item) => <li key={item}>{item}</li>)}</ul> : <p>{fact.text}</p>}</div>)}
         {candidate.research.ideas.length > 0 && <div className="uw-fact"><small>협업 아이디어</small>{candidate.research.ideas.map((idea) => <p key={idea.title}>{idea.title}</p>)}</div>}</section>
         <section><h3>출처</h3>{candidate.research.evidence.map((source) => <a key={source.id} href={safeUrl(source.url)} target="_blank" rel="noopener noreferrer">{source.title}</a>)}</section></>}
       {candidate.recipient && <section><h3>관계자</h3><strong>{candidate.recipient.name}</strong><p>{candidate.recipient.title || "직함 미입력"}</p><small>{candidate.recipient.channel === "linkedin" ? "LinkedIn" : "이메일"}</small>

@@ -7,7 +7,7 @@ vi.mock("../../../lib/supabase", () => ({
   supabase: { auth: { getSession: vi.fn(async () => ({ data: { session: { access_token: "test-token" } }, error: null })) } },
 }));
 
-import { LiveReviewRepository } from "./liveRepository";
+import { LiveReviewRepository, splitProducts } from "./liveRepository";
 
 const recipient = { name: "수정 이름", title: "수정 직함", channel: "linkedin" as const, address: "https://www.linkedin.com/in/example-person" };
 const initialCandidate = () => ({
@@ -262,5 +262,13 @@ describe("discovery generation in the fixed acquisition quarter", () => {
     const failure = await repository.execute(row.id, 1, { type: "generate" }, "generate-1").catch((error) => error);
     expect(failure.data.candidates[0].canEditMessage).toBe(false);
     expect(failure.data.candidates[0].quarter).toBe("2027-Q1");
+  });
+});
+
+describe("splitProducts", () => {
+  it("splits on commas outside parentheses only", () => {
+    expect(splitProducts("NOVA(GraphRAG AI 플랫폼), AI 자동매매 시스템(주식/코인, 자동매매), 썸틴(카드게임)"))
+      .toEqual(["NOVA(GraphRAG AI 플랫폼)", "AI 자동매매 시스템(주식/코인, 자동매매)", "썸틴(카드게임)"]);
+    expect(splitProducts("간편결제 앱 제공")).toEqual(["간편결제 앱 제공"]);
   });
 });
