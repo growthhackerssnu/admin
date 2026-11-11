@@ -26,5 +26,6 @@ export const assignableCandidateWhere: Prisma.CandidateWhereInput = {
   researchStatus: "ready",
   reviewStatus: "unreviewed",
   reviewOwnerId: null,
+  autoExcludedAt: null,
   company: { outreaches: { none: {} }, pastProjects: { none: {} } },
 };

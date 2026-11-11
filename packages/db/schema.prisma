@@ -422,6 +422,8 @@ model Company {
   permanentlyExcludedReason String?   @map("permanently_excluded_reason")
   permanentlyExcludedAt     DateTime? @map("permanently_excluded_at")
   isPrelaunchOnly           Boolean   @default(false) @map("is_prelaunch_only")
+  // TIPS 공개 API의 산업분류 코드("i12:BIO", "std:BIO_MED" 형식). 도메인 자동 제외 판단에 쓴다.
+  industryCodes             String[]  @default([]) @map("industry_codes")
   createdAt                 DateTime  @default(now()) @map("created_at")
   updatedAt                 DateTime  @updatedAt @map("updated_at")
 
@@ -1348,6 +1350,12 @@ model Candidate {
   usableContactCount            Int               @default(0) @map("usable_contact_count")
   needsVerificationContactCount Int               @default(0) @map("needs_verification_contact_count")
   unusableContactCount          Int               @default(0) @map("unusable_contact_count")
+  // 학회와 맞지 않는 도메인(신약·반도체 등)으로 자동 제외된 후보. 검토 목록·배정·조사에서 빠지고 따로 모아 본다.
+  autoExcludedAt                DateTime?         @map("auto_excluded_at")
+  autoExcludedCategory          String?           @map("auto_excluded_category")
+  autoExcludedReason            String?           @map("auto_excluded_reason")
+  // 사람이 복원한 후보는 다시 자동 제외하지 않는다.
+  autoExclusionRestoredAt       DateTime?         @map("auto_exclusion_restored_at")
   revision                      Int               @default(1)
   createdAt                     DateTime          @default(now()) @map("created_at")
   updatedAt                     DateTime          @updatedAt @map("updated_at")

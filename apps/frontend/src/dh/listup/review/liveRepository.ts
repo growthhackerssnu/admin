@@ -73,10 +73,21 @@ type OutreachDto = {
 };
 export type OperationsSummary = {
   assignable: number; researching: number; researchError: number; assigned: number;
+  autoExcluded: number;
   intakePaused: boolean; intakeVersion: number; canManage: boolean;
   pipelineEnabled: boolean;
 };
 export type AssignmentMember = Actor;
+export type AutoExcludedCandidate = {
+  id: string; name: string; summary: string; source: string;
+  category: string; reason: string; excludedAt: string;
+};
+type AutoExcludedDto = {
+  id: string;
+  company: { name: string; summary: string | null };
+  discovery: { sourceName: string | null };
+  autoExclusion: { excludedAt: string; category: string | null; reason: string | null } | null;
+};
 export type AssignmentInput = {
   workStartsOn: string; workEndsOn: string; memberIds: string[]; perMemberCount: number;
 };
@@ -457,6 +468,31 @@ export class LiveReviewRepository implements ReviewRepository {
       ? (await this.api.request<AssignmentMember[]>("/review-assignment-members")).data
       : [];
     return { summary, members };
+  }
+
+  // 도메인 자동 제외된 후보만 따로 모아 본다(기본 검토 목록에는 나오지 않는다).
+  async loadAutoExcluded(): Promise<AutoExcludedCandidate[]> {
+    const rows: AutoExcludedDto[] = [];
+    let cursor: string | null = null;
+    do {
+      const suffix: string = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+      const page: Envelope<AutoExcludedDto[]> = await this.api.request<AutoExcludedDto[]>(`/review-candidates?autoExcluded=only&limit=100${suffix}`);
+      rows.push(...page.data);
+      cursor = page.page?.hasMore ? page.page.nextCursor ?? null : null;
+    } while (cursor);
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.company.name,
+      summary: row.company.summary ?? "",
+      source: row.discovery.sourceName ?? "",
+      category: row.autoExclusion?.category ?? "기타",
+      reason: row.autoExclusion?.reason ?? "",
+      excludedAt: row.autoExclusion?.excludedAt ?? "",
+    }));
+  }
+
+  async restoreAutoExcluded(id: string) {
+    await this.api.request(`/review-candidates/${encodeURIComponent(id)}/auto-exclusion-restores`, "POST", {}, crypto.randomUUID());
   }
 
   async previewAssignment(input: AssignmentInput): Promise<AssignmentPreview> {

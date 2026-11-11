@@ -861,7 +861,13 @@ export async function queuedCompanyResearchTaskIds(
   pipeline: "legacy" | "human_review" = "legacy",
 ) {
   const tasks = await prisma.researchTask.findMany({
-    where: { type: "company_research", pipeline, status: "queued" },
+    where: {
+      type: "company_research",
+      pipeline,
+      status: "queued",
+      // 도메인 자동 제외 후보는 조사 비용을 쓰지 않는다. 복원되면 남아 있던 작업이 다시 잡힌다.
+      ...(pipeline === "human_review" ? { candidate: { autoExcludedAt: null } } : {}),
+    },
     select: { id: true },
     orderBy: { createdAt: "asc" },
     take: limit,

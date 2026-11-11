@@ -5,12 +5,13 @@ import { hasOpsRole } from "@/portal/lib/opsRoles";
 
 export const GET = withListupApiHandler(async (_req, { member }) => {
   requireExternalReader(member);
-  const [assignable, researching, researchError, assigned, intake] = await Promise.all([
+  const [assignable, researching, researchError, assigned, intake, autoExcluded] = await Promise.all([
     prisma.candidate.count({ where: assignableCandidateWhere }),
-    prisma.candidate.count({ where: { originCollectedCompanyId: { not: null }, researchStatus: { in: ["queued", "running"] } } }),
+    prisma.candidate.count({ where: { originCollectedCompanyId: { not: null }, autoExcludedAt: null, researchStatus: { in: ["queued", "running"] } } }),
     prisma.candidate.count({ where: { originCollectedCompanyId: { not: null }, researchStatus: "error" } }),
     prisma.candidate.count({ where: { originCollectedCompanyId: { not: null }, reviewOwnerId: { not: null } } }),
     prisma.collectionIntakeControl.findUnique({ where: { id: "dh" } }),
+    prisma.candidate.count({ where: { originCollectedCompanyId: { not: null }, autoExcludedAt: { not: null } } }),
   ]);
   return {
     body: {
@@ -19,6 +20,7 @@ export const GET = withListupApiHandler(async (_req, { member }) => {
         researching,
         researchError,
         assigned,
+        autoExcluded,
         intakePaused: intake?.paused ?? false,
         intakeVersion: intake?.version ?? 1,
         canManage: member.role === "admin" || hasOpsRole(member, "external_lead"),

@@ -81,6 +81,7 @@ export function OperationsPage({ repository }: { repository: LiveReviewRepositor
             <div><strong>{summary.researchError}</strong><span>조사 오류</span></div>
             <div><strong>{summary.assigned}</strong><span>이미 배정됨</span></div>
           </div>
+          <p className="uw-ops-current-quarter"><a href="/dh?view=auto-excluded">도메인 자동 제외 {summary.autoExcluded}건 보기</a></p>
         </section>
         <section className="uw-ops-section" aria-labelledby="uw-ops-intake-title">
           <div className="uw-ops-section-head"><div><h2 id="uw-ops-intake-title">새 기업 유입</h2><p>일시정지는 새 수집에 적용됩니다. 이미 쌓인 후보와 진행 중인 조사는 유지됩니다.</p></div>

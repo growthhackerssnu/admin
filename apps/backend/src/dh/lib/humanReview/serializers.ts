@@ -81,6 +81,13 @@ export function serializeReviewCandidate(row: ReviewCandidateRow, viewerId: stri
           retryable: failed.errorRetryable ?? false,
         }
       : null,
+    autoExclusion: row.autoExcludedAt
+      ? {
+          excludedAt: row.autoExcludedAt.toISOString(),
+          category: row.autoExcludedCategory,
+          reason: row.autoExcludedReason,
+        }
+      : null,
     canEdit: row.reviewOwnerId === viewerId,
   };
 }
