@@ -1,3 +1,5 @@
+import type { StageInfo } from "./stage";
+
 export type ResearchStatus = "queued" | "running" | "ready" | "error";
 export type ReviewStatus =
   | "unreviewed"
@@ -63,6 +65,8 @@ export interface Candidate {
   error: { message: string; retryable: boolean } | null;
   owner: Actor | null;
   reviewStatus: ReviewStatus;
+  /** 서버가 계산한 단계. 필터와 배지는 candidateStage()로 이 값을 읽는다. */
+  stage?: StageInfo;
   decisions: Decision[];
   recipient: Recipient | null;
   recipientContactId?: string | null;
@@ -164,7 +168,7 @@ export const reviewLabels: Record<ReviewStatus, string> = {
   unreviewed: "미검토",
   reviewing: "검토 중",
   approved: "승인",
-  rejected_fit: "fit 부적합",
+  rejected_fit: "부적합",
   rejected_contact: "연락처 없음",
 };
 export const currentActor: Actor = { id: "preview-a", name: "샘플 팀원 A" };

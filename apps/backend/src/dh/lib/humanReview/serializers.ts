@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
+import { companyStage } from "@/dh/lib/humanReview/stage";
 
 export const reviewCandidateInclude = {
   company: { select: { id: true, name: true, websiteUrl: true } },
@@ -9,7 +10,11 @@ export const reviewCandidateInclude = {
   selectedContact: { select: { id: true, name: true, title: true } },
   selectedEndpoint: { select: { id: true, channel: true, address: true } },
   activeReviewDecision: { include: { decidedBy: { select: { id: true, displayName: true } } } },
-  outreaches: { select: { id: true }, orderBy: { createdAt: "desc" }, take: 1 },
+  outreaches: {
+    select: { id: true, sendStatus: true, outcomeStatus: true },
+    orderBy: { createdAt: "desc" },
+    take: 1,
+  },
   tasks: {
     where: { pipeline: "human_review", type: "company_research", status: "failed" },
     select: { errorCode: true, errorMessage: true, errorRetryable: true },
@@ -56,6 +61,14 @@ export function serializeReviewCandidate(row: ReviewCandidateRow, viewerId: stri
       url: origin?.item.url ?? null,
       collectedAt: (origin?.item.extractedAt ?? origin?.item.publishedAt ?? row.createdAt).toISOString(),
     },
+    // 단계·종료 사유·조사 진행. 화면은 아래 개별 상태 필드를 조합하지 말고 이 값을 쓴다.
+    ...companyStage({
+      researchStatus: row.researchStatus,
+      reviewStatus: row.reviewStatus,
+      reviewOwnerId: row.reviewOwnerId,
+      autoExcludedAt: row.autoExcludedAt,
+      latestOutreach: row.outreaches[0] ?? null,
+    }),
     researchStatus: row.researchStatus,
     reviewStatus: row.reviewStatus,
     owner: row.reviewOwner

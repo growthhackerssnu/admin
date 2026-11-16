@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Plus, UserRound } from "lucide-react";
-import { WorkspaceStatus, type WorkspaceTone } from "@/components/ui/workspace-status";
+import { WorkspaceStatus } from "@/components/ui/workspace-status";
 import { WorkspaceSidebar } from "@/components/ui/workspace-sidebar";
 import { DhWorkspaceNavigation } from "./DhWorkspaceNavigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,9 +19,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
 import {
-  researchLabels, reviewLabels, safeUrl, validRecipient,
+  researchLabels, safeUrl, validRecipient,
   type AcquisitionRound, type Actor, type Candidate, type CandidateCommand, type Recipient,
 } from "./contracts";
+import { candidateStage, stageBadge, stageLabels, type CompanyStage } from "./stage";
 import "@/design-system/globals.css";
 import "./unified-review.css";
 import { MessageComposer } from "./MessageComposer";
@@ -29,39 +30,18 @@ import type { HistoryTab } from "./historyNavigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 
 type Change = (candidate: Candidate, command: CandidateCommand) => Promise<boolean>;
-type StatusFilter = "all" | "ready" | "reviewing" | "approved" | "rejected" | "error";
+type StatusFilter = "all" | CompanyStage;
 type OwnerFilter = "mine" | "all";
+// 필터는 단계 기준이다. 조사 진행(대기·진행 중·재시도 필요)과 종료 사유는 배지로만 구분한다.
 const statusOptions: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "전체 상태" }, { value: "ready", label: "검토 필요" },
-  { value: "reviewing", label: "검토 중" }, { value: "approved", label: "승인" },
-  { value: "rejected", label: "거절" }, { value: "error", label: "조사 오류" },
+  { value: "all", label: "전체 단계" },
+  ...(Object.keys(stageLabels) as CompanyStage[]).map((value) => ({ value, label: stageLabels[value] })),
 ];
 const blankContact: Recipient = { name: "", title: "", channel: "linkedin", address: "" };
-type StatusTone = WorkspaceTone;
-
-function candidateStatus(candidate: Candidate): { label: string; tone: StatusTone } {
-  if (candidate.researchStatus === "error") return { label: "조사 오류", tone: "danger" };
-  if (candidate.researchStatus !== "ready") return { label: researchLabels[candidate.researchStatus], tone: "info" };
-  switch (candidate.reviewStatus) {
-    case "approved": return { label: reviewLabels.approved, tone: "success" };
-    case "rejected_fit": return { label: reviewLabels.rejected_fit, tone: "danger" };
-    case "rejected_contact": return { label: reviewLabels.rejected_contact, tone: "warning" };
-    case "reviewing": return { label: reviewLabels.reviewing, tone: "info" };
-    default: return { label: "검토 필요", tone: "neutral" };
-  }
-}
 
 function StatusBadge({ candidate }: { candidate: Candidate }) {
-  const { label, tone } = candidateStatus(candidate);
+  const { label, tone } = stageBadge(candidate);
   return <WorkspaceStatus tone={tone}>{label}</WorkspaceStatus>;
-}
-
-function statusOf(candidate: Candidate): StatusFilter {
-  if (candidate.researchStatus === "error") return "error";
-  if (candidate.reviewStatus === "rejected_fit" || candidate.reviewStatus === "rejected_contact") return "rejected";
-  if (candidate.reviewStatus === "approved") return "approved";
-  if (candidate.reviewStatus === "reviewing") return "reviewing";
-  return "ready";
 }
 
 function RailToggle() {
@@ -98,7 +78,15 @@ function ContactWork({ candidate, actor, pending, change, onDirty, currentRound,
       setError("");
     }
   };
+  const [noteError, setNoteError] = useState("");
   const decide = async (status: "approved" | "rejected_fit" | "rejected_contact") => {
+    // 부적합은 사유 메모가 있어야 저장된다(서버도 같은 검사를 한다).
+    if (status === "rejected_fit" && !note.trim()) {
+      setNoteError("부적합으로 판단한 이유를 메모에 적어주세요.");
+      document.getElementById("uw-decision-note")?.focus();
+      return;
+    }
+    setNoteError("");
     if (await change(candidate, { type: "decide", status, note })) setNote("");
   };
   const decided = ["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus);
@@ -153,12 +141,13 @@ function ContactWork({ candidate, actor, pending, change, onDirty, currentRound,
             {decided && <div className="uw-decision"><div className="uw-decision-row"><StatusBadge candidate={candidate} />
               {canAct && <Button variant="ghost" size="sm" onClick={() => void change(candidate, { type: "reopen" })}>판단 변경</Button>}</div>
               {candidate.decisions.at(-1)?.note && <p>{candidate.decisions.at(-1)?.note}</p>}</div>}
-            {!decided && owned && <Field className="uw-note"><FieldLabel htmlFor="uw-decision-note">판단 메모 <small>선택</small></FieldLabel><Textarea id="uw-decision-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} /></Field>}
+            {!decided && owned && <Field className="uw-note"><FieldLabel htmlFor="uw-decision-note">판단 메모 <small>부적합이면 필수</small></FieldLabel><Textarea id="uw-decision-note" aria-invalid={Boolean(noteError)} aria-describedby={noteError ? "uw-decision-note-error" : undefined} value={note} onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }} rows={2} />
+              {noteError && <FieldError id="uw-decision-note-error">{noteError}</FieldError>}</Field>}
           </div>
         )}
       </div>
       {owned && candidate.researchStatus === "ready" && !decided && <footer className="uw-focus-footer">
-        <Button variant="destructive" disabled={pending} onClick={() => void decide("rejected_fit")}>fit 부적합</Button>
+        <Button variant="destructive" disabled={pending} onClick={() => void decide("rejected_fit")}>부적합</Button>
         <Button variant="outline" disabled={pending} onClick={() => void decide("rejected_contact")}>연락처 없음</Button>
         <Button className="uw-approve" disabled={pending || Boolean(mode) || !candidate.recipient} onClick={() => void decide("approved")}>{pending && <Spinner />}승인</Button>
       </footer>}
@@ -223,7 +212,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   }, []);
   const visible = useMemo(() => candidates.filter((candidate) =>
     (owner === "all" || candidate.owner?.id === actor.id) &&
-    (status === "all" || statusOf(candidate) === status) &&
+    (status === "all" || candidateStage(candidate).stage === status) &&
     `${candidate.name} ${candidate.summary}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())
   ), [candidates, actor.id, owner, status, query]);
   useEffect(() => { if (!selectedId && visible[0]) onSelect(visible[0].id); }, [selectedId, visible, onSelect]);

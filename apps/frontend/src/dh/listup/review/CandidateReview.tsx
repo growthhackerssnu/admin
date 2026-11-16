@@ -244,6 +244,11 @@ export function CandidateReview({
   const decide = async (
     status: "approved" | "rejected_fit" | "rejected_contact",
   ) => {
+    // 부적합은 사유 메모가 있어야 저장된다(서버도 같은 검사를 한다).
+    if (status === "rejected_fit" && !note.trim()) {
+      document.getElementById(`review-note-${candidate.id}`)?.focus();
+      return;
+    }
     if (await change(candidate, { type: "decide", status, note })) setNote("");
   };
   return (
@@ -428,7 +433,7 @@ export function CandidateReview({
         )}
         {!decided && candidate.research && (
           <Field className="rv-note">
-            <FieldLabel htmlFor={`review-note-${candidate.id}`}>판단 메모 <small>선택</small></FieldLabel>
+            <FieldLabel htmlFor={`review-note-${candidate.id}`}>판단 메모 <small>부적합이면 필수</small></FieldLabel>
             <Textarea id={`review-note-${candidate.id}`}
               value={note}
               disabled={locked}
@@ -490,7 +495,7 @@ export function CandidateReview({
                 disabled={locked || contactDirty}
                 onClick={() => void decide("rejected_fit")}
               >
-                fit 부적합
+                부적합
               </Button>
               <Button variant="outline"
                 disabled={locked || contactDirty}
