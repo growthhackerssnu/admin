@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Plus, UserRound } from "lucide-react";
-import { WorkspaceStatus, type WorkspaceTone } from "@/components/ui/workspace-status";
+import { WorkspaceStatus } from "@/components/ui/workspace-status";
 import { WorkspaceSidebar } from "@/components/ui/workspace-sidebar";
 import { DhWorkspaceNavigation } from "./DhWorkspaceNavigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,9 +19,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspaceIconButton } from "@/components/ui/workspace-icon-button";
 import {
-  researchLabels, reviewLabels, safeUrl, validRecipient,
+  researchLabels, safeUrl, validRecipient,
   type AcquisitionRound, type Actor, type Candidate, type CandidateCommand, type Recipient,
 } from "./contracts";
+import { candidateStage, stageBadge, stageLabels, type CompanyStage } from "./stage";
 import "@/design-system/globals.css";
 import "./unified-review.css";
 import { MessageComposer } from "./MessageComposer";
@@ -29,39 +30,18 @@ import type { HistoryTab } from "./historyNavigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 
 type Change = (candidate: Candidate, command: CandidateCommand) => Promise<boolean>;
-type StatusFilter = "all" | "ready" | "reviewing" | "approved" | "rejected" | "error";
+type StatusFilter = "all" | CompanyStage;
 type OwnerFilter = "mine" | "all";
+// 필터는 단계 기준이다. 조사 진행(대기·진행 중·재시도 필요)과 종료 사유는 배지로만 구분한다.
 const statusOptions: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "전체 상태" }, { value: "ready", label: "검토 필요" },
-  { value: "reviewing", label: "검토 중" }, { value: "approved", label: "승인" },
-  { value: "rejected", label: "거절" }, { value: "error", label: "조사 오류" },
+  { value: "all", label: "전체 단계" },
+  ...(Object.keys(stageLabels) as CompanyStage[]).map((value) => ({ value, label: stageLabels[value] })),
 ];
 const blankContact: Recipient = { name: "", title: "", channel: "linkedin", address: "" };
-type StatusTone = WorkspaceTone;
-
-function candidateStatus(candidate: Candidate): { label: string; tone: StatusTone } {
-  if (candidate.researchStatus === "error") return { label: "조사 오류", tone: "danger" };
-  if (candidate.researchStatus !== "ready") return { label: researchLabels[candidate.researchStatus], tone: "info" };
-  switch (candidate.reviewStatus) {
-    case "approved": return { label: reviewLabels.approved, tone: "success" };
-    case "rejected_fit": return { label: reviewLabels.rejected_fit, tone: "danger" };
-    case "rejected_contact": return { label: reviewLabels.rejected_contact, tone: "warning" };
-    case "reviewing": return { label: reviewLabels.reviewing, tone: "info" };
-    default: return { label: "검토 필요", tone: "neutral" };
-  }
-}
 
 function StatusBadge({ candidate }: { candidate: Candidate }) {
-  const { label, tone } = candidateStatus(candidate);
+  const { label, tone } = stageBadge(candidate);
   return <WorkspaceStatus tone={tone}>{label}</WorkspaceStatus>;
-}
-
-function statusOf(candidate: Candidate): StatusFilter {
-  if (candidate.researchStatus === "error") return "error";
-  if (candidate.reviewStatus === "rejected_fit" || candidate.reviewStatus === "rejected_contact") return "rejected";
-  if (candidate.reviewStatus === "approved") return "approved";
-  if (candidate.reviewStatus === "reviewing") return "reviewing";
-  return "ready";
 }
 
 function RailToggle() {
@@ -223,7 +203,7 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
   }, []);
   const visible = useMemo(() => candidates.filter((candidate) =>
     (owner === "all" || candidate.owner?.id === actor.id) &&
-    (status === "all" || statusOf(candidate) === status) &&
+    (status === "all" || candidateStage(candidate).stage === status) &&
     `${candidate.name} ${candidate.summary}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())
   ), [candidates, actor.id, owner, status, query]);
   useEffect(() => { if (!selectedId && visible[0]) onSelect(visible[0].id); }, [selectedId, visible, onSelect]);

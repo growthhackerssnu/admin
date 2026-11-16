@@ -12,6 +12,7 @@ import type {
   ReviewRepository,
   Research,
 } from "./contracts";
+import type { StageInfo } from "./stage";
 
 type QuarterDto = { id: string; year: number; quarter: number };
 type RecipientDto = Recipient & { contactId: string; endpointId: string; title: string | null };
@@ -22,6 +23,10 @@ type CandidateDto = {
   discovery: { sourceName: string | null; url: string | null; collectedAt: string };
   researchStatus: Candidate["researchStatus"];
   reviewStatus: Candidate["reviewStatus"];
+  // 단계 필드가 없는 이전 서버 응답도 받을 수 있게 선택 항목으로 둔다.
+  stage?: StageInfo["stage"];
+  closeReason?: StageInfo["closeReason"];
+  researchProgress?: StageInfo["researchProgress"];
   owner: Actor | null;
   selectedRecipient: RecipientDto | null;
   outreachId: string | null;
@@ -183,6 +188,11 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     error: row.error,
     owner: row.owner,
     reviewStatus: row.reviewStatus,
+    stage: row.stage ? {
+      stage: row.stage,
+      closeReason: row.closeReason ?? null,
+      researchProgress: row.researchProgress ?? null,
+    } : undefined,
     decisions: latestDecision ? [{
       status: row.reviewStatus,
       fit: latestDecision.fit,
