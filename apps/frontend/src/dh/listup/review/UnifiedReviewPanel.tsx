@@ -78,7 +78,15 @@ function ContactWork({ candidate, actor, pending, change, onDirty, currentRound,
       setError("");
     }
   };
+  const [noteError, setNoteError] = useState("");
   const decide = async (status: "approved" | "rejected_fit" | "rejected_contact") => {
+    // 부적합은 사유 메모가 있어야 저장된다(서버도 같은 검사를 한다).
+    if (status === "rejected_fit" && !note.trim()) {
+      setNoteError("부적합으로 판단한 이유를 메모에 적어주세요.");
+      document.getElementById("uw-decision-note")?.focus();
+      return;
+    }
+    setNoteError("");
     if (await change(candidate, { type: "decide", status, note })) setNote("");
   };
   const decided = ["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus);
@@ -133,7 +141,8 @@ function ContactWork({ candidate, actor, pending, change, onDirty, currentRound,
             {decided && <div className="uw-decision"><div className="uw-decision-row"><StatusBadge candidate={candidate} />
               {canAct && <Button variant="ghost" size="sm" onClick={() => void change(candidate, { type: "reopen" })}>판단 변경</Button>}</div>
               {candidate.decisions.at(-1)?.note && <p>{candidate.decisions.at(-1)?.note}</p>}</div>}
-            {!decided && owned && <Field className="uw-note"><FieldLabel htmlFor="uw-decision-note">판단 메모 <small>선택</small></FieldLabel><Textarea id="uw-decision-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} /></Field>}
+            {!decided && owned && <Field className="uw-note"><FieldLabel htmlFor="uw-decision-note">판단 메모 <small>부적합이면 필수</small></FieldLabel><Textarea id="uw-decision-note" aria-invalid={Boolean(noteError)} aria-describedby={noteError ? "uw-decision-note-error" : undefined} value={note} onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError(""); }} rows={2} />
+              {noteError && <FieldError id="uw-decision-note-error">{noteError}</FieldError>}</Field>}
           </div>
         )}
       </div>

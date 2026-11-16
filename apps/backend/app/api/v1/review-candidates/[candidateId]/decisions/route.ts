@@ -23,6 +23,11 @@ export const POST = withListupApiHandler<{ candidateId: string }>(async (req, { 
   if (!owner?.originCollectedCompanyId) throw new ApiError("NOT_FOUND", "검토 후보를 찾지 못했습니다.");
   requireReviewOwner(member, owner.reviewOwnerId);
   const input = parsed.data;
+  // 부적합은 왜 그렇게 판단했는지 남아야 나중에 기준을 다듬을 수 있어 메모를 필수로 받는다.
+  if (input.action === "reject_fit" && !input.note)
+    throw new ApiError("VALIDATION_ERROR", "부적합으로 판단하려면 사유 메모가 필요합니다.", {
+      fieldErrors: { note: "부적합 사유 필수" },
+    });
 
   return withIdempotency(req, member, `/review-candidates/${params.candidateId}/decisions`, input, async (tx) => {
     const candidate = await tx.candidate.findUniqueOrThrow({
