@@ -138,7 +138,7 @@ function ContactWork({ candidate, actor, pending, change, onDirty, currentRound,
         )}
       </div>
       {owned && candidate.researchStatus === "ready" && !decided && <footer className="uw-focus-footer">
-        <Button variant="destructive" disabled={pending} onClick={() => void decide("rejected_fit")}>fit 부적합</Button>
+        <Button variant="destructive" disabled={pending} onClick={() => void decide("rejected_fit")}>부적합</Button>
         <Button variant="outline" disabled={pending} onClick={() => void decide("rejected_contact")}>연락처 없음</Button>
         <Button className="uw-approve" disabled={pending || Boolean(mode) || !candidate.recipient} onClick={() => void decide("approved")}>{pending && <Spinner />}승인</Button>
       </footer>}

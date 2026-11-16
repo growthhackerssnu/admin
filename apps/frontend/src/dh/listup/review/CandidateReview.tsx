@@ -490,7 +490,7 @@ export function CandidateReview({
                 disabled={locked || contactDirty}
                 onClick={() => void decide("rejected_fit")}
               >
-                fit 부적합
+                부적합
               </Button>
               <Button variant="outline"
                 disabled={locked || contactDirty}

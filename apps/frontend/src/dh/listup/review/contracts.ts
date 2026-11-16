@@ -168,7 +168,7 @@ export const reviewLabels: Record<ReviewStatus, string> = {
   unreviewed: "미검토",
   reviewing: "검토 중",
   approved: "승인",
-  rejected_fit: "fit 부적합",
+  rejected_fit: "부적합",
   rejected_contact: "연락처 없음",
 };
 export const currentActor: Actor = { id: "preview-a", name: "샘플 팀원 A" };
