@@ -91,6 +91,26 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 
 정책(합의 전 임시): 종료됐거나 회차가 연결되지 않은 작업은 읽기 전용(`ROUND_CLOSED`), 종료 후 결과 정정 허용. 전이 표는 `src/dh/lib/humanReview/outcome.ts` 한 곳에서 바꾼다. 후보 승인 근거와 재연락 근거의 비교는 `src/dh/lib/humanReview/context.ts`가 맡는다.
 
+## 후보 단계 (stage)
+
+`GET /review-candidates`와 `/review-candidates/{id}` 응답에는 `stage`, `closeReason`, `researchProgress`가 들어 있다. 후보는 항상 단계 하나에만 속하고, 기준은 "다음에 누가 움직여야 하는가"다. 조사·검토·배정·자동 제외·발송·결과 필드를 조합하는 규칙은 `src/dh/lib/humanReview/stage.ts` 한 곳에만 둔다. 화면은 `researchStatus`·`reviewStatus`를 직접 조합하지 말고 이 값을 쓴다.
+
+| `stage` | 뜻 | 다음 행동 주체 |
+|---|---|---|
+| `researching` | 조사 중: 조사 결과가 아직 없음 | 시스템 |
+| `awaiting_assignment` | 배정 대기: 조사 완료, 담당자 없음 | 팀장 |
+| `in_review` | 검토 중: 담당자가 판단하기 전 | 담당 팀원 |
+| `preparing_send` | 발송 준비: 승인됨, 아직 보내지 않음 | 담당 팀원 |
+| `awaiting_reply` | 회신 대기: 보냈고 결과 없음 | 기업 |
+| `won` | 수주. 이후 진행·완료는 프로젝트(`past_projects.status`)가 맡는다 | 없음 |
+| `closed` | 종료: 이번에는 진행하지 않음 | 없음 |
+
+`closeReason`은 `closed`일 때만 값이 있다: `domain_excluded`(업종 자동 제외), `unfit`(담당자가 부적합 판단), `no_contact`(연락처 없음), `company_declined`(기업이 거절), `no_response`(회차 종료까지 무응답).
+
+`researchProgress`는 `researching`일 때만 값이 있다: `waiting`(대기), `running`(진행 중), `failed`(재시도 필요).
+
+판정 순서는 자동 제외 → 발송·결과 → 검토 판단 → 조사 상태 → 담당자 유무다. 발송은 되돌릴 수 없는 사실이라 검토 상태보다 먼저 본다. 발송·결과는 그 후보로 만든 가장 최근 메시지 업무 기준이며, 후보 없이 시작한 재연락·재협업 작업은 반영하지 않는다(연락 이력 화면의 범위).
+
 ## 참고 문서
 
 - [API 계약](../../../docs/admin/api-contract.md)
