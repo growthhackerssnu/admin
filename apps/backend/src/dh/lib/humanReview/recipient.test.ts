@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
     candidate: { findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
     contact: { create: vi.fn(), updateMany: vi.fn() },
     contactEndpoint: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
+    candidateReviewDecision: { create: vi.fn() },
+    outreach: { updateMany: vi.fn() },
   },
 }));
 
@@ -94,5 +96,50 @@ describe("review candidate recipient writes", () => {
     mocks.tx.candidate.updateMany.mockResolvedValue({ count: 0 });
     await expect(save({ contactId: contact.id })).rejects.toMatchObject({ code: "REVISION_CONFLICT" });
     expect(mocks.tx.contact.updateMany).not.toHaveBeenCalled();
+  });
+
+  describe("after approval", () => {
+    const openWork = { id: "work-1", version: 4, sendStatus: "before_send", acquisitionRound: { endedAt: null }, sentMessages: [] };
+    const approved = (outreaches: unknown[]) => mocks.tx.candidate.findUniqueOrThrow.mockResolvedValue({
+      companyId: "company-1", selectedContactId: contact.id, reviewStatus: "approved", currentResearchId: "research-1",
+      activeReviewDecision: { note: "판단 메모" }, outreaches,
+    });
+    beforeEach(() => {
+      mocks.tx.candidateReviewDecision.create.mockResolvedValue({ id: "decision-2" });
+      mocks.tx.outreach.updateMany.mockResolvedValue({ count: 1 });
+    });
+
+    it("keeps the approval, records it again with the new recipient, and updates the open work", async () => {
+      approved([openWork]);
+      await expect(save({ contactId: contact.id })).resolves.toMatchObject({ status: 200 });
+      expect(mocks.tx.candidate.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ reviewStatus: "approved" }), data: { revision: { increment: 1 } },
+      });
+      expect(mocks.tx.candidateReviewDecision.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+        action: "approve", contactId: contact.id, endpointId: endpoint.id, note: "판단 메모", decidedById: mocks.member.id,
+      }) });
+      expect(mocks.tx.candidate.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: { selectedContactId: contact.id, selectedEndpointId: endpoint.id, activeReviewDecisionId: "decision-2" },
+      }));
+      expect(mocks.tx.outreach.updateMany).toHaveBeenCalledWith({
+        where: { id: "work-1", version: 4, sendStatus: "before_send" },
+        data: expect.objectContaining({ recipientContactId: contact.id, recipientEndpointId: endpoint.id, version: { increment: 1 } }),
+      });
+    });
+
+    it("refuses once the message has been sent", async () => {
+      approved([{ ...openWork, sendStatus: "sent" }]);
+      await expect(save({ contactId: contact.id })).rejects.toMatchObject({ code: "STATE_CONFLICT" });
+      expect(mocks.tx.candidate.updateMany).not.toHaveBeenCalled();
+      expect(mocks.tx.contact.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("leaves work in a closed round untouched and works without any work", async () => {
+      approved([{ ...openWork, acquisitionRound: { endedAt: new Date() } }]);
+      await expect(save({ contactId: contact.id })).resolves.toMatchObject({ status: 200 });
+      approved([]);
+      await expect(save({ contactId: contact.id })).resolves.toMatchObject({ status: 200 });
+      expect(mocks.tx.outreach.updateMany).not.toHaveBeenCalled();
+    });
   });
 });
