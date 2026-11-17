@@ -124,6 +124,8 @@ export interface ReviewData {
   actor?: Actor;
   canManageOps?: boolean;
   candidates: Candidate[];
+  /** 내 담당 기업만 먼저 받은 상태. 전체 목록이 오면 사라진다. */
+  partial?: boolean;
   quarters: string[];
   runs: CollectionRun[];
   currentRound?: AcquisitionRound | null;
@@ -151,6 +153,8 @@ export interface ReviewRepository {
   /** 초안 화면의 양식 선택에 쓴다. 없으면 양식 선택과 빈 양식 안내를 보여 주지 않는다. */
   messageTemplates?: MessageTemplateStore;
   load(): Promise<ReviewData>;
+  /** 첫 화면에 필요한 내 담당 기업만 빠르게 받는다. 이어서 load()로 전체를 채운다. */
+  loadFirst?(): Promise<ReviewData>;
   loadCandidate?(id: string): Promise<Candidate>;
   refreshRound?(): Promise<ReviewData>;
   execute(

@@ -244,33 +244,44 @@ export class LiveReviewRepository implements ReviewRepository {
   private data: ReviewData | null = null;
   private details = new Map<string, Candidate>();
 
-  async load(): Promise<ReviewData> {
+  private async readHeader() {
     const [me, summary, roundState] = await Promise.all([
       this.api.request<{ userId: string; displayName: string }>("/me"),
       this.api.request<OperationsSummary>("/review-queue/summary"),
       this.readRound(),
     ]);
+    return { me: me.data, canManage: summary.data.canManage, roundState };
+  }
+
+  private async readRows(filter = ""): Promise<CandidateDto[]> {
     const rows: CandidateDto[] = [];
     const seen = new Set<string>();
     let cursor: string | null = null;
     do {
       const suffix: string = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
-      const page: Envelope<CandidateDto[]> = await this.api.request<CandidateDto[]>(`/review-candidates?limit=100${suffix}`);
+      const page: Envelope<CandidateDto[]> = await this.api.request<CandidateDto[]>(`/review-candidates?limit=100${filter}${suffix}`);
       rows.push(...page.data);
       const next = page.page?.nextCursor ?? null;
       if (next && seen.has(next)) throw new Error("기업 목록의 페이지를 계속 불러올 수 없습니다.");
       if (next) seen.add(next);
       cursor = page.page?.hasMore ? next : null;
     } while (cursor);
+    return rows;
+  }
+
+  private remember(header: Awaited<ReturnType<LiveReviewRepository["readHeader"]>>, rows: CandidateDto[], partial: boolean) {
+    const { me, canManage, roundState } = header;
     if (this.data?.currentRound?.id !== roundState.currentRound?.id || roundState.roundError) this.details.clear();
     this.data = {
       ...roundState,
       schema: 1,
-      actor: { id: me.data.userId, name: me.data.displayName },
-      canManageOps: summary.data.canManage,
+      actor: { id: me.userId, name: me.displayName },
+      canManageOps: canManage,
+      partial,
       candidates: rows.map((row) => {
+        // 목록을 받는 동안 저장으로 상세가 더 새로워졌을 수 있으니, 같거나 더 새로운 상세를 쓴다.
         const detailed = this.details.get(row.id);
-        return detailed?.version === row.revision ? detailed : normalizeCandidate(row);
+        return detailed && detailed.version >= row.revision ? detailed : normalizeCandidate(row);
       }),
       quarters: roundState.currentRound ? [quarterLabel(roundState.currentRound.targetQuarter)] : [],
       runs: [],
@@ -286,6 +297,18 @@ export class LiveReviewRepository implements ReviewRepository {
         .map((c) => this.loadCandidate(c.id)),
     );
     return this.data;
+  }
+
+  // 첫 화면용. 전체 목록은 수천 건이라 100건씩 차례로 받으면 수십 번을 기다려야 한다.
+  // 기본 화면은 내 담당 기업만 보여 주므로 그것만 먼저 받고, 나머지는 load()가 이어서 채운다.
+  async loadFirst(): Promise<ReviewData> {
+    const [header, rows] = await Promise.all([this.readHeader(), this.readRows("&ownerId=me")]);
+    return this.remember(header, rows, true);
+  }
+
+  async load(): Promise<ReviewData> {
+    const [header, rows] = await Promise.all([this.readHeader(), this.readRows()]);
+    return this.remember(header, rows, false);
   }
 
   private async readRound() {

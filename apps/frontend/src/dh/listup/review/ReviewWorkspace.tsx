@@ -116,8 +116,23 @@ export default function ReviewWorkspace({
       window.removeEventListener("resize", measure);
     };
   }, [data, tab]);
+  const firstLoad = useRef(true);
   const load = useCallback(async () => {
     try {
+      if (firstLoad.current && repository.loadFirst) {
+        const first = await repository.loadFirst();
+        firstLoad.current = false;
+        // 주소가 가리키는 기업이 내 담당 목록에 없으면 전체 목록이 올 때까지 기다린다.
+        // 먼저 그리면 다른 기업이 열렸다가 도중에 바뀐다.
+        const opened = new URLSearchParams(window.location.search);
+        const openedId = opened.get("message") ?? opened.get("candidate");
+        if (active.current) {
+          setData(first);
+          setError("");
+          if (!openedId || openedId === "none" || first.candidates.some((item) => item.id === openedId))
+            setLoading(false);
+        }
+      }
       const value = await repository.load();
       if (active.current) {
         setData(value);
@@ -331,7 +346,7 @@ export default function ReviewWorkspace({
   if (tab === "review" || tab === "messages" || params.has("message")) {
     if (loading) return <UnifiedReviewLoading />;
     if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><Button variant="outline" onClick={() => void load()}>다시 불러오기</Button></main>;
-    return <MessageTemplatesContext.Provider value={messageTemplates}>{dialog}<UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true} onTabChange={changeTab}
+    return <MessageTemplatesContext.Provider value={messageTemplates}>{dialog}<UnifiedReviewPanel candidates={candidates} loadingRest={data.partial === true && !error} actor={actor} canManageOps={data.canManageOps === true} onTabChange={changeTab}
       owner={params.get("owner") === "all" || (message && message.owner?.id !== actor.id) ? "all" : "mine"}
       onOwnerChange={(owner) => navigate({ owner, candidate: null, message: null })}
       selectedId={detailId}
@@ -386,7 +401,7 @@ export default function ReviewWorkspace({
           </Button>
         </nav>
       )}
-      {loading ? (
+      {loading || data?.partial ? (
         <main className="rv-content" role="status">
           작업 공간을 불러오는 중…
         </main>

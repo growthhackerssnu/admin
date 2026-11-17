@@ -199,6 +199,18 @@ describe("discovery generation in the fixed acquisition quarter", () => {
     });
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  it("loads only my companies first, then fills in the full list", async () => {
+    const repository = new LiveReviewRepository();
+    const first = await repository.loadFirst();
+    const listCalls = () => fetchMock.mock.calls.map(([url]) => new URL(url as string)).filter((url) => url.pathname.endsWith("/review-candidates"));
+    expect(listCalls().map((url) => url.searchParams.get("ownerId"))).toEqual(["me"]);
+    expect(first.partial).toBe(true);
+    expect(first.candidates.map((item) => item.id)).toEqual(["candidate-1"]);
+    const full = await repository.load();
+    expect(listCalls().map((url) => url.searchParams.get("ownerId"))).toEqual(["me", null]);
+    expect(full.partial).toBe(false);
+  });
+
   it("prepares with expectedRoundId and generates in one UI command", async () => {
     const repository = await loadedRepository();
     const data = await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
