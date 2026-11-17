@@ -103,7 +103,7 @@ function ContactWork({ candidate, actor, pending, change, onDirty, currentRound,
             {candidate.recipient && !editing && <div className="uw-contact-summary">
               <div><strong>{candidate.recipient.name}</strong><span>{candidate.recipient.title || "직함 미입력"} · {candidate.recipient.channel === "linkedin" ? "LinkedIn" : "이메일"}</span>
                 {candidate.recipient.channel === "linkedin" && safeUrl(candidate.recipient.address) ? <a href={safeUrl(candidate.recipient.address)} target="_blank" rel="noopener noreferrer">프로필 열기</a> : <span>{candidate.recipient.address}</span>}</div>
-              {owned && !candidate.sent.length && <div className="uw-contact-actions"><Button disabled={!canAct} variant="ghost" size="sm" onClick={() => { setContact(candidate.recipient!); setMode("edit"); }}>수정</Button>
+              {owned && !candidate.sent.length && !candidate.reviewStatus.startsWith("rejected") && <div className="uw-contact-actions"><Button disabled={!canAct} variant="ghost" size="sm" onClick={() => { setContact(candidate.recipient!); setMode("edit"); }}>수정</Button>
                 <Button disabled={!canAct} variant="ghost" size="sm" onClick={() => { setContact(blankContact); setMode("add"); }}><Plus size={14} /> 추가</Button></div>}
             </div>}
             {!candidate.recipient && !editing && !decided && <Empty className="uw-contact-empty">

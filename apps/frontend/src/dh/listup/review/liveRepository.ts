@@ -381,8 +381,10 @@ export class LiveReviewRepository implements ReviewRepository {
     const outreachVersion = candidate.outreachVersion;
     switch (command.type) {
       case "contact": {
-        if (["approved", "rejected_fit", "rejected_contact"].includes(candidate.reviewStatus))
+        // 승인한 기업은 발송 전까지 관계자를 바로 고칠 수 있다(서버가 승인 기록과 메시지 작업을 함께 맞춘다).
+        if (["rejected_fit", "rejected_contact"].includes(candidate.reviewStatus))
           throw new Error("판단 변경으로 검토를 다시 연 뒤 관계자를 수정해주세요.");
+        if (candidate.sent.length) throw new Error("발송한 뒤에는 수신자를 바꿀 수 없습니다.");
         const editing = command.mode !== "add" && Boolean(candidate.recipient);
         if (editing && !candidate.recipientContactId)
           throw new Error("관계자 정보를 다시 불러온 뒤 수정해주세요.");
