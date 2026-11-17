@@ -8,8 +8,9 @@ export type ReplyStatus =
   | "won"
   | "rejected"
   | "unresolved";
-/** 사람이 고를 수 있는 값. 회신 대기는 발송 기록 때, 무응답은 수주 분기를 넘길 때 자동으로 정해진다. */
-export type RecordableReplyStatus = "in_discussion" | "won" | "rejected";
+/** 사람이 고를 수 있는 값. 무응답은 수주 분기를 넘길 때만 자동으로 정해진다. */
+export type RecordableReplyStatus = "pending" | "in_discussion" | "won" | "rejected";
+const recordable: RecordableReplyStatus[] = ["pending", "in_discussion", "won", "rejected"];
 
 /** 사람이 마지막으로 남긴 기록. */
 export interface ReplyRecord {
@@ -43,24 +44,16 @@ export const replyStatusTones: Record<ReplyStatus, WorkspaceTone> = {
   unresolved: "neutral",
 };
 
-const transitions: Record<ReplyStatus, RecordableReplyStatus[]> = {
-  pending: ["in_discussion", "won", "rejected"],
-  in_discussion: ["won", "rejected"],
-  unresolved: ["in_discussion", "won", "rejected"],
-  won: ["rejected"],
-  rejected: ["in_discussion", "won"],
-};
-
-/** 결과가 기록된 적 없는 과거 발송(null)은 회신 대기와 같은 첫 기록으로 본다. */
+/** 지금 상태가 아닌 값이면 무엇으로든 바꿀 수 있다. 결과가 기록된 적 없는 과거 발송(null)은 회신 대기로 본다. */
 export function allowedReplyTransitions(
   from: ReplyStatus | null,
 ): RecordableReplyStatus[] {
-  return transitions[from ?? "pending"];
+  return recordable.filter((status) => status !== (from ?? "pending"));
 }
 
-/** 이미 정해진 결과(수주·기업 거절·무응답)를 바꾸는 정정은 메모가 필수다. */
-export function replyNoteRequired(from: ReplyStatus | null) {
-  return from !== null && from !== "pending" && from !== "in_discussion";
+/** 메모는 언제나 선택 입력이다. 잘못 누른 기록을 바로 되돌릴 수 있어야 한다. */
+export function replyNoteRequired(_from: ReplyStatus | null) {
+  return false;
 }
 
 /** 다시 연락할 시기·조건은 논의 중과 기업 거절에만 적는다. */

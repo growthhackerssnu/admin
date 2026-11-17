@@ -8,14 +8,14 @@ import { prisma } from "@/lib/prisma";
 
 const outcomeInput = z.object({
   expectedVersion: z.number().int().positive(),
-  result: z.enum(["in_discussion", "won", "rejected"]),
+  result: z.enum(["pending", "in_discussion", "won", "rejected"]),
   note: z.string().max(2000).optional(),
   // 기업이 다시 연락해 달라고 한 시기나 조건(예: "내년 1분기에 다시 논의"). 선택 입력.
   revisitCondition: z.string().max(500).optional(),
 }).strict();
 
-// 사람이 발송 뒤의 상태(논의 중·수주 완료·거절)를 기록한다. 담당자 또는 팀장·관리자만 가능하고, 종료된 회차의
-// 결과 정정도 근거(note)를 남기면 허용한다. 프로젝트 완료 행은 만들지 않는다.
+// 사람이 발송 뒤의 상태(회신 대기·논의 중·수주·거절)를 기록한다. 담당자 또는 팀장·관리자만 가능하고,
+// 이미 기록한 상태와 종료된 회차의 결과도 다시 바꿀 수 있다. 프로젝트 완료 행은 만들지 않는다.
 export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { member, params }) => {
   const parsed = outcomeInput.safeParse(await req.json().catch(() => null));
   if (!parsed.success) throw new ApiError("VALIDATION_ERROR", "수주 결과 요청이 올바르지 않습니다.");
@@ -33,7 +33,7 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
       throw new ApiError("VERSION_CONFLICT", "메시지 업무가 변경됐습니다. 다시 조회하세요.");
     if (outreach.sendStatus !== "sent")
       throw new ApiError("STATE_CONFLICT", "발송된 작업의 결과만 기록할 수 있습니다.");
-    assertManualTransition(outreach.outcomeStatus, input.result, input.note);
+    assertManualTransition(outreach.outcomeStatus, input.result);
     const event = await transitionOutcome(tx, {
       outreachId: outreach.id,
       expectedVersion: input.expectedVersion,

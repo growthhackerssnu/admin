@@ -96,7 +96,7 @@ export function ReplyStatusSection({
     if (
       replyNeedsConfirmation(result) &&
       !(await confirm(
-        `${subject}의 회신 상태를 ${label}로 기록할까요? 기록한 뒤에 바꾸려면 메모를 남겨야 합니다.`,
+        `${subject}의 회신 상태를 ${label}로 기록할까요? 기록한 뒤에도 다시 바꿀 수 있습니다.`,
         `${label} 기록`,
         `${label}로 기록`,
       ))

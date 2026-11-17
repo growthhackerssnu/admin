@@ -190,12 +190,13 @@ describe("reply status in the preview store", () => {
     expect(candidateStage(data.candidates[0])).toMatchObject({ stage: "closed", closeReason: "company_declined" });
     expect(data.candidates[0].latestOutcome?.revisitCondition).toBe("내년 1분기에 다시 논의");
   });
-  it("requires a note to correct a settled result", () => {
+  it("lets a settled result be changed again without a note", () => {
     const won = next(sentCompany(), { type: "outcome", result: "won" });
-    expect(() => next(won, { type: "outcome", result: "rejected" })).toThrow("메모");
-    expect(() => next(won, { type: "outcome", result: "in_discussion", note: "사유" })).toThrow("바꿀 수 없습니다");
-    const corrected = next(won, { type: "outcome", result: "rejected", note: "계약 단계에서 취소" });
+    const corrected = next(won, { type: "outcome", result: "rejected" });
     expect(corrected.candidates[0].outcomeStatus).toBe("rejected");
+    const reopened = next(corrected, { type: "outcome", result: "pending" });
+    expect(reopened.candidates[0].outcomeStatus).toBe("pending");
+    expect(() => next(reopened, { type: "outcome", result: "pending" })).toThrow("바꿀 수 없습니다");
   });
   it("lets only the owner or a manager record", () => {
     const data = initialReviewData();
