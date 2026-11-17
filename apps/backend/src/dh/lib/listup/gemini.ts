@@ -17,7 +17,20 @@ export type WebSearchResult = WebSearchUsage & {
   sourceTitles?: string[];
 };
 
+// GOOGLE_GENAI_USE_VERTEXAI=true면 Vertex AI로 접속한다(서비스 계정 인증, 프로젝트 결제).
+// 꺼져 있으면 AI Studio API 키로 접속한다. 변수를 지우면 예전 방식으로 돌아간다.
 function client() {
+  if (process.env.GOOGLE_GENAI_USE_VERTEXAI?.trim().toLowerCase() === "true") {
+    const project = process.env.GOOGLE_CLOUD_PROJECT;
+    if (!project) {
+      throw new Error("GOOGLE_CLOUD_PROJECT is required for Vertex AI calls.");
+    }
+    return new GoogleGenAI({
+      vertexai: true,
+      project,
+      location: process.env.GOOGLE_CLOUD_LOCATION || "global",
+    });
+  }
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is required for Gemini calls.");
   return new GoogleGenAI({ apiKey });

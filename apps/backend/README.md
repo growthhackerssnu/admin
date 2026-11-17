@@ -39,6 +39,7 @@ npm test -w apps/backend
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL | 전체(토큰 검증) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 같은 화면 → `anon` `public` 키 | 전체(토큰 검증) |
 | `GEMINI_API_KEY` | aistudio.google.com → Get API key | dh 리서치·초안 생성 |
+| `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | 선택. `true`, Google Cloud 프로젝트 ID, 지역(기본 `global`) | 켜면 dh AI 호출이 API 키 대신 Vertex AI로 간다. 실행 계정에 `roles/aiplatform.user` 필요 |
 | `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | Inngest 대시보드 → 앱 → Event Keys / Signing Key | dh 비동기 작업 |
 | `RESEND_API_KEY` | resend.com → API Keys | portal 가입 OTP 메일 |
 | `NOTION_API_KEY` | notion.so/my-integrations → integration 토큰 | hr 디렉토리·승인(Notion 읽기/쓰기) |
