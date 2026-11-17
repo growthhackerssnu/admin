@@ -54,4 +54,14 @@ describe("transitionOutcome", () => {
     await expect(transitionOutcome(t as never, input)).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
     expect(t.outreachOutcomeEvent.create).not.toHaveBeenCalled();
   });
+
+  it("lets a reply move to in discussion and on to a result without a note", () => {
+    expect(() => assertManualTransition("pending", "in_discussion", undefined)).not.toThrow();
+    expect(() => assertManualTransition("in_discussion", "won", undefined)).not.toThrow();
+    expect(() => assertManualTransition("in_discussion", "rejected", undefined)).not.toThrow();
+    // 확정된 결과나 종료 회차의 결과를 되돌리는 것은 정정이라 근거가 필요하다.
+    expect(() => assertManualTransition("rejected", "in_discussion", undefined)).toThrow();
+    expect(() => assertManualTransition("unresolved", "in_discussion", "뒤늦게 답이 옴")).not.toThrow();
+    expect(() => assertManualTransition("won", "in_discussion", "정정")).toThrow();
+  });
 });

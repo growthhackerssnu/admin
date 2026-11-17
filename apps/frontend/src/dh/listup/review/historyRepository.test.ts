@@ -176,4 +176,82 @@ describe("history workspace preview boundaries", () => {
       }),
     ).rejects.toThrow("팀장·관리자");
   });
+  it("records the reply status of the current send on both the work and the history", async () => {
+    const repo = new PreviewHistoryRepository();
+    let data = await repo.execute("history-sent", 2, {
+      type: "outcome",
+      outreachId: "send-current",
+      result: "in_discussion",
+      note: " 미팅 일정 조율 중 ",
+    });
+    let company = data.companies.find((c) => c.id === "history-sent")!;
+    expect(company.work!.sent!.outcome).toBe("in_discussion");
+    expect(company.work!.version).toBe(3);
+    expect(company.sends[0]).toMatchObject({
+      outcome: "in_discussion",
+      latestOutcome: { note: "미팅 일정 조율 중", revisitCondition: null },
+    });
+    expect(company.sends[1].outcome).toBe("unresolved");
+    await expect(
+      repo.execute("history-sent", 3, {
+        type: "outcome",
+        outreachId: "send-current",
+        result: "in_discussion",
+      }),
+    ).rejects.toThrow("바꿀 수 없습니다");
+    data = await repo.execute("history-sent", 3, {
+      type: "outcome",
+      outreachId: "send-current",
+      result: "rejected",
+      revisitCondition: "내년 1분기에 다시 논의",
+    });
+    company = data.companies.find((c) => c.id === "history-sent")!;
+    expect(company.sends[0].latestOutcome).toMatchObject({
+      status: "rejected",
+      revisitCondition: "내년 1분기에 다시 논의",
+    });
+    const reloaded = (await repo.load()).companies.find(
+      (c) => c.id === "history-sent",
+    )!;
+    expect(reloaded.sends[0].outcome).toBe("rejected");
+    expect(reloaded.work!.sent!.outcome).toBe("rejected");
+  });
+  it("corrects an earlier result only with a note, and only for its owner or a manager", async () => {
+    const repo = new PreviewHistoryRepository();
+    await expect(
+      repo.execute("history-clearnote", null, {
+        type: "outcome",
+        outreachId: "send-clear",
+        result: "in_discussion",
+      }),
+    ).rejects.toThrow("메모");
+    const data = await repo.execute("history-clearnote", null, {
+      type: "outcome",
+      outreachId: "send-clear",
+      result: "in_discussion",
+      note: "분기 종료 뒤 회신이 왔습니다.",
+    });
+    expect(
+      data.companies.find((c) => c.id === "history-clearnote")!.sends[0]
+        .outcome,
+    ).toBe("in_discussion");
+    await expect(
+      new PreviewHistoryRepository(
+        { id: "someone-else", name: "다른 팀원" },
+        false,
+      ).execute("history-morningloop", null, {
+        type: "outcome",
+        outreachId: "send-morning",
+        result: "won",
+        note: "사유",
+      }),
+    ).rejects.toThrow("담당자와 팀장");
+    await expect(
+      repo.execute("history-morningloop", null, {
+        type: "outcome",
+        outreachId: "missing",
+        result: "won",
+      }),
+    ).rejects.toThrow("찾을 수 없습니다");
+  });
 });

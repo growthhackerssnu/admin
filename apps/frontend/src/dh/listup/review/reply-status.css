@@ -1,0 +1,78 @@
+/* 회신 상태 구역. 신규 발굴의 가운데 칸과 이력 패널이 함께 쓴다. 색·간격은 공통 토큰만 참조한다. */
+.rs-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-field-gap);
+  min-width: 0;
+}
+.rs-head {
+  display: flex;
+  align-items: center;
+  gap: var(--layout-control-gap);
+}
+.rs-head :is(h2, h3, h4) {
+  margin: 0;
+  color: var(--ds-text-strong);
+  font-size: var(--workspace-section-size, var(--ds-type-body-2));
+  font-weight: 600;
+}
+.rs-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-label-gap);
+  margin: 0;
+}
+.rs-record dt {
+  color: var(--ds-gray-700);
+  font-size: var(--ds-type-caption);
+  font-weight: 400;
+}
+.rs-record dd {
+  margin: 0;
+  color: var(--ds-text-strong);
+  font-size: var(--ds-type-body-2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.rs-section .rs-empty {
+  margin: 0;
+  color: var(--ds-gray-700);
+  font-size: var(--ds-type-caption);
+}
+.rs-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-field-gap);
+}
+.rs-result[data-slot="select-trigger"] {
+  width: 100%;
+  max-width: 320px;
+}
+.rs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--layout-label-gap);
+}
+.rs-actions-start {
+  justify-content: flex-start;
+}
+/* 발송한 메시지 위에 놓일 때 메시지와 구분한다. */
+.rs-above-message {
+  padding-bottom: var(--layout-group-gap);
+  margin-bottom: var(--layout-group-gap);
+  border-bottom: 1px solid var(--border);
+}
+.uw-message-content > .rs-above-message {
+  margin-top: var(--layout-field-gap);
+}
+.hw-send .rs-section {
+  margin-top: var(--layout-field-gap);
+}
+.hw-reply-status {
+  margin-top: var(--layout-field-gap);
+}
+/* 이력 패널의 제목 기본 여백 대신 구역의 간격을 쓴다. */
+.hw-drawer .rs-head :is(h3, h4) {
+  margin: 0;
+}

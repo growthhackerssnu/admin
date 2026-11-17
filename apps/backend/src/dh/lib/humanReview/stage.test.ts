@@ -97,4 +97,19 @@ describe("company stage", () => {
             }
     expect(checked).toBe(5 * 6 * 2 * 2 * 16);
   });
+
+  it("shows in discussion once a reply is recorded, until it is won or declined", () => {
+    const sent = {
+      researchStatus: "ready" as const,
+      reviewStatus: "approved" as const,
+      reviewOwnerId: "m1",
+      autoExcludedAt: null,
+    };
+    const stageOf = (outcomeStatus: "pending" | "in_discussion" | "won" | "rejected") =>
+      companyStage({ ...sent, latestOutreach: { sendStatus: "sent", outcomeStatus } }).stage;
+    expect(stageOf("pending")).toBe("awaiting_reply");
+    expect(stageOf("in_discussion")).toBe("in_discussion");
+    expect(stageOf("won")).toBe("won");
+    expect(stageOf("rejected")).toBe("closed");
+  });
 });

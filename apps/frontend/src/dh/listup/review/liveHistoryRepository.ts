@@ -18,6 +18,7 @@ import {
   type Outcome,
 } from "./historyContracts";
 import type { MessageTemplateHint } from "./messageTemplates";
+import { replyRecordBody, type ReplyRecord } from "./replyStatus";
 
 type Quarter = { id: string; year: number; quarter: number };
 type Round = {
@@ -62,6 +63,8 @@ type Work = HistoryWorkSummary & {
   } | null;
   // 양식 도입 전 서버 응답도 받을 수 있게 선택 항목으로 둔다.
   messageTemplate?: MessageTemplateHint;
+  // 사람이 마지막으로 남긴 발송 뒤 상태 기록. 이 필드가 없는 이전 서버 응답도 받는다.
+  latestOutcome?: ReplyRecord | null;
   latestSend: Send | null;
 };
 type Event = {
@@ -71,7 +74,13 @@ type Event = {
   outreachId: string;
   actor: Actor | null;
   sentMessage?: Send;
-  outcome?: { toStatus: Outcome };
+  outcome?: {
+    toStatus: Outcome;
+    note?: string | null;
+    revisitCondition?: string | null;
+    source?: string;
+    recordedAt?: string;
+  };
   response?: {
     result: string;
     explanation: string | null;
@@ -246,6 +255,7 @@ export class LiveHistoryRepository implements HistoryRepository {
     actor?: Actor | null,
     outcome: Outcome | null = null,
     response: string | null = null,
+    latestOutcome: ReplyRecord | null = null,
   ): HistorySend {
     return {
       id: s.id,
@@ -267,6 +277,7 @@ export class LiveHistoryRepository implements HistoryRepository {
       body: s.bodySnapshot,
       outcome,
       response,
+      latestOutcome,
     };
   }
   private work(w: Work, sends: HistorySend[]) {
@@ -283,7 +294,13 @@ export class LiveHistoryRepository implements HistoryRepository {
       draft: w.draft,
       sent: w.latestSend
         ? (sends.find((s) => s.id === w.latestSend!.id) ??
-          this.sent(w.latestSend, null, w.outcomeStatus))
+          this.sent(
+            w.latestSend,
+            null,
+            w.outcomeStatus,
+            null,
+            w.latestOutcome ?? null,
+          ))
         : null,
       canEdit: w.canEdit,
       canGenerate: w.canGenerate,
@@ -490,9 +507,19 @@ export class LiveHistoryRepository implements HistoryRepository {
     // Events arrive newest first. Preserve the message snapshot and attach the latest result/response for its outreach.
     const outcomes = new Map<string, Outcome>();
     const responses = new Map<string, string>();
+    // 사람이 남긴 기록만 "마지막 기록"으로 보여 준다(발송·분기 종료 때 자동으로 생긴 기록은 제외).
+    const records = new Map<string, ReplyRecord>();
     for (const e of events) {
       if (e.outcome && !outcomes.has(e.outreachId))
         outcomes.set(e.outreachId, e.outcome.toStatus);
+      if (e.outcome?.source === "manual" && !records.has(e.outreachId))
+        records.set(e.outreachId, {
+          status: e.outcome.toStatus,
+          note: e.outcome.note ?? null,
+          revisitCondition: e.outcome.revisitCondition ?? null,
+          recordedAt: e.outcome.recordedAt ?? e.at,
+          recordedBy: e.actor?.name ?? null,
+        });
       if (e.response && !responses.has(e.outreachId))
         responses.set(
           e.outreachId,
@@ -513,8 +540,16 @@ export class LiveHistoryRepository implements HistoryRepository {
           e.actor,
           outcomes.get(e.outreachId) ?? null,
           responses.get(e.outreachId) ?? null,
+          records.get(e.outreachId) ?? null,
         ),
       );
+    // 이번 회차 작업은 작업 상세의 값이 가장 최신이므로 그 값으로 맞춘다.
+    if (work)
+      for (const s of sends)
+        if (s.outreachId === work.data.id) {
+          s.outcome = work.data.outcomeStatus ?? s.outcome;
+          s.latestOutcome = work.data.latestOutcome ?? s.latestOutcome;
+        }
     const c = emptyCompany(detail.company);
     c.contacts = detail.contacts.map((r) => ({ ...r, title: r.title ?? "" }));
     c.research = detail.researchSummary;
@@ -598,6 +633,29 @@ export class LiveHistoryRepository implements HistoryRepository {
             : {}),
         };
       }
+    } else if (command.type === "outcome") {
+      const send =
+        c?.sends.find((s) => s.outreachId === command.outreachId) ??
+        (w?.sent?.outreachId === command.outreachId ? w.sent : undefined);
+      if (!send) throw new Error("발송 기록을 다시 조회해주세요.");
+      const base = `/review-outreaches/${encodeURIComponent(command.outreachId)}`;
+      let expectedVersion: number;
+      if (w?.id === command.outreachId) expectedVersion = version ?? w.version;
+      else {
+        // 이전 회차 작업은 이력 응답에 버전이 없어 기록 직전에 작업 상세에서 읽는다.
+        // 화면이 보여 준 상태와 다르면 다른 사람이 먼저 바꾼 것이므로 기록하지 않는다.
+        const latest = (await this.api.request<Work>(base)).data;
+        if ((latest.outcomeStatus ?? "pending") !== (send.outcome ?? "pending")) {
+          await this.loadCompany(companyId).catch(() => undefined);
+          throw new Error(
+            "다른 사람이 먼저 상태를 바꿨습니다. 최신 상태를 확인한 뒤 다시 기록해주세요.",
+          );
+        }
+        expectedVersion = latest.version;
+      }
+      path = base + "/outcomes";
+      method = "POST";
+      body = { expectedVersion, ...replyRecordBody(command) };
     } else if (command.type === "start") {
       if (!this.data?.round)
         throw new Error("현재 수주 분기가 설정되지 않았습니다.");
@@ -690,7 +748,7 @@ export class LiveHistoryRepository implements HistoryRepository {
     let changedId = this.completedWrites.get(signature);
     if (!changedId) {
       this.retryKeys.set(signature, key);
-      const result = await this.api.request<Project | Work>(
+      const result = await this.api.request<Project | Work | { outreachId: string }>(
         path,
         method,
         body,

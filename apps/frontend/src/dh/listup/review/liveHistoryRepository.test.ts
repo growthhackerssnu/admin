@@ -361,6 +361,89 @@ describe("live history API contract", () => {
       contextFingerprint: "fingerprint-7",
     });
   });
+  it("shows the last person-made reply record and corrects an earlier result with its current version", async () => {
+    events = [
+      {
+        id: "result-3",
+        type: "outcome",
+        at: "2026-10-03T00:00:00Z",
+        outreachId: "old-work",
+        actor: null,
+        outcome: { toStatus: "unresolved", source: "round_close", note: null, revisitCondition: null, recordedAt: "2026-10-03T00:00:00Z" },
+      },
+      {
+        id: "result-2",
+        type: "outcome",
+        at: "2026-09-10T00:00:00Z",
+        outreachId: "old-work",
+        actor,
+        outcome: { toStatus: "in_discussion", source: "manual", note: "미팅 조율", revisitCondition: "10월 초", recordedAt: "2026-09-10T00:00:00Z" },
+      },
+      ...events.slice(3),
+    ];
+    const original = request.getMockImplementation()!;
+    let oldWorkStatus = "unresolved";
+    request.mockImplementation(async (path: string, method = "GET", body?: Record<string, unknown>) =>
+      method === "GET" && path === "/review-outreaches/old-work"
+        ? { data: { ...work(), id: "old-work", version: 12, outcomeStatus: oldWorkStatus } }
+        : original(path, method, body),
+    );
+    const r = await loaded();
+    expect(r.getCompany(company.id)!.sends[0]).toMatchObject({
+      outcome: "unresolved",
+      latestOutcome: { status: "in_discussion", note: "미팅 조율", revisitCondition: "10월 초", recordedBy: actor.name },
+    });
+    await r.execute(company.id, 7, {
+      type: "outcome",
+      outreachId: "old-work",
+      result: "rejected",
+      note: " 분기 종료 뒤 거절 회신 ",
+      revisitCondition: " 내년 1분기 ",
+    });
+    const write = request.mock.calls.find(([, method]) => method === "POST")!;
+    expect(write[0]).toBe("/review-outreaches/old-work/outcomes");
+    expect(write[2]).toEqual({
+      expectedVersion: 12,
+      result: "rejected",
+      note: "분기 종료 뒤 거절 회신",
+      revisitCondition: "내년 1분기",
+    });
+    expect(write[3]).toBeTruthy();
+    // 화면이 본 상태와 서버 상태가 다르면 기록하지 않는다.
+    request.mockClear();
+    oldWorkStatus = "won";
+    await expect(
+      r.execute(company.id, 7, { type: "outcome", outreachId: "old-work", result: "won", note: "사유" }),
+    ).rejects.toThrow("먼저 상태를 바꿨습니다");
+    expect(request.mock.calls.some(([, method]) => method === "POST")).toBe(false);
+  });
+  it("records the current reply status with the loaded work version", async () => {
+    const currentSend = { ...send, id: "send-2", outreachId: "work-1", sentAt: "2026-10-05T00:00:00Z" };
+    current = {
+      ...current,
+      sendStatus: "sent",
+      outcomeStatus: "in_discussion",
+      latestSend: currentSend,
+      latestOutcome: { status: "in_discussion", note: null, revisitCondition: "다음 주", recordedAt: "2026-10-06T00:00:00Z", recordedBy: actor.name },
+    } as never;
+    events = [
+      { id: "sent-2", type: "sent", at: currentSend.sentAt, outreachId: "work-1", actor, sentMessage: currentSend },
+      ...events,
+    ];
+    const r = await loaded();
+    const c = r.getCompany(company.id)!;
+    expect(c.work!.sent).toMatchObject({
+      id: "send-2",
+      outcome: "in_discussion",
+      latestOutcome: { revisitCondition: "다음 주" },
+    });
+    await r.execute(company.id, 7, { type: "outcome", outreachId: "work-1", result: "won", note: "" });
+    expect(request.mock.calls[0].slice(0, 3)).toEqual([
+      "/review-outreaches/work-1/outcomes",
+      "POST",
+      { expectedVersion: 7, result: "won" },
+    ]);
+  });
   it("reads nested detail pagination rather than silently dropping older events", async () => {
     const original = request.getMockImplementation()!;
     request.mockImplementation(async (...args: Parameters<typeof original>) => {

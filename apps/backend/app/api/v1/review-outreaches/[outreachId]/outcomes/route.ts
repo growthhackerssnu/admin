@@ -8,11 +8,13 @@ import { prisma } from "@/lib/prisma";
 
 const outcomeInput = z.object({
   expectedVersion: z.number().int().positive(),
-  result: z.enum(["won", "rejected"]),
+  result: z.enum(["in_discussion", "won", "rejected"]),
   note: z.string().max(2000).optional(),
+  // 기업이 다시 연락해 달라고 한 시기나 조건(예: "내년 1분기에 다시 논의"). 선택 입력.
+  revisitCondition: z.string().max(500).optional(),
 }).strict();
 
-// 사람이 수주 완료·거절을 기록한다. 담당자 또는 팀장·관리자만 가능하고, 종료된 회차의
+// 사람이 발송 뒤의 상태(논의 중·수주 완료·거절)를 기록한다. 담당자 또는 팀장·관리자만 가능하고, 종료된 회차의
 // 결과 정정도 근거(note)를 남기면 허용한다. 프로젝트 완료 행은 만들지 않는다.
 export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { member, params }) => {
   const parsed = outcomeInput.safeParse(await req.json().catch(() => null));
@@ -40,6 +42,7 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
       source: "manual",
       actorId: member.id,
       note: input.note,
+      revisitCondition: input.revisitCondition,
     });
     return {
       status: 201,

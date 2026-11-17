@@ -69,8 +69,17 @@ export async function suggestedTemplateId(
       select: { id: true, key: true, currentVersion: true },
     }),
     previousOutreachId
-      ? tx.outreach.findUnique({ where: { id: previousOutreachId }, select: { outcomeStatus: true } })
+      ? tx.outreach.findUnique({
+          where: { id: previousOutreachId },
+          select: {
+            outcomeStatus: true,
+            outcomeEvents: { where: { revisitCondition: { not: null } }, select: { id: true }, take: 1 },
+          },
+        })
       : null,
   ]);
-  return suggestTemplate(templates, previous?.outcomeStatus ?? null)?.id ?? null;
+  return suggestTemplate(
+    templates,
+    previous ? { outcome: previous.outcomeStatus, hasRevisitCondition: previous.outcomeEvents.length > 0 } : null,
+  )?.id ?? null;
 }

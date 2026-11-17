@@ -234,6 +234,34 @@ describe("discovery generation in the fixed acquisition quarter", () => {
     expect(candidate.draft?.messageTemplateId).toBe("template-1");
     expect(candidate.draft?.messageTemplateVersion).toBe(3);
   });
+  it("records the reply status on the sent work and refreshes the stage and last record", async () => {
+    row = { ...row, outreachId: "work-1", stage: "awaiting_reply" } as typeof row;
+    const draft = { revision: 1, topic: "주제", subject: "제목", body: "본문", generationResearchId: "research-1", contextMatches: true };
+    work = { ...workDto(), version: 4, sendStatus: "sent", outcomeStatus: "pending", latestOutcome: null, draft,
+      latestSend: { id: "send-1", sentAt: "2026-11-10T00:00:00Z", draftRevision: 1, subjectSnapshot: "제목", bodySnapshot: "본문", recordedById: "member-1" } };
+    const original = fetchMock.getMockImplementation()!;
+    let outcomeBody: unknown;
+    fetchMock.mockImplementation(async (url: string, options: RequestInit) => {
+      if (new URL(url).pathname.endsWith("/review-outreaches/work-1/outcomes") && options.method === "POST") {
+        outcomeBody = JSON.parse(options.body as string);
+        row = { ...row, stage: "in_discussion" } as typeof row;
+        work = { ...work!, version: 5, outcomeStatus: "in_discussion",
+          latestOutcome: { status: "in_discussion", note: "미팅 조율", revisitCondition: "다음 주", recordedAt: "2026-11-12T00:00:00Z", recordedBy: "담당자" } };
+        return new Response(JSON.stringify({ data: { outreachId: "work-1", version: 5, outcomeStatus: "in_discussion" } }), { status: 201 });
+      }
+      return original(url, options);
+    });
+    const repository = await loadedRepository();
+    const before = await repository.loadCandidate(row.id);
+    expect(before).toMatchObject({ outcomeStatus: "pending", canRecordOutcome: true });
+    const data = await repository.execute(row.id, 1, { type: "outcome", result: "in_discussion", note: " 미팅 조율 ", revisitCondition: "다음 주" }, "outcome-1");
+    expect(outcomeBody).toEqual({ expectedVersion: 4, result: "in_discussion", note: "미팅 조율", revisitCondition: "다음 주" });
+    expect(data.candidates[0]).toMatchObject({
+      outcomeStatus: "in_discussion", outreachVersion: 5,
+      stage: { stage: "in_discussion" },
+      latestOutcome: { note: "미팅 조율", recordedBy: "담당자" },
+    });
+  });
   it("keeps prepared work after a generation failure and retries generation only", async () => {
     const repository = await loadedRepository(); generationFailure = "network";
     const failure = await repository.execute(row.id, 1, { type: "generate" }, "generate-1").catch((error) => error);

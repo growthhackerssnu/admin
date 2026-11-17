@@ -3,13 +3,15 @@ import { ApiError } from "@/dh/lib/errors";
 
 type Tx = Prisma.TransactionClient;
 
-// 사람이 기록할 수 있는 전이. 종료 회차의 결과(unresolved)나 이미 확정된 결과(won/rejected)를
-// 바꾸는 정정은 근거(note)가 필수다. 정책이 바뀌면 이 표만 고친다.
+// 사람이 기록할 수 있는 전이. 회신 대기(pending)와 논의 중(in_discussion)에서 다음 상태로 가는 것은
+// 평소 흐름이고, 종료 회차의 결과(unresolved)나 이미 확정된 결과(won/rejected)를 바꾸는 정정은
+// 근거(note)가 필수다. 정책이 바뀌면 이 표만 고친다.
 const MANUAL_TRANSITIONS: Record<OutcomeStatus, OutcomeStatus[]> = {
-  pending: ["won", "rejected"],
-  unresolved: ["won", "rejected"],
+  pending: ["in_discussion", "won", "rejected"],
+  in_discussion: ["won", "rejected"],
+  unresolved: ["in_discussion", "won", "rejected"],
   won: ["rejected"],
-  rejected: ["won"],
+  rejected: ["in_discussion", "won"],
 };
 
 export function assertManualTransition(from: OutcomeStatus | null, to: OutcomeStatus, note: string | undefined) {
@@ -19,7 +21,7 @@ export function assertManualTransition(from: OutcomeStatus | null, to: OutcomeSt
     throw new ApiError("STATE_CONFLICT", "이 결과로는 변경할 수 없는 상태입니다.", {
       details: { from, to },
     });
-  const correcting = from !== null && from !== "pending";
+  const correcting = from !== null && from !== "pending" && from !== "in_discussion";
   if (correcting && !note?.trim())
     throw new ApiError("VALIDATION_ERROR", "결과를 정정하려면 근거(note)가 필요합니다.", {
       fieldErrors: { note: "정정 근거 필수" },
@@ -38,6 +40,7 @@ export async function transitionOutcome(
     source: OutcomeEventSource;
     actorId: string | null;
     note?: string;
+    revisitCondition?: string;
     versionError?: "VERSION_CONFLICT" | "STATE_CONFLICT";
   },
 ) {
@@ -57,6 +60,7 @@ export async function transitionOutcome(
       fromStatus: input.from,
       toStatus: input.to,
       note: input.note?.trim() || null,
+      revisitCondition: input.revisitCondition?.trim() || null,
       source: input.source,
       actorId: input.actorId,
     },
@@ -69,6 +73,7 @@ export function serializeOutcomeEvent(event: {
   fromStatus: OutcomeStatus | null;
   toStatus: OutcomeStatus;
   note: string | null;
+  revisitCondition: string | null;
   source: OutcomeEventSource;
   actorId: string | null;
   recordedAt: Date;
@@ -79,6 +84,7 @@ export function serializeOutcomeEvent(event: {
     fromStatus: event.fromStatus,
     toStatus: event.toStatus,
     note: event.note,
+    revisitCondition: event.revisitCondition,
     source: event.source,
     actorId: event.actorId,
     recordedAt: event.recordedAt.toISOString(),

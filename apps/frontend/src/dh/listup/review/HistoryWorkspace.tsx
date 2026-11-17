@@ -31,9 +31,12 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { DhWorkspaceNavigation } from "./DhWorkspaceNavigation";
 import { safeUrl } from "./contracts";
 import {
+  canRecordReply,
   collaborationCompany,
   outcomeLabels,
   projectLabels,
+  sendOutreachId,
+  type Outcome,
   type HistoryCompany,
   type HistoryData,
   type HistoryKind,
@@ -44,6 +47,7 @@ import {
   SavedHistoryRefreshError,
 } from "./historyContracts";
 import { historyTabs, type HistoryTab } from "./historyNavigation";
+import { ReplyStatusSection } from "./ReplyStatusSection";
 import { HistoryComposer, type ComposerForms } from "./HistoryComposer";
 import {
   HistoryProjectForm,
@@ -66,6 +70,7 @@ const savedNotices: Partial<Record<HistoryCommand["type"], string>> = {
   draft: "수정한 메시지를 저장했습니다.",
   project: "프로젝트를 저장했습니다.",
   send: "발송 완료를 기록했습니다.",
+  outcome: "회신 상태를 기록했습니다.",
 };
 export interface HistoryMemory {
   forms: ComposerForms;
@@ -98,6 +103,14 @@ function Status({
 }) {
   return <WorkspaceStatus tone={tone}>{label}</WorkspaceStatus>;
 }
+const outcomeTone = (outcome?: Outcome | null): WorkspaceTone =>
+  outcome === "won"
+    ? "success"
+    : outcome === "rejected"
+      ? "danger"
+      : outcome === "in_discussion"
+        ? "info"
+        : "neutral";
 function latestProject(company: HistoryCompany) {
   if (company.list) return company.list.latestProject;
   return [...company.projects].sort(
@@ -703,6 +716,14 @@ export function HistoryWorkspace({
                   ("sent" in work
                     ? Boolean(work.sent)
                     : work.sendStatus === "sent");
+                // 발송한 뒤 답이 기록됐으면 발송 완료 대신 그 상태를 보여 준다.
+                const workOutcome =
+                  work &&
+                  ("sent" in work ? work.sent?.outcome : work.outcomeStatus);
+                const workReplied =
+                  workSent && workOutcome && workOutcome !== "pending"
+                    ? workOutcome
+                    : null;
                 return (
                   <TableRow
                     key={c.id}
@@ -780,11 +801,7 @@ export function HistoryWorkspace({
                               ? outcomeLabels[previous.outcome]
                               : "결과 미기록"
                           }
-                          tone={
-                            previous?.outcome === "rejected"
-                              ? "danger"
-                              : "neutral"
-                          }
+                          tone={outcomeTone(previous?.outcome)}
                         />
                       )}
                     </TableCell>
@@ -803,13 +820,21 @@ export function HistoryWorkspace({
                         <div className="hw-work-cell">
                           <Status
                             label={
-                              workSent
-                                ? "발송 완료"
-                                : work.owner.id === data?.actor.id
-                                  ? "내 작성 중"
-                                  : "다른 담당자 작성 중"
+                              workReplied
+                                ? outcomeLabels[workReplied]
+                                : workSent
+                                  ? "발송 완료"
+                                  : work.owner.id === data?.actor.id
+                                    ? "내 작성 중"
+                                    : "다른 담당자 작성 중"
                             }
-                            tone={workSent ? "success" : "neutral"}
+                            tone={
+                              workReplied
+                                ? outcomeTone(workReplied)
+                                : workSent
+                                  ? "success"
+                                  : "neutral"
+                            }
                           />
                           <small className="ds-table-secondary">
                             {work.owner.name}
@@ -1083,13 +1108,7 @@ export function HistoryWorkspace({
                                 ? outcomeLabels[s.outcome]
                                 : "결과 미기록"
                             }
-                            tone={
-                              s.outcome === "won"
-                                ? "success"
-                                : s.outcome === "rejected"
-                                  ? "danger"
-                                  : "neutral"
-                            }
+                            tone={outcomeTone(s.outcome)}
                           />
                         </div>
                         <p className="hw-muted">
@@ -1104,8 +1123,33 @@ export function HistoryWorkspace({
                         {s.response ? (
                           <p className="hw-response">{s.response}</p>
                         ) : (
-                          <p className="hw-muted">답변 미기록</p>
+                          !s.latestOutcome && (
+                            <p className="hw-muted">답변 미기록</p>
+                          )
                         )}
+                        <ReplyStatusSection
+                          key={`${s.id}-${s.outcome}-${s.latestOutcome?.recordedAt}`}
+                          status={s.outcome}
+                          latest={s.latestOutcome}
+                          subject={selected.name}
+                          canRecord={canRecordReply(
+                            s,
+                            selected,
+                            data.actor,
+                            data.canManage,
+                          )}
+                          pending={actionPending}
+                          collapsed
+                          showStatus={false}
+                          headingLevel="h4"
+                          onRecord={(input) =>
+                            execute({
+                              type: "outcome",
+                              outreachId: sendOutreachId(s),
+                              ...input,
+                            })
+                          }
+                        />
                         <WorkspaceDisclosure label="당시 메시지">
                           <strong>{s.subject}</strong>
                           <p className="hw-snapshot">{s.body}</p>

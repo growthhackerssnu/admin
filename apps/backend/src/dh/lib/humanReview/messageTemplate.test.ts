@@ -69,8 +69,12 @@ describe("template choice", () => {
       { id: "b", key: "recontact_discussed", currentVersion: 1 },
       { id: "c", key: null, currentVersion: 0 },
     ];
-    expect(suggestTemplate(templates, "unresolved")?.id).toBe("a");
-    expect(suggestTemplate(templates, "rejected")?.id).toBe("b");
+    const withFollowUp = [...templates, { id: "d", key: "recontact_follow_up", currentVersion: 1 }];
+    expect(suggestTemplate(templates, { outcome: "unresolved" })?.id).toBe("a");
+    expect(suggestTemplate(templates, { outcome: "rejected" })?.id).toBe("b");
+    expect(suggestTemplate(templates, { outcome: "in_discussion" })?.id).toBe("b");
+    expect(suggestTemplate(withFollowUp, { outcome: "rejected", hasRevisitCondition: true })?.id).toBe("d");
+    expect(suggestTemplate(withFollowUp, { outcome: "rejected", hasRevisitCondition: false })?.id).toBe("b");
     expect(suggestTemplate(templates, null)?.id).toBe("a");
     expect(suggestTemplate(templates.slice(2), null)).toBeNull();
   });

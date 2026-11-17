@@ -102,6 +102,7 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 | `in_review` | 검토 중: 담당자가 판단하기 전 | 담당 팀원 |
 | `preparing_send` | 발송 준비: 승인됨, 아직 보내지 않음 | 담당 팀원 |
 | `awaiting_reply` | 회신 대기: 보냈고 결과 없음 | 기업 |
+| `in_discussion` | 논의 중: 답이 왔고 이야기가 오가는 중 | 담당자·기업 |
 | `won` | 수주. 이후 진행·완료는 프로젝트(`past_projects.status`)가 맡는다 | 없음 |
 | `closed` | 종료: 이번에는 진행하지 않음 | 없음 |
 
@@ -110,6 +111,12 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 `researchProgress`는 `researching`일 때만 값이 있다: `waiting`(대기), `running`(진행 중), `failed`(재시도 필요).
 
 판정 순서는 자동 제외 → 발송·결과 → 검토 판단 → 조사 상태 → 담당자 유무다. 발송은 되돌릴 수 없는 사실이라 검토 상태보다 먼저 본다. 발송·결과는 그 후보로 만든 가장 최근 메시지 업무 기준이며, 후보 없이 시작한 재연락·재협업 작업은 반영하지 않는다(연락 이력 화면의 범위).
+
+## 발송 뒤 상태 기록
+
+발송한 작업에는 담당자나 팀장·관리자가 상태를 기록한다(`POST /review-outreaches/:id/outcomes`). 값은 논의 중(`in_discussion`), 수주(`won`), 기업 거절(`rejected`)이고, 메모와 "다시 연락할 시기·조건"(`revisitCondition`)을 함께 남길 수 있다. 무응답(`unresolved`)은 수주 회차를 넘길 때 회신 대기에서 자동으로 바뀌며 사람이 고르지 않는다. 논의 중인 작업은 회차를 넘겨도 논의 중으로 남는다.
+
+기록은 다음 회차의 과거 컨택 초안에 쓰인다. 기본 양식을 고르는 기준이 되고(무응답, 거절, 거절 + 다시 연락할 시기), AI가 양식의 담당자 입력 자리를 채우는 근거가 된다.
 
 ## 메일 양식 (설정 > 메일 양식)
 

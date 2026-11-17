@@ -6,13 +6,16 @@ import {
   type Recipient,
 } from "./contracts";
 import {
+  canRecordReply,
   generationReasons,
+  sendOutreachId,
   type HistoryCompany,
   type HistoryData,
   type HistoryCommand,
   type HistoryRepository,
 } from "./historyContracts";
 import { previewTemplate, renderPreviewDraft } from "./previewSettings";
+import { replyRecordBody, replyTransitionError } from "./replyStatus";
 
 const recipient: Recipient = {
   name: "김민수",
@@ -337,6 +340,32 @@ export class PreviewHistoryRepository implements HistoryRepository {
       if (i < 0) company.projects.push(saved);
       else company.projects[i] = saved;
       if (company.work?.draft) company.work.draft.contextMatches = false;
+    } else if (command.type === "outcome") {
+      // 서버와 같은 규칙: 발송된 연락만, 담당자 또는 팀장·관리자가, 허용된 전이로만 기록한다.
+      // 이번 회차 작업의 발송 기록은 작업과 이력 양쪽에 있으므로 함께 바꾼다.
+      const targets = [
+        ...company.sends,
+        ...(company.work?.sent ? [company.work.sent] : []),
+      ].filter((s) => sendOutreachId(s) === command.outreachId);
+      if (!targets.length) throw new Error("발송 기록을 찾을 수 없습니다.");
+      if (!canRecordReply(targets[0], company, data.actor, data.canManage))
+        throw new Error("담당자와 팀장·관리자만 회신 상태를 기록할 수 있습니다.");
+      const problem = replyTransitionError(targets[0].outcome, command);
+      if (problem) throw new Error(problem);
+      const saved = replyRecordBody(command);
+      const record = {
+        status: saved.result,
+        note: saved.note ?? null,
+        revisitCondition: saved.revisitCondition ?? null,
+        recordedAt: new Date().toISOString(),
+        recordedBy: data.actor.name,
+      };
+      for (const s of targets) {
+        s.outcome = saved.result;
+        s.latestOutcome = record;
+      }
+      if (company.work?.sent && targets.includes(company.work.sent))
+        company.work.version++;
     } else if (command.type === "start") {
       if (!data.round) throw new Error("현재 수주 분기가 설정되지 않았습니다.");
       if (!company.work)

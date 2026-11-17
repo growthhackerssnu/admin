@@ -73,6 +73,7 @@ export function templateFillPrompt(input: TemplateFillInput) {
     "aiSections: for each entry write the text that replaces {{AI:name}} in the template, following its instruction. Read templateBody to see the surrounding sentence, match its grammar, and do not repeat the surrounding words. Write Korean.",
     "ownerIntent, when present, is what the sender wants to emphasise in this message. Reflect it in the AI sections where it fits; it does not override the rules above.",
     "manualInputs: for each name return the value only when the supplied history states it explicitly. Otherwise return an empty string. Never guess.",
+    "In history, outcome events record what happened after a message was sent: 'in_discussion' means the company replied and talks were under way, 'rejected' means the company declined, and note / revisitCondition hold the reason and when the company asked to be contacted again.",
     "An outcome of 'unresolved' only means no result was recorded when the round ended. It is not evidence that the company did not reply.",
     "Return topic (a short Korean summary of the proposed angle, under 120 characters), sections (one per aiSections entry, same names), and inputs (one per manualInputs name, same names).",
     JSON.stringify(input),

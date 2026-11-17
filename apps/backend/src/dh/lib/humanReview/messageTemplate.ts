@@ -106,14 +106,19 @@ export function templateKindOf(outreach: { candidateId: string | null; route: st
   return outreach.route === "repeat_collaboration" ? "repeat_collaboration" : "recontact";
 }
 
-// 과거 컨택에서 이전 결과에 맞는 양식을 기본값으로 고른다. 맞는 것이 없으면 그 경우의 첫 양식.
+// 과거 컨택에서 직전 연락의 결과에 맞는 양식을 기본값으로 고른다. 맞는 것이 없으면 그 경우의 첫 양식.
+//   무응답 -> 답이 없었던 기업
+//   기업 거절 + 다시 연락할 시기가 적혀 있음 -> 다시 논의하기로 한 기업
+//   기업 거절, 논의 중에 끝남 -> 논의했지만 진행하지 못한 기업
 export function suggestTemplate<T extends { id: string; key: string | null; currentVersion: number }>(
   templates: T[],
-  previousOutcome: string | null,
+  previous: { outcome: string | null; hasRevisitCondition?: boolean } | null,
 ): T | null {
   const usable = templates.filter((template) => template.currentVersion > 0);
+  const outcome = previous?.outcome ?? null;
   const wanted =
-    previousOutcome === "unresolved" ? "recontact_no_reply"
-      : previousOutcome === "rejected" ? "recontact_discussed" : null;
+    outcome === "unresolved" ? "recontact_no_reply"
+      : outcome === "rejected" && previous?.hasRevisitCondition ? "recontact_follow_up"
+        : outcome === "rejected" || outcome === "in_discussion" ? "recontact_discussed" : null;
   return usable.find((template) => wanted && template.key === wanted) ?? usable[0] ?? null;
 }

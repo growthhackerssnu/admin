@@ -23,8 +23,9 @@ import { WorkspaceStatus } from "@/components/ui/workspace-status";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { safeUrl, validRecipient, type Recipient } from "./contracts";
 import {
+  canRecordReply,
   generationReasons,
-  outcomeLabels,
+  sendOutreachId,
   type HistoryCompany,
   type HistoryData,
   type HistoryCommand,
@@ -33,6 +34,7 @@ import {
 import { TemplateSelect, useTemplateChoice } from "./MessageTemplateChoice";
 import { needsManualInput } from "./messageTemplates";
 import { MessageDraftEditor } from "./MessageDraftEditor";
+import { ReplyStatusSection } from "./ReplyStatusSection";
 import "./message-composer.css";
 
 export interface ComposerForm {
@@ -167,10 +169,33 @@ export function HistoryComposer({
           </p>
         )}
         {sent ? (
-          <p className="hw-muted">
-            {new Date(sent.at).toLocaleString("ko-KR")} · {sent.quarter} ·{" "}
-            {sent.outcome ? outcomeLabels[sent.outcome] : "결과 미기록"}
-          </p>
+          <>
+            <p className="hw-muted">
+              {new Date(sent.at).toLocaleString("ko-KR")} · {sent.quarter} 발송
+            </p>
+            <div className="rs-above-message hw-reply-status">
+              <ReplyStatusSection
+                status={sent.outcome}
+                latest={sent.latestOutcome}
+                subject={company.name}
+                canRecord={canRecordReply(
+                  sent,
+                  company,
+                  data.actor,
+                  canManage || data.canManage,
+                )}
+                pending={pending}
+                headingLevel="h3"
+                onRecord={(input) =>
+                  execute({
+                    type: "outcome",
+                    outreachId: sendOutreachId(sent),
+                    ...input,
+                  })
+                }
+              />
+            </div>
+          </>
         ) : (
           <Field className="hw-purpose">
             <FieldLabel htmlFor="hw-purpose">이번 연락 목적 (선택)</FieldLabel>

@@ -142,6 +142,8 @@ enum OutreachSendStatus {
 
 enum OutcomeStatus {
   pending
+  // 답이 왔고 이야기가 오가는 중. 사람이 기록한다.
+  in_discussion
   won
   rejected
   unresolved
@@ -568,6 +570,8 @@ model OutreachOutcomeEvent {
   fromStatus OutcomeStatus?     @map("from_status")
   toStatus   OutcomeStatus      @map("to_status")
   note       String?
+  // 기업이 다시 연락해 달라고 한 시기나 조건. 다음 회차의 과거 컨택 양식 선택과 빈칸 채우기에 쓴다.
+  revisitCondition String?      @map("revisit_condition")
   source     OutcomeEventSource
   actorId    String?            @map("actor_id")
   actor      Member?            @relation("OutcomeEventActor", fields: [actorId], references: [id])

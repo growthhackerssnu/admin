@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand } from "./previewRepository";
 import { initialReviewData } from "./fixtures";
+import { candidateStage } from "./stage";
 import {
   canCopy,
   currentActor,
@@ -162,5 +163,46 @@ describe("human review workflow", () => {
         address: "person@company.example",
       }),
     ).toBe(true);
+  });
+});
+
+describe("reply status in the preview store", () => {
+  const sentCompany = () =>
+    sequence(
+      { type: "claim" },
+      { type: "contact", recipient },
+      { type: "decide", status: "approved", note: "" },
+      { type: "generate" },
+      { type: "send" },
+    );
+  it("refuses a record before the message is sent", () => {
+    expect(() => next(approved(), { type: "outcome", result: "in_discussion" })).toThrow("발송된 작업");
+  });
+  it("records in-discussion, then declined with the revisit condition, and moves the stage", () => {
+    let data = next(sentCompany(), { type: "outcome", result: "in_discussion", note: " 미팅 일정 조율 중 " });
+    expect(data.candidates[0].outcomeStatus).toBe("in_discussion");
+    expect(candidateStage(data.candidates[0]).stage).toBe("in_discussion");
+    expect(data.candidates[0].latestOutcome).toMatchObject({
+      status: "in_discussion", note: "미팅 일정 조율 중", revisitCondition: null, recordedBy: currentActor.name,
+    });
+    expect(() => next(data, { type: "outcome", result: "in_discussion" })).toThrow("바꿀 수 없습니다");
+    data = next(data, { type: "outcome", result: "rejected", revisitCondition: "내년 1분기에 다시 논의" });
+    expect(candidateStage(data.candidates[0])).toMatchObject({ stage: "closed", closeReason: "company_declined" });
+    expect(data.candidates[0].latestOutcome?.revisitCondition).toBe("내년 1분기에 다시 논의");
+  });
+  it("requires a note to correct a settled result", () => {
+    const won = next(sentCompany(), { type: "outcome", result: "won" });
+    expect(() => next(won, { type: "outcome", result: "rejected" })).toThrow("메모");
+    expect(() => next(won, { type: "outcome", result: "in_discussion", note: "사유" })).toThrow("바꿀 수 없습니다");
+    const corrected = next(won, { type: "outcome", result: "rejected", note: "계약 단계에서 취소" });
+    expect(corrected.candidates[0].outcomeStatus).toBe("rejected");
+  });
+  it("lets only the owner or a manager record", () => {
+    const data = initialReviewData();
+    const other = data.candidates.find((item) => item.id === "harborlab")!;
+    expect(other.outcomeStatus).toBe("in_discussion");
+    expect(() => applyCommand(data, other.id, other.version, { type: "outcome", result: "won" })).toThrow("담당자와 팀장");
+    const managed = applyCommand({ ...data, canManageOps: true }, other.id, other.version, { type: "outcome", result: "won" });
+    expect(managed.candidates.find((item) => item.id === other.id)!.outcomeStatus).toBe("won");
   });
 });
