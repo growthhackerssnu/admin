@@ -173,8 +173,10 @@ function Details({ candidate, onClose }: { candidate: Candidate; onClose: () => 
   </aside>;
 }
 
-export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, currentRound, roundError, retryRound, onTabChange }: {
+export function UnifiedReviewPanel({ candidates, loadingRest = false, actor, canManageOps, owner, onOwnerChange, selectedId, pending, error, reload, reloading, change, onDirty, onSelect, currentRound, roundError, retryRound, onTabChange }: {
   candidates: Candidate[];
+  /** 내 담당 기업만 먼저 받은 상태. 다른 담당자의 기업은 아직 오는 중이다. */
+  loadingRest?: boolean;
   actor: Actor;
   canManageOps: boolean;
   owner: OwnerFilter;
@@ -236,7 +238,8 @@ export function UnifiedReviewPanel({ candidates, actor, canManageOps, owner, onO
               <span className="uw-item-head"><strong>{candidate.name}</strong><StatusBadge candidate={candidate} /></span>
               <span className="uw-item-meta"><span className="uw-item-summary" title={candidate.summary}>{candidate.summary}</span>
                 {owner === "all" && <small className="uw-item-owner">{candidate.owner?.name ?? "미배정"}</small>}</span></button>)}
-              {!visible.length && <p className="uw-empty">{candidates.length === 0
+              {loadingRest && owner === "all" && <p className="uw-empty" role="status">다른 담당자의 기업을 불러오는 중…</p>}
+              {!visible.length && !(loadingRest && owner === "all") && <p className="uw-empty">{candidates.length === 0 && !loadingRest
                 ? "아직 수집된 기업이 없습니다. 수집·조사가 완료되면 이 목록에 표시됩니다."
                 : owner === "mine"
                   ? "내게 배정된 기업이 없습니다. 전체 담당 필터에서 다른 기업을 볼 수 있습니다."
