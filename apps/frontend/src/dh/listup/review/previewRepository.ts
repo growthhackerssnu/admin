@@ -1,6 +1,11 @@
 import { contactMessage } from "../messageTemplate";
 import { initialReviewData } from "./fixtures";
 import {
+  previewMessageTemplates,
+  previewTemplate,
+  renderPreviewDraft,
+} from "./previewSettings";
+import {
   canCopy,
   quarterLabel,
   currentActor,
@@ -117,6 +122,40 @@ export function applyCommand(
         throw new Error(
           "사람의 승인, 수신자, 수주 분기와 조사 자료가 필요합니다.",
         );
+      if (command.purpose !== undefined)
+        candidate.contactPurpose = command.purpose.trim();
+      // 양식을 골랐으면 설정의 샘플 양식으로 만든다. AI는 부르지 않고 고정 문구를 넣는다.
+      const template = previewTemplate(command.templateId);
+      if (template && template.version > 0) {
+        const idea =
+          candidate.research.ideas[0]?.rationale ??
+          "저장된 조사 자료에 기반해 과제를 함께 논의합니다.";
+        const rendered = renderPreviewDraft(
+          template,
+          {
+            기업명: candidate.name,
+            수신자명: candidate.recipient.name,
+            수신자직함: candidate.recipient.title,
+            수주분기: `${candidate.quarter.replace("-Q", "년 ")}분기`,
+            담당자이름: actor.name,
+          },
+          () =>
+            [idea, candidate.contactPurpose, "(개발용 예시 · AI 미호출)"]
+              .filter(Boolean)
+              .join(" "),
+        );
+        candidate.draft = {
+          revision: (candidate.draft?.revision ?? 0) + 1,
+          approvedRevision: null,
+          ...rendered,
+          quarter: candidate.quarter,
+          researchId: candidate.research.id,
+          recipient: structuredClone(candidate.recipient),
+          messageTemplateId: template.id,
+          messageTemplateVersion: template.version,
+        };
+        break;
+      }
       // Preview only: deterministic rendering of the existing template; never an AI/API fallback.
       const message = contactMessage(
         {
@@ -237,6 +276,7 @@ async function mutate(
 }
 export const previewRepository: ReviewRepository = {
   mode: "preview",
+  messageTemplates: previewMessageTemplates,
   load: async () => read().data,
   execute: (id, version, command, key) =>
     mutate(key, JSON.stringify({ id, version, command }), (data) =>

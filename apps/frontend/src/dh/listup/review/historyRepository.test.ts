@@ -77,9 +77,11 @@ describe("history workspace preview boundaries", () => {
     let data = await repo.execute(id, null, { type: "start" });
     const version = () =>
       data.companies.find((c) => c.id === id)!.work!.version;
-    await expect(
-      repo.execute(id, version(), { type: "generate" }),
-    ).rejects.toThrow("연락 목적");
+    // 연락 목적은 선택 입력이라 비어 있어도 초안을 만들 수 있다.
+    data = await repo.execute(id, version(), { type: "generate" });
+    expect(
+      data.companies.find((c) => c.id === id)!.work!.draft?.contextMatches,
+    ).toBe(true);
     data = await repo.execute(id, version(), {
       type: "purpose",
       purpose: "다음 분기 협업 제안",

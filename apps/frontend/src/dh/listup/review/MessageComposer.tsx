@@ -3,11 +3,15 @@ import { Button } from "@/components/ui/button";
 import { MessageDraftEditor } from "./MessageDraftEditor";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { useAlignedScroll } from "@/design-system/use-aligned-scroll";
 import { projectSchedule } from "../messageTemplate";
 import { canCopy, draftCurrent, type Actor, type Candidate, type AcquisitionRound, quarterLabel } from "./contracts";
 import { type Change } from "./CandidateReview";
+import { TemplateSelect, useTemplateChoice } from "./MessageTemplateChoice";
+import { needsManualInput } from "./messageTemplates";
 import "./message-composer.css";
 
 /** Same center-pane layout as the agreed unified workspace: recipient/quarter,
@@ -41,6 +45,12 @@ export function MessageComposer({
   const [subject, setSubject] = useState(candidate.draft?.subject ?? "");
   const [body, setBody] = useState(candidate.draft?.body ?? "");
   const [notice, setNotice] = useState("");
+  const [intent, setIntent] = useState(candidate.contactPurpose ?? "");
+  const template = useTemplateChoice(
+    candidate.messageTemplate?.kind ?? "new",
+    candidate.draft?.messageTemplateId,
+    candidate.messageTemplate?.suggestedTemplateId,
+  );
   const { confirm, dialog } = useConfirmation();
   const dirty =
     Boolean(candidate.draft) &&
@@ -54,6 +64,9 @@ export function MessageComposer({
     setSubject(candidate.draft?.subject ?? "");
     setBody(candidate.draft?.body ?? "");
   }, [candidate.draft]);
+  useEffect(() => {
+    setIntent(candidate.contactPurpose ?? "");
+  }, [candidate.contactPurpose]);
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
       if (dirty) event.preventDefault();
@@ -75,6 +88,7 @@ export function MessageComposer({
   const current = draftCurrent(candidate);
   const copyable = canCopy(candidate) && !dirty;
   const sentRecord = candidate.sent[0];
+  const needsInput = Boolean(candidate.draft) && needsManualInput(subject, body);
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -93,7 +107,16 @@ export function MessageComposer({
       ))
     )
       return;
-    if (await change(candidate, { type: "generate" })) setNotice("");
+    const purpose = intent.trim();
+    if (
+      await change(candidate, {
+        type: "generate",
+        ...(template.selectedId ? { templateId: template.selectedId } : {}),
+        // 담당자 의도는 바뀐 경우에만 생성 직전에 저장한다.
+        ...(purpose !== (candidate.contactPurpose ?? "") ? { purpose } : {}),
+      })
+    )
+      setNotice("");
   };
   return (
     <section className="uw-composer" aria-label="메시지 작성">
@@ -128,12 +151,56 @@ export function MessageComposer({
               {quarterIssue && <div className="uw-message-period" role={roundError ? "alert" : "status"}>
                 {quarterIssue}
                 {!candidate.outreachId && roundError && retryRound && <Button variant="link" size="sm" disabled={pending} onClick={retryRound}>다시 불러오기</Button>}
-                {!candidate.outreachId && !roundError && !currentRound && canManageOps && <a href="/dh?view=operations">수주 분기 설정</a>}
+                {!candidate.outreachId && !roundError && !currentRound && canManageOps && <a href="/dh?view=settings&section=quarter">수주 분기 설정</a>}
               </div>}
               {candidate.draft && !current && (
                 <p className="uw-message-warning" role="status">
                   분기·수신자 또는 조사 자료가 변경되었습니다. 다시
                   생성해주세요.
+                </p>
+              )}
+              {owned && (
+                <div className="uw-message-options">
+                  <TemplateSelect
+                    id="uw-message-template"
+                    options={template.options}
+                    value={template.selectedId}
+                    onChange={template.select}
+                    disabled={locked}
+                  />
+                  <Field>
+                    <FieldLabel htmlFor="uw-message-intent">
+                      담당자 의도 (선택)
+                    </FieldLabel>
+                    <Textarea
+                      id="uw-message-intent"
+                      rows={2}
+                      maxLength={2000}
+                      value={intent}
+                      readOnly={locked}
+                      aria-describedby="uw-message-intent-help"
+                      onChange={(event) => setIntent(event.target.value)}
+                    />
+                    <FieldDescription id="uw-message-intent-help">
+                      AI가 쓰는 부분에 반영할 의도가 있으면 적으세요. 메시지를
+                      생성할 때 함께 저장됩니다.
+                    </FieldDescription>
+                  </Field>
+                </div>
+              )}
+              {template.blockedMessage && (
+                <p className="uw-message-warning" role="status">
+                  {template.blockedMessage}
+                  {canManageOps && (
+                    <a href="/dh?view=settings&section=templates">
+                      메일 양식 설정
+                    </a>
+                  )}
+                </p>
+              )}
+              {needsInput && (
+                <p className="uw-message-warning" role="status">
+                  입력 필요로 표시된 부분을 채운 뒤 기록하세요.
                 </p>
               )}
             </>
@@ -227,7 +294,7 @@ export function MessageComposer({
               <Button
                 size="sm"
                 variant={!candidate.draft || !current ? "default" : "outline"}
-                disabled={locked || Boolean(quarterIssue) || !quarter || !candidate.recipient || !candidate.research}
+                disabled={locked || Boolean(quarterIssue) || !quarter || !candidate.recipient || !candidate.research || template.blocked}
                 onClick={() => void generate()}
               >
                 {pending && <Spinner />}
@@ -253,8 +320,8 @@ export function MessageComposer({
                   </Button>
                   <Button
                     size="sm"
-                    variant={copyable ? "default" : "outline"}
-                    disabled={locked || !copyable}
+                    variant={copyable && !needsInput ? "default" : "outline"}
+                    disabled={locked || !copyable || needsInput}
                     onClick={async () => {
                       if (
                         await confirm(

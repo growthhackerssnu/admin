@@ -8,6 +8,9 @@ import {
 } from "./contracts";
 import { initialReviewData } from "./fixtures";
 import { applyCommand } from "./previewRepository";
+import { MessageTemplatesContext } from "./MessageTemplateChoice";
+import { initialMessageTemplateData } from "./fixtures";
+import type { MessageTemplate } from "./messageTemplates";
 
 vi.mock("@/design-system/use-aligned-scroll", () => ({
   useAlignedScroll: () => ({ current: null }),
@@ -61,6 +64,99 @@ function button(html: string, label: string) {
   expect(found, `${label} button`).toBeDefined();
   return found!;
 }
+
+function markupWithTemplates(
+  candidate: Candidate,
+  templates: MessageTemplate[] | null,
+  canManageOps = false,
+) {
+  return renderToStaticMarkup(
+    <MessageTemplatesContext.Provider value={templates}>
+      <MessageComposer
+        candidate={candidate}
+        actor={currentActor}
+        currentRound={activeRound}
+        retryRound={() => {}}
+        canManageOps={canManageOps}
+        change={async () => true}
+        pending={false}
+        onDirty={() => {}}
+      />
+    </MessageTemplatesContext.Provider>,
+  );
+}
+
+describe("message templates on the discovery draft screen", () => {
+  const templates = initialMessageTemplateData().templates;
+  it("offers a template choice when the case has two or more templates", () => {
+    const html = markupWithTemplates(approvedCompany().candidates[0], templates);
+    expect(html).toContain("메일 양식");
+    expect(html).toContain('id="uw-message-template"');
+    expect(button(html, "메시지 생성")).not.toContain('disabled=""');
+  });
+  it("hides the choice for a single template and without a template list", () => {
+    const single = templates.filter((item) => item.id !== "template-new-short");
+    expect(
+      markupWithTemplates(approvedCompany().candidates[0], single),
+    ).not.toContain('id="uw-message-template"');
+    expect(
+      markupWithTemplates(approvedCompany().candidates[0], null),
+    ).not.toContain('id="uw-message-template"');
+  });
+  it("blocks generation and points to settings when every template is empty", () => {
+    const empty = templates.map((item) => ({ ...item, version: 0 }));
+    const html = markupWithTemplates(
+      approvedCompany().candidates[0],
+      empty,
+      true,
+    );
+    expect(html).toContain("설정에서 신규 발굴 양식을 먼저 채우세요.");
+    expect(html).toContain("view=settings&amp;section=templates");
+    expect(button(html, "메시지 생성")).toContain('disabled=""');
+  });
+  it("shows an optional intent field for discovery work", () => {
+    const html = markupWithTemplates(
+      { ...approvedCompany().candidates[0], contactPurpose: "지난 행사 인연" },
+      templates,
+    );
+    expect(html).toContain("담당자 의도 (선택)");
+    expect(html).toContain("AI가 쓰는 부분에 반영할 의도가 있으면 적으세요");
+    expect(html).toContain("지난 행사 인연");
+  });
+  it("blocks recording a send while the draft still needs manual input", () => {
+    const candidate = approvedCompany(true).candidates[0];
+    const html = markupWithTemplates(
+      {
+        ...candidate,
+        draft: {
+          ...candidate.draft!,
+          body: "지난번에는 [입력 필요: 불발 사유]로 함께하지 못했습니다.",
+        },
+      },
+      templates,
+    );
+    expect(html).toContain("입력 필요로 표시된 부분을 채운 뒤 기록하세요.");
+    expect(button(html, "발송 완료 표시")).toContain('disabled=""');
+    expect(button(html, "다시 생성")).not.toContain('disabled=""');
+  });
+});
+
+describe("sample generation with a chosen template", () => {
+  it("renders the chosen template and records which template made the draft", () => {
+    const data = approvedCompany();
+    const candidate = applyCommand(
+      data,
+      "morningloop",
+      data.candidates[0].version,
+      { type: "generate", templateId: "template-new-short", purpose: "행사 인연" },
+    ).candidates[0];
+    expect(candidate.draft?.messageTemplateId).toBe("template-new-short");
+    expect(candidate.draft?.subject).toBe(`${candidate.name} 산학협력 제안`);
+    expect(candidate.draft?.body).toContain("시연 관계자님");
+    expect(candidate.draft?.body).toContain("행사 인연");
+    expect(candidate.contactPurpose).toBe("행사 인연");
+  });
+});
 
 describe("message work inside the company's center pane", () => {
   it("shows the fixed quarter and enables generation without individual quarter selection", () => {

@@ -1,4 +1,4 @@
-import { ClipboardList, FolderX } from "lucide-react";
+import { FolderX, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   SidebarMenu,
@@ -37,9 +37,9 @@ export function DhWorkspaceNavigation({
           {canManageOps && (
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
-                <Link to="/dh?view=operations">
-                  <ClipboardList />
-                  <span>검토 큐와 배정</span>
+                <Link to={{ search: "?view=settings" }}>
+                  <Settings />
+                  <span>설정</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -1,4 +1,5 @@
 import type { StageInfo } from "./stage";
+import type { MessageTemplateHint, MessageTemplateStore } from "./messageTemplates";
 
 export type ResearchStatus = "queued" | "running" | "ready" | "error";
 export type ReviewStatus =
@@ -45,6 +46,9 @@ export interface Draft {
   quarter: string;
   researchId: string;
   recipient: Recipient;
+  /** 이 초안을 만든 양식. 양식 도입 전 초안이나 이전 서버 응답에는 없다. */
+  messageTemplateId?: string | null;
+  messageTemplateVersion?: number | null;
 }
 export interface Sent {
   id: string;
@@ -82,6 +86,9 @@ export interface Candidate {
   canEditMessage?: boolean;
   canGenerateMessage?: boolean;
   messageBlockReasons?: string[];
+  /** 담당자 의도. AI가 쓰는 부분에만 반영되는 선택 입력이다. */
+  contactPurpose?: string;
+  messageTemplate?: MessageTemplateHint;
 }
 export interface TargetQuarter { id: string; year: number; quarter: number }
 export interface AcquisitionRound {
@@ -126,13 +133,15 @@ export type CandidateCommand =
     }
   | { type: "reopen" }
   | { type: "quarter"; quarter: string }
-  | { type: "generate" }
+  | { type: "generate"; templateId?: string; purpose?: string }
   | { type: "saveDraft"; subject: string; body: string }
   | { type: "approveDraft" }
   | { type: "send" }
   | { type: "retry" };
 export interface ReviewRepository {
   mode: "preview" | "live";
+  /** 초안 화면의 양식 선택에 쓴다. 없으면 양식 선택과 빈 양식 안내를 보여 주지 않는다. */
+  messageTemplates?: MessageTemplateStore;
   load(): Promise<ReviewData>;
   loadCandidate?(id: string): Promise<Candidate>;
   refreshRound?(): Promise<ReviewData>;

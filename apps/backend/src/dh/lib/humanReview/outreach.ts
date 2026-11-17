@@ -3,6 +3,8 @@ import { ApiError } from "@/dh/lib/errors";
 import { roundInclude, serializeRound } from "@/dh/lib/rounds";
 import { buildCurrentWork } from "@/dh/lib/humanReview/currentWork";
 import { draftContextMismatch, loadOutreachContext } from "@/dh/lib/humanReview/context";
+import { templateKindOf } from "@/dh/lib/humanReview/messageTemplate";
+import { suggestedTemplateId } from "@/dh/lib/humanReview/messageTemplateStore";
 
 export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outreachId: string, member: Member) {
   const row = await tx.outreach.findUnique({
@@ -14,7 +16,11 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
       recipientContact: { select: { id: true, name: true, title: true } },
       recipientEndpoint: { select: { id: true, channel: true, address: true } },
       candidate: { select: { reviewStatus: true, currentResearchId: true, activeReviewDecisionId: true } },
-      draftRevisions: { orderBy: { revision: "desc" }, take: 1 },
+      draftRevisions: {
+        orderBy: { revision: "desc" },
+        take: 1,
+        include: { messageTemplateVersion: { select: { templateId: true, version: true } } },
+      },
       sentMessages: { orderBy: { sentAt: "desc" }, take: 1 },
     },
   });
@@ -23,6 +29,7 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
   const draft = row.draftRevisions[0];
   const mismatch = draft ? draftContextMismatch(draft, row, ctx) : [];
   const sent = row.sentMessages[0];
+  const templateKind = templateKindOf(row);
   const sendStatus = row.sendStatus ?? (sent ? "sent" : "before_send");
   return {
     ...buildCurrentWork({ ...row, sendStatus }, member.id, ctx.hasEvidence),
@@ -32,6 +39,11 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
     route: row.route,
     previousOutreachId: row.previousOutreachId,
     contactPurpose: row.contactPurpose,
+    // 이 작업이 쓰는 메일 양식의 경우와 기본 양식(설정 > 메일 양식).
+    messageTemplate: {
+      kind: templateKind,
+      suggestedTemplateId: await suggestedTemplateId(tx, templateKind, row.previousOutreachId),
+    },
     version: row.version,
     currentTargetQuarter: row.currentTargetQuarter,
     recipient: row.recipientContact && row.recipientEndpoint ? {
@@ -53,6 +65,8 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
       body: draft.body,
       templateId: draft.templateId,
       templateVersion: draft.templateVersion,
+      messageTemplateId: draft.messageTemplateVersion?.templateId ?? null,
+      messageTemplateVersion: draft.messageTemplateVersion?.version ?? null,
       createdBy: draft.createdBy,
       createdAt: draft.createdAt.toISOString(),
       generationResearchId: draft.generationResearchId,

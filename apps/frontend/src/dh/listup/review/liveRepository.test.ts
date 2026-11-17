@@ -149,6 +149,7 @@ describe("discovery generation in the fixed acquisition quarter", () => {
   let generationFailure: "network" | "lost" | "closed" | null;
   let currentFailure: boolean;
   const generations: { body: unknown; key: string }[] = [];
+  const purposes: { body: unknown; key: string }[] = [];
   const preparations: { body: unknown; key: string }[] = [];
   const workDto = () => ({ id: "work-1", version: 1, contextFingerprint: "context-1", currentTargetQuarter: quarter,
     acquisitionRound: initialRound, recipient: row.selectedRecipient, owner: row.owner,
@@ -160,7 +161,7 @@ describe("discovery generation in the fixed acquisition quarter", () => {
     fetchMock.mockReset();
     row = { ...initialCandidate(), reviewStatus: "approved", selectedRecipient: { ...recipient, contactId: "person", endpointId: "endpoint" } };
     round = initialRound; work = null; prepareFailure = null; generationFailure = null; currentFailure = false;
-    preparations.length = 0; generations.length = 0;
+    preparations.length = 0; generations.length = 0; purposes.length = 0;
     fetchMock.mockImplementation(async (url: string, options: RequestInit) => {
       const path = new URL(url).pathname;
       if (path.endsWith("/acquisition-rounds/current")) return currentFailure ? response(null, 500) : response(round);
@@ -183,8 +184,14 @@ describe("discovery generation in the fixed acquisition quarter", () => {
         if (generationFailure === "closed") { work = { ...work!, canEdit: false, canGenerate: false, blockReasons: ["round_closed"] }; return apiError("ROUND_CLOSED"); }
         if (generationFailure === "network") throw new Error("offline");
         // Model the backend replay of an idempotent generation request.
-        work = { ...work!, version: 2, draft: { revision: 1, topic: "주제", subject: "제목", body: "본문", generationResearchId: "research-1", contextMatches: true } };
+        work = { ...work!, version: (work!.version as number) + 1, draft: { revision: 1, topic: "주제", subject: "제목", body: "본문", generationResearchId: "research-1", contextMatches: true } };
         if (generationFailure === "lost") { generationFailure = null; throw new Error("lost generated response"); }
+        return response(work);
+      }
+      if (path.endsWith("/review-outreaches/work-1") && options.method === "PATCH") {
+        const body = JSON.parse(options.body as string);
+        purposes.push({ body, key: (options.headers as Record<string,string>)["Idempotency-Key"] });
+        work = { ...work!, version: (work!.version as number) + 1, contactPurpose: body.contactPurpose };
         return response(work);
       }
       if (path.endsWith("/review-outreaches/work-1")) return response(work);
@@ -199,6 +206,33 @@ describe("discovery generation in the fixed acquisition quarter", () => {
     expect(generations[0].body).toEqual({ expectedVersion: 1 });
     expect(data.candidates[0].draft?.subject).toBe("제목");
     expect(data.candidates[0].quarter).toBe("2027-Q1");
+  });
+  it("saves the optional intent first, then generates with the chosen template", async () => {
+    const repository = await loadedRepository();
+    const data = await repository.execute(row.id, 1, { type: "generate", templateId: "template-1", purpose: "다음 분기 재제안" }, "generate-1");
+    expect(purposes).toHaveLength(1);
+    expect(purposes[0].body).toEqual({ expectedVersion: 1, contactPurpose: "다음 분기 재제안" });
+    expect(generations[0].body).toEqual({ expectedVersion: 2, templateId: "template-1" });
+    expect(data.candidates[0].contactPurpose).toBe("다음 분기 재제안");
+  });
+  it("does not save the intent twice when only generation is retried", async () => {
+    const repository = await loadedRepository(); generationFailure = "network";
+    const command = { type: "generate" as const, purpose: "의도" };
+    await expect(repository.execute(row.id, 1, command, "generate-1")).rejects.toBeInstanceOf(ReviewActionError);
+    generationFailure = null;
+    await repository.execute(row.id, 1, command, "generate-1");
+    expect(purposes).toHaveLength(1);
+    expect(generations[0]).toEqual(generations[1]);
+  });
+  it("reads the template fields of the outreach detail", async () => {
+    const repository = await loadedRepository();
+    await repository.execute(row.id, 1, { type: "generate" }, "generate-1");
+    work = { ...work!, messageTemplate: { kind: "new", suggestedTemplateId: "template-2" },
+      draft: { ...(work!.draft as object), messageTemplateId: "template-1", messageTemplateVersion: 3 } };
+    const candidate = await repository.loadCandidate(row.id, true);
+    expect(candidate.messageTemplate).toEqual({ kind: "new", suggestedTemplateId: "template-2" });
+    expect(candidate.draft?.messageTemplateId).toBe("template-1");
+    expect(candidate.draft?.messageTemplateVersion).toBe(3);
   });
   it("keeps prepared work after a generation failure and retries generation only", async () => {
     const repository = await loadedRepository(); generationFailure = "network";

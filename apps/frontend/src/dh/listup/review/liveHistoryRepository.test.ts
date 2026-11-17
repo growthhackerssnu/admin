@@ -429,6 +429,12 @@ describe("live history API contract", () => {
       { expectedVersion: 7 },
     ],
     [
+      { type: "generate", templateId: "template-1" },
+      "/review-outreaches/work-1/draft-generation",
+      "POST",
+      { expectedVersion: 7, templateId: "template-1" },
+    ],
+    [
       { type: "draft", subject: "수정 제목", body: "수정 본문" },
       "/review-outreaches/work-1/draft",
       "PATCH",

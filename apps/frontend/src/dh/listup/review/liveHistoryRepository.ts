@@ -17,6 +17,7 @@ import {
   type HistoryWorkSummary,
   type Outcome,
 } from "./historyContracts";
+import type { MessageTemplateHint } from "./messageTemplates";
 
 type Quarter = { id: string; year: number; quarter: number };
 type Round = {
@@ -56,7 +57,11 @@ type Work = HistoryWorkSummary & {
     subject: string;
     body: string;
     contextMatches: boolean;
+    messageTemplateId?: string | null;
+    messageTemplateVersion?: number | null;
   } | null;
+  // 양식 도입 전 서버 응답도 받을 수 있게 선택 항목으로 둔다.
+  messageTemplate?: MessageTemplateHint;
   latestSend: Send | null;
 };
 type Event = {
@@ -285,6 +290,7 @@ export class LiveHistoryRepository implements HistoryRepository {
       blockReasons: w.blockReasons,
       contextFingerprint: w.contextFingerprint,
       sendStatus: w.sendStatus,
+      messageTemplate: w.messageTemplate,
     };
   }
   getCompany(companyId: string) {
@@ -647,10 +653,13 @@ export class LiveHistoryRepository implements HistoryRepository {
         };
       } else if (command.type === "generate") {
         if (!w.canGenerate)
-          throw new Error("연락 목적·수신자·저장 근거를 확인해주세요.");
+          throw new Error("수신자와 저장 근거를 확인해주세요.");
         path = base + "/draft-generation";
         method = "POST";
-        body = { expectedVersion };
+        body = {
+          expectedVersion,
+          ...(command.templateId ? { templateId: command.templateId } : {}),
+        };
       } else if (command.type === "draft") {
         if (!w.draft) throw new Error("메시지를 먼저 생성해주세요.");
         path = base + "/draft";

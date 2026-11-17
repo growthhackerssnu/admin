@@ -250,3 +250,10 @@ Table에 `containerProps`를 추가해 ref·스크롤 기록·키보드 접근�
 ### 수주 분기 표시와 설정
 
 수주 분기는 메시지 화면에서 수정 가능한 필드가 아닌 고정값이다. `MessageComposer`의 라벨은 caption, 값은 기존 section 글씨 역할을 사용하며 개인 선택 dropdown/필수 표시/추가 버튼을 두지 않는다. 미설정과 조회 실패는 구분해 팀장 설정 또는 재조회 경로를 제공한다. `AcquisitionQuarterSettings`는 기존 운영 화면에서만 Field/Input/Select/Button과 공통 Confirmation Dialog로 등록·적용을 제공한다. 새로운 팔레트/간격 스케일을 추가하지 않는다.
+
+
+## 대외협력 설정 페이지 (2026-11-17)
+
+`/dh?view=settings`(예전 주소 `view=operations`도 같은 페이지)는 수주 분기·검토 큐와 배정·메일 양식·발신 정보 네 구역을 shadcn Tabs(`components/ui/tabs.tsx`)로 나누고 `?section=`에 현재 구역을 둔다. 구역을 옮겨도 입력이 남도록 모든 구역을 마운트해 두고 숨기기만 한다. 본문 폭은 메일 양식만 `--layout-page-max`, 나머지 구역은 960px이다.
+
+배치는 `operations.css`에 있고 색·간격은 공통 토큰만 참조한다. 오류는 `WorkspaceError`, 배정 미리보기와 양식 수정 이력은 `WorkspaceTable`, 확정·수정 버리기는 공통 Confirmation Dialog, 빈 양식과 누락된 발신 정보는 `WorkspaceStatus`(warning)로 표시한다. 메일 양식 구역은 목록 280px · 편집기 · 안내 280px 3열이며 컨테이너 폭 1100px 이하에서 안내가 아래로, 700px 이하에서 1열이 된다. 미리보기의 AI 구간은 `--ds-surface-selected`, 담당자 입력 자리는 warning 계열, 쓸 수 없는 이름은 `--destructive`로 구분한다. 초안 화면의 양식 선택은 기존 Select와 Field를 쓴다.
