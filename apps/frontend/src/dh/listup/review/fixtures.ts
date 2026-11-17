@@ -1,5 +1,5 @@
 import type { MessageTemplateData } from "./messageTemplates";
-import type { Candidate, Research, ReviewData } from "./contracts";
+import type { Actor, Candidate, Research, ReviewData } from "./contracts";
 import { currentActor } from "./contracts";
 
 const at = "2026-09-30T00:00:00.000Z";
@@ -88,6 +88,39 @@ function company(
     version: 1,
   };
 }
+// 이미 발송을 기록한 기업. 발송 뒤 상태(회신 대기·논의 중)를 개발 화면에서 바로 확인하는 데 쓴다.
+function markSent(candidate: Candidate, owner: Actor, sentAt: string) {
+  const recipient = {
+    name: "이서연",
+    title: "사업개발 매니저",
+    channel: "email" as const,
+    address: "seoyeon@example.com",
+  };
+  const draft = {
+    revision: 1,
+    approvedRevision: null,
+    subject: `[Growth Hackers] ${candidate.name} 2027-Q1 산학협력 제안`,
+    body: `안녕하세요, ${candidate.name} ${recipient.name}님.
+
+Growth Hackers 대외협력팀입니다. 2027년 1분기 산학협력 프로젝트를 함께 논의하고 싶어 연락드립니다.
+
+감사합니다.
+
+[개발용 예시 문안]`,
+    quarter: "2027-Q1",
+    researchId: candidate.research!.id,
+    recipient,
+  };
+  candidate.owner = owner;
+  candidate.reviewStatus = "approved";
+  candidate.recipient = recipient;
+  candidate.contacts = [recipient];
+  candidate.quarter = "2027-Q1";
+  candidate.draft = draft;
+  candidate.sent = [{ id: `${candidate.id}-sent-1`, at: sentAt, actor: owner, draft }];
+  candidate.outcomeStatus = "pending";
+  candidate.latestOutcome = null;
+}
 export function initialReviewData(): ReviewData {
   const companies = [
     company(
@@ -126,6 +159,18 @@ export function initialReviewData(): ReviewData {
       "작은 팀을 위한 업무 공간 운영 도구",
       "공유 공간 운영자와 입주 팀",
     ),
+    company(
+      "papertrail",
+      "페이퍼트레일",
+      "계약서와 전자 문서를 관리하는 B2B 서비스",
+      "계약 업무가 많은 중소기업의 운영 담당자",
+    ),
+    company(
+      "harborlab",
+      "하버랩",
+      "물류 창고의 입출고를 예측하는 데이터 서비스",
+      "창고를 운영하는 물류 기업",
+    ),
   ];
   companies[2].researchStatus = "error";
   companies[2].research = null;
@@ -153,6 +198,17 @@ export function initialReviewData(): ReviewData {
       note: "협업 접점은 있지만 연락할 관계자를 아직 찾지 못했습니다.",
     },
   ];
+  const memberB = { id: "preview-b", name: "샘플 팀원 B" };
+  markSent(companies[6], currentActor, "2026-11-10T02:00:00.000Z");
+  markSent(companies[7], memberB, "2026-11-05T02:00:00.000Z");
+  companies[7].outcomeStatus = "in_discussion";
+  companies[7].latestOutcome = {
+    status: "in_discussion",
+    note: "담당자가 내부 검토 후 미팅 일정을 알려 주기로 했습니다.",
+    revisitCondition: "11월 넷째 주에 다시 연락",
+    recordedAt: "2026-11-12T05:30:00.000Z",
+    recordedBy: memberB.name,
+  };
   return {
     schema: 1,
     currentRound: { id: "preview-round", targetQuarter: { id: "preview-quarter", year: 2027, quarter: 1 }, startedAt: at, endedAt: null },

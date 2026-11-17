@@ -8,6 +8,7 @@ export const COMPANY_STAGES = [
   "in_review", // 검토 중: 담당자가 판단하기 전 (담당 팀원 차례)
   "preparing_send", // 발송 준비: 승인됨, 아직 보내지 않음 (담당 팀원 차례)
   "awaiting_reply", // 회신 대기: 보냈고 결과 없음 (기업 차례)
+  "in_discussion", // 논의 중: 답이 왔고 이야기가 오가는 중 (담당자·기업 차례)
   "won", // 수주: 협업 확정. 이후 진행은 프로젝트 상태가 맡는다
   "closed", // 종료: 이번에는 진행하지 않는다. 사유는 closeReason
 ] as const;
@@ -35,7 +36,7 @@ export type StageInput = {
   // 이 후보로 만든 가장 최근 메시지 업무. 없으면 null.
   latestOutreach: {
     sendStatus: "before_send" | "sent" | null;
-    outcomeStatus: "pending" | "won" | "rejected" | "unresolved" | null;
+    outcomeStatus: "pending" | "in_discussion" | "won" | "rejected" | "unresolved" | null;
   } | null;
 };
 
@@ -58,6 +59,7 @@ export function companyStage(input: StageInput): StageResult {
   const outreach = input.latestOutreach;
   if (outreach && (outreach.sendStatus === "sent" || outreach.outcomeStatus)) {
     if (outreach.outcomeStatus === "won") return result("won");
+    if (outreach.outcomeStatus === "in_discussion") return result("in_discussion");
     if (outreach.outcomeStatus === "rejected")
       return result("closed", { closeReason: "company_declined" });
     if (outreach.outcomeStatus === "unresolved")

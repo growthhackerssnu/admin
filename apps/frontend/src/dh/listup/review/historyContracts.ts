@@ -1,7 +1,8 @@
 import { validRecipient, type Actor, type Recipient } from "./contracts";
 import type { MessageTemplateHint } from "./messageTemplates";
+import type { ReplyRecord, ReplyRecordInput, ReplyStatus } from "./replyStatus";
 
-export type Outcome = "pending" | "won" | "rejected" | "unresolved";
+export type Outcome = ReplyStatus;
 export type ProjectStatus = "won" | "in_progress" | "completed";
 export type HistoryKind = "contact-history" | "collaboration-history";
 export interface HistoryRound {
@@ -20,6 +21,8 @@ export interface HistorySend {
   body: string;
   outcome: Outcome | null;
   response: string | null;
+  /** 사람이 마지막으로 남긴 발송 뒤 상태 기록. */
+  latestOutcome?: ReplyRecord | null;
 }
 export interface HistoryDraft {
   revision: number;
@@ -142,6 +145,8 @@ export type HistoryCommand =
   | { type: "generate"; templateId?: string }
   | { type: "draft"; subject: string; body: string }
   | { type: "send" }
+  /** 발송 뒤 상태 기록. 이번 회차 작업과 이전 회차 연락 모두에 쓴다. */
+  | ({ type: "outcome"; outreachId: string } & ReplyRecordInput)
   | {
       type: "project";
       project: HistoryProject;
@@ -165,10 +170,11 @@ export interface HistoryRepository {
   ): Promise<HistoryData>;
 }
 export const outcomeLabels: Record<Outcome, string> = {
-  pending: "결과 대기",
-  won: "수주 완료",
-  rejected: "거절",
-  unresolved: "결과 미확정",
+  pending: "회신 대기",
+  in_discussion: "논의 중",
+  won: "수주",
+  rejected: "기업 거절",
+  unresolved: "무응답",
 };
 export const projectLabels: Record<ProjectStatus, string> = {
   won: "수주 완료",
@@ -216,3 +222,17 @@ export const historyBlockLabels: Record<string, string> = {
   recipient_missing: "유효한 수신자를 저장해주세요.",
   evidence_missing: "메시지에 사용할 저장 근거가 없습니다.",
 };
+/** 발송 기록 하나를 가리키는 값. 실데이터는 작업 id, 샘플 데이터는 발송 기록 id를 쓴다. */
+export const sendOutreachId = (send: HistorySend) => send.outreachId ?? send.id;
+/** 발송 뒤 상태를 기록할 수 있는 사람: 그 연락의 담당자 또는 팀장·관리자. */
+export function canRecordReply(
+  send: HistorySend,
+  company: HistoryCompany,
+  actor: Actor,
+  canManage: boolean,
+) {
+  if (canManage) return true;
+  const owner =
+    company.work?.sent?.id === send.id ? company.work.owner : send.owner;
+  return owner.id === actor.id;
+}

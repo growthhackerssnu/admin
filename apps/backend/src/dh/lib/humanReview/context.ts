@@ -38,7 +38,7 @@ export type HistorySnapshot = {
     acquisitionRoundId: string | null;
     sentMessages: { id: string; sentAt: string; channel: string; recipientName: string; subject: string; body: string }[];
     responses: { id: string; result: string; explanation: string | null; revisitCondition: string | null; checkedAt: string }[];
-    outcomeEvents: { id: string; fromStatus: string | null; toStatus: string; note: string | null; source: string; recordedAt: string }[];
+    outcomeEvents: { id: string; fromStatus: string | null; toStatus: string; note: string | null; revisitCondition: string | null; source: string; recordedAt: string }[];
   }[];
 };
 
@@ -118,6 +118,7 @@ export async function loadOutreachContext(tx: Tx, row: ContextOutreach): Promise
         fromStatus: event.fromStatus,
         toStatus: event.toStatus,
         note: event.note,
+        revisitCondition: event.revisitCondition,
         source: event.source,
         recordedAt: event.recordedAt.toISOString(),
       })),

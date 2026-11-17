@@ -14,6 +14,7 @@ import type {
 } from "./contracts";
 import type { StageInfo } from "./stage";
 import { MessageTemplateApi, type MessageTemplateHint } from "./messageTemplates";
+import { replyRecordBody, type ReplyRecord, type ReplyStatus } from "./replyStatus";
 
 type QuarterDto = { id: string; year: number; quarter: number };
 type RecipientDto = Recipient & { contactId: string; endpointId: string; title: string | null };
@@ -73,6 +74,10 @@ type OutreachDto = {
   canEdit?: boolean;
   canGenerate?: boolean;
   blockReasons?: string[];
+  // 발송 뒤 상태. 이 필드가 없는 이전 서버 응답도 받을 수 있게 선택 항목으로 둔다.
+  owner?: Actor;
+  outcomeStatus?: ReplyStatus | null;
+  latestOutcome?: ReplyRecord | null;
   latestSend: {
     id: string;
     sentAt: string;
@@ -225,6 +230,8 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     messageBlockReasons: outreach?.blockReasons,
     contactPurpose: outreach?.contactPurpose ?? "",
     messageTemplate: outreach?.messageTemplate,
+    outcomeStatus: outreach?.outcomeStatus,
+    latestOutcome: outreach?.latestOutcome,
   };
 }
 
@@ -328,6 +335,10 @@ export class LiveReviewRepository implements ReviewRepository {
       ? (await this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(row.outreachId)}`)).data
       : undefined);
     const candidate = normalizeCandidate(row, outreach);
+    // 발송 뒤 상태는 작업 담당자와 팀장·관리자만 기록한다(서버의 권한 검사와 같은 기준).
+    if (outreach?.owner && this.data?.actor)
+      candidate.canRecordOutcome =
+        outreach.owner.id === this.data.actor.id || this.data.canManageOps === true;
     this.details.set(id, candidate);
     if (this.data) this.data = {
       ...this.data,
@@ -475,6 +486,13 @@ export class LiveReviewRepository implements ReviewRepository {
         await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/send-records`, "POST", {
           expectedVersion: outreachVersion,
           draftRevision: candidate.draft.revision,
+        }, key);
+        break;
+      case "outcome":
+        if (!outreachId || !outreachVersion) throw new Error("발송 기록을 다시 불러온 뒤 상태를 기록해주세요.");
+        await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/outcomes`, "POST", {
+          expectedVersion: outreachVersion,
+          ...replyRecordBody(command),
         }, key);
         break;
       case "retry":

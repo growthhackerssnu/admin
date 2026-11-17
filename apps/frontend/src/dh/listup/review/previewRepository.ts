@@ -16,6 +16,7 @@ import {
   type ReviewData,
   type ReviewRepository,
 } from "./contracts";
+import { replyRecordBody, replyTransitionError } from "./replyStatus";
 
 export function applyCommand(
   data: ReviewData,
@@ -31,8 +32,14 @@ export function applyCommand(
     throw new Error(
       "다른 변경이 저장되었습니다. 새로고침 후 다시 확인해주세요.",
     );
-  if (candidate.owner && candidate.owner.id !== actor.id)
-    throw new Error("다른 담당자가 검토 중입니다.");
+  // 발송 뒤 상태는 담당자가 아니어도 팀장·관리자가 기록할 수 있다.
+  const managerOutcome = command.type === "outcome" && data.canManageOps === true;
+  if (candidate.owner && candidate.owner.id !== actor.id && !managerOutcome)
+    throw new Error(
+      command.type === "outcome"
+        ? "담당자와 팀장·관리자만 회신 상태를 기록할 수 있습니다."
+        : "다른 담당자가 검토 중입니다.",
+    );
   if (command.type !== "claim" && command.type !== "retry" && !candidate.owner)
     throw new Error("배정된 기업만 변경할 수 있습니다.");
   const invalidate = () => {
@@ -216,6 +223,24 @@ export function applyCommand(
         draft: structuredClone(candidate.draft!),
       });
       break;
+    case "outcome": {
+      // 서버와 같은 전이 규칙. 발송된 작업만 기록할 수 있다.
+      if (!candidate.sent.length)
+        throw new Error("발송된 작업의 결과만 기록할 수 있습니다.");
+      const from = candidate.outcomeStatus ?? "pending";
+      const problem = replyTransitionError(from, command);
+      if (problem) throw new Error(problem);
+      const saved = replyRecordBody(command);
+      candidate.outcomeStatus = saved.result;
+      candidate.latestOutcome = {
+        status: saved.result,
+        note: saved.note ?? null,
+        revisitCondition: saved.revisitCondition ?? null,
+        recordedAt: new Date().toISOString(),
+        recordedBy: actor.name,
+      };
+      break;
+    }
     case "retry":
       if (candidate.researchStatus !== "error" || !candidate.error?.retryable)
         throw new Error("재시도할 수 있는 오류가 아닙니다.");

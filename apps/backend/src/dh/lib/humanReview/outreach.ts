@@ -22,6 +22,13 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
         include: { messageTemplateVersion: { select: { templateId: true, version: true } } },
       },
       sentMessages: { orderBy: { sentAt: "desc" }, take: 1 },
+      // 사람이 마지막으로 기록한 발송 뒤 상태(논의 중·수주·거절)와 그때의 메모.
+      outcomeEvents: {
+        where: { source: "manual" },
+        orderBy: [{ recordedAt: "desc" }, { id: "desc" }],
+        take: 1,
+        include: { actor: { select: { displayName: true } } },
+      },
     },
   });
   if (!row) throw new ApiError("NOT_FOUND", "메시지 업무를 찾지 못했습니다.");
@@ -30,6 +37,7 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
   const mismatch = draft ? draftContextMismatch(draft, row, ctx) : [];
   const sent = row.sentMessages[0];
   const templateKind = templateKindOf(row);
+  const outcome = row.outcomeEvents[0];
   const sendStatus = row.sendStatus ?? (sent ? "sent" : "before_send");
   return {
     ...buildCurrentWork({ ...row, sendStatus }, member.id, ctx.hasEvidence),
@@ -94,6 +102,13 @@ export async function getHumanOutreachDetail(tx: Prisma.TransactionClient, outre
       sentAt: sent.sentAt.toISOString(),
       createdAt: sent.createdAt.toISOString(),
       recordedById: sent.recordedById,
+    } : null,
+    latestOutcome: outcome ? {
+      status: outcome.toStatus,
+      note: outcome.note,
+      revisitCondition: outcome.revisitCondition,
+      recordedAt: outcome.recordedAt.toISOString(),
+      recordedBy: outcome.actor?.displayName ?? null,
     } : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

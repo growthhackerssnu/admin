@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 const queryInput = z.object({
   query: z.string().trim().max(200).optional(),
   targetQuarterId: z.string().min(1).optional(),
-  outcome: z.enum(["pending", "rejected", "unresolved", "unrecorded"]).optional(),
+  outcome: z.enum(["pending", "in_discussion", "rejected", "unresolved", "unrecorded"]).optional(),
   previousOwnerId: z.string().min(1).optional(),
   currentWork: z.enum(["all", "none", "mine", "others", "sent"]).default("all"),
   sort: z.enum(["lastSentAt_desc", "lastSentAt_asc", "name_asc"]).default("lastSentAt_desc"),

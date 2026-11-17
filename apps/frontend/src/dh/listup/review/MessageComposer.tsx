@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { MessageDraftEditor } from "./MessageDraftEditor";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -12,6 +12,8 @@ import { canCopy, draftCurrent, type Actor, type Candidate, type AcquisitionRoun
 import { type Change } from "./CandidateReview";
 import { TemplateSelect, useTemplateChoice } from "./MessageTemplateChoice";
 import { needsManualInput } from "./messageTemplates";
+import { ReplyStatusSection } from "./ReplyStatusSection";
+import { candidateReplyStatus } from "./stage";
 import "./message-composer.css";
 
 /** Same center-pane layout as the agreed unified workspace: recipient/quarter,
@@ -56,10 +58,15 @@ export function MessageComposer({
     Boolean(candidate.draft) &&
     (subject !== (candidate.draft?.subject ?? "") ||
       body !== (candidate.draft?.body ?? ""));
+  const [replyDirty, setReplyDirty] = useState(false);
+  const trackReplyDirty = useCallback(
+    (value: boolean) => setReplyDirty(value),
+    [],
+  );
   useEffect(() => {
-    onDirty(dirty);
+    onDirty(dirty || replyDirty);
     return () => onDirty(false);
-  }, [dirty, onDirty]);
+  }, [dirty, replyDirty, onDirty]);
   useEffect(() => {
     setSubject(candidate.draft?.subject ?? "");
     setBody(candidate.draft?.body ?? "");
@@ -69,11 +76,11 @@ export function MessageComposer({
   }, [candidate.contactPurpose]);
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => {
-      if (dirty) event.preventDefault();
+      if (dirty || replyDirty) event.preventDefault();
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, [dirty]);
+  }, [dirty, replyDirty]);
   const sent = candidate.sent.length > 0;
   const owned = candidate.owner?.id === actor.id;
   const locked =
@@ -88,6 +95,9 @@ export function MessageComposer({
   const current = draftCurrent(candidate);
   const copyable = canCopy(candidate) && !dirty;
   const sentRecord = candidate.sent[0];
+  // 발송 뒤 상태는 작업 담당자와 팀장·관리자가 기록한다. 서버가 판단해 준 값이 있으면 그 값을 쓴다.
+  const canRecordReply =
+    candidate.canRecordOutcome ?? (owned || canManageOps === true);
   const needsInput = Boolean(candidate.draft) && needsManualInput(subject, body);
   const copy = async (value: string) => {
     try {
@@ -209,6 +219,21 @@ export function MessageComposer({
               {sentRecord.draft.quarter} · {sentRecord.draft.recipient.name} ·{" "}
               {new Date(sentRecord.at).toLocaleString("ko-KR")} 발송 완료
             </p>
+          )}
+          {sent && (
+            <div className="rs-above-message">
+              <ReplyStatusSection
+                status={candidateReplyStatus(candidate)}
+                latest={candidate.latestOutcome}
+                subject={candidate.name}
+                canRecord={canRecordReply}
+                pending={pending}
+                onDirty={trackReplyDirty}
+                onRecord={(input) =>
+                  change(candidate, { type: "outcome", ...input })
+                }
+              />
+            </div>
           )}
           {notice && (
             <p className="uw-message-notice" role="status">

@@ -1,5 +1,6 @@
 import type { StageInfo } from "./stage";
 import type { MessageTemplateHint, MessageTemplateStore } from "./messageTemplates";
+import type { ReplyRecord, ReplyRecordInput, ReplyStatus } from "./replyStatus";
 
 export type ResearchStatus = "queued" | "running" | "ready" | "error";
 export type ReviewStatus =
@@ -89,6 +90,12 @@ export interface Candidate {
   /** 담당자 의도. AI가 쓰는 부분에만 반영되는 선택 입력이다. */
   contactPurpose?: string;
   messageTemplate?: MessageTemplateHint;
+  /** 발송 뒤 상태. 작업 상세를 받은 뒤에만 값이 있고, 목록에서는 stage로 읽는다. */
+  outcomeStatus?: ReplyStatus | null;
+  /** 사람이 마지막으로 남긴 발송 뒤 상태 기록. */
+  latestOutcome?: ReplyRecord | null;
+  /** 발송 뒤 상태를 기록할 권한(작업 담당자 또는 팀장·관리자). 없으면 화면이 담당자·운영 권한으로 판단한다. */
+  canRecordOutcome?: boolean;
 }
 export interface TargetQuarter { id: string; year: number; quarter: number }
 export interface AcquisitionRound {
@@ -137,6 +144,7 @@ export type CandidateCommand =
   | { type: "saveDraft"; subject: string; body: string }
   | { type: "approveDraft" }
   | { type: "send" }
+  | ({ type: "outcome" } & ReplyRecordInput)
   | { type: "retry" };
 export interface ReviewRepository {
   mode: "preview" | "live";
