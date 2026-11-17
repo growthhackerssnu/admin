@@ -1,14 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { generateContent, createInteraction } = vi.hoisted(() => ({
+const { generateContent, createInteraction, clientOptions } = vi.hoisted(() => ({
   generateContent: vi.fn(),
   createInteraction: vi.fn(),
+  clientOptions: vi.fn(),
 }));
 
 vi.mock("@google/genai", () => ({
   GoogleGenAI: class GoogleGenAI {
     models = { generateContent };
     interactions = { create: createInteraction };
+    constructor(options: unknown) {
+      clientOptions(options);
+    }
   },
 }));
 
@@ -19,6 +23,53 @@ import {
   runStructuredOutput,
   runWebSearch,
 } from "./gemini";
+
+describe("Gemini connection", () => {
+  const vertexEnv = [
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+  ];
+  const response = { text: "{}", usageMetadata: {} };
+
+  afterEach(() => {
+    for (const name of vertexEnv) delete process.env[name];
+  });
+
+  it("connects with the API key by default", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    generateContent.mockResolvedValue(response);
+    clientOptions.mockClear();
+
+    await runStructuredOutput("input", {});
+
+    expect(clientOptions).toHaveBeenCalledWith({ apiKey: "test-key" });
+  });
+
+  it("connects to Vertex AI without the API key when switched on", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    process.env.GOOGLE_GENAI_USE_VERTEXAI = "true";
+    process.env.GOOGLE_CLOUD_PROJECT = "example-project";
+    generateContent.mockResolvedValue(response);
+    clientOptions.mockClear();
+
+    await runStructuredOutput("input", {});
+
+    expect(clientOptions).toHaveBeenCalledWith({
+      vertexai: true,
+      project: "example-project",
+      location: "global",
+    });
+  });
+
+  it("rejects Vertex AI calls without a project", async () => {
+    process.env.GOOGLE_GENAI_USE_VERTEXAI = "true";
+
+    await expect(runStructuredOutput("input", {})).rejects.toThrow(
+      "GOOGLE_CLOUD_PROJECT is required",
+    );
+  });
+});
 
 describe("Gemini Google Search", () => {
   it("records grounded sources, executed queries, and usage", async () => {
