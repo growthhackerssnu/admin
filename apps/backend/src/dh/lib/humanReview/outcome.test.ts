@@ -2,28 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import { assertManualTransition, transitionOutcome } from "./outcome";
 
 describe("manual outcome transitions", () => {
-  it("records won or rejected from pending without a note", () => {
-    expect(() => assertManualTransition("pending", "won", undefined)).not.toThrow();
-    expect(() => assertManualTransition("pending", "rejected", undefined)).not.toThrow();
+  const statuses = ["pending", "in_discussion", "won", "rejected", "unresolved"] as const;
+
+  it("lets a person change a sent work item to any other recordable status", () => {
+    for (const from of [null, ...statuses])
+      for (const to of ["pending", "in_discussion", "won", "rejected"] as const) {
+        const same = (from ?? "pending") === to;
+        if (same) expect(() => assertManualTransition(from, to)).toThrow();
+        else expect(() => assertManualTransition(from, to)).not.toThrow();
+      }
   });
 
-  it("treats a never-recorded past send like pending", () => {
-    expect(() => assertManualTransition(null, "won", undefined)).not.toThrow();
-  });
-
-  it("allows correcting an unresolved or finalized result only with a note", () => {
-    for (const from of ["unresolved", "won", "rejected"] as const) {
-      const to = from === "won" ? "rejected" : "won";
-      expect(() => assertManualTransition(from, to, undefined)).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
-      expect(() => assertManualTransition(from, to, "  ")).toThrow(expect.objectContaining({ code: "VALIDATION_ERROR" }));
-      expect(() => assertManualTransition(from, to, "전화로 확인")).not.toThrow();
-    }
-  });
-
-  it("never lets a person set pending or unresolved, or repeat the same result", () => {
-    expect(() => assertManualTransition("pending", "unresolved", "x")).toThrow(expect.objectContaining({ code: "STATE_CONFLICT" }));
-    expect(() => assertManualTransition("won", "pending", "x")).toThrow(expect.objectContaining({ code: "STATE_CONFLICT" }));
-    expect(() => assertManualTransition("won", "won", "x")).toThrow(expect.objectContaining({ code: "STATE_CONFLICT" }));
+  it("never lets a person set unresolved", () => {
+    for (const from of [null, ...statuses]) expect(() => assertManualTransition(from, "unresolved")).toThrow();
   });
 });
 
@@ -53,15 +44,5 @@ describe("transitionOutcome", () => {
     const t = tx(0);
     await expect(transitionOutcome(t as never, input)).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
     expect(t.outreachOutcomeEvent.create).not.toHaveBeenCalled();
-  });
-
-  it("lets a reply move to in discussion and on to a result without a note", () => {
-    expect(() => assertManualTransition("pending", "in_discussion", undefined)).not.toThrow();
-    expect(() => assertManualTransition("in_discussion", "won", undefined)).not.toThrow();
-    expect(() => assertManualTransition("in_discussion", "rejected", undefined)).not.toThrow();
-    // 확정된 결과나 종료 회차의 결과를 되돌리는 것은 정정이라 근거가 필요하다.
-    expect(() => assertManualTransition("rejected", "in_discussion", undefined)).toThrow();
-    expect(() => assertManualTransition("unresolved", "in_discussion", "뒤늦게 답이 옴")).not.toThrow();
-    expect(() => assertManualTransition("won", "in_discussion", "정정")).toThrow();
   });
 });

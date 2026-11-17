@@ -3,28 +3,16 @@ import { ApiError } from "@/dh/lib/errors";
 
 type Tx = Prisma.TransactionClient;
 
-// 사람이 기록할 수 있는 전이. 회신 대기(pending)와 논의 중(in_discussion)에서 다음 상태로 가는 것은
-// 평소 흐름이고, 종료 회차의 결과(unresolved)나 이미 확정된 결과(won/rejected)를 바꾸는 정정은
-// 근거(note)가 필수다. 정책이 바뀌면 이 표만 고친다.
-const MANUAL_TRANSITIONS: Record<OutcomeStatus, OutcomeStatus[]> = {
-  pending: ["in_discussion", "won", "rejected"],
-  in_discussion: ["won", "rejected"],
-  unresolved: ["in_discussion", "won", "rejected"],
-  won: ["rejected"],
-  rejected: ["in_discussion", "won"],
-};
+// 사람이 고를 수 있는 상태. 무응답(unresolved)은 수주 회차를 넘길 때만 자동으로 정해진다.
+export const MANUAL_OUTCOMES = ["pending", "in_discussion", "won", "rejected"] as const satisfies readonly OutcomeStatus[];
 
-export function assertManualTransition(from: OutcomeStatus | null, to: OutcomeStatus, note: string | undefined) {
-  // 결과가 기록된 적 없는 과거 발송(null)은 pending과 같은 첫 기록으로 본다.
-  const allowed = from === null ? MANUAL_TRANSITIONS.pending : MANUAL_TRANSITIONS[from];
-  if (!allowed.includes(to))
+// 사람은 발송된 작업의 상태를 언제든 다른 값으로 바꿀 수 있다. 잘못 누른 기록을 되돌릴 수 있어야 해서
+// 확정된 결과(수주·거절·무응답)에서도 막지 않고, 메모도 강제하지 않는다. 바꾼 내역은 이력에 모두 남는다.
+export function assertManualTransition(from: OutcomeStatus | null, to: OutcomeStatus) {
+  // 결과가 기록된 적 없는 과거 발송(null)은 회신 대기로 본다.
+  if (!(MANUAL_OUTCOMES as readonly OutcomeStatus[]).includes(to) || (from ?? "pending") === to)
     throw new ApiError("STATE_CONFLICT", "이 결과로는 변경할 수 없는 상태입니다.", {
       details: { from, to },
-    });
-  const correcting = from !== null && from !== "pending" && from !== "in_discussion";
-  if (correcting && !note?.trim())
-    throw new ApiError("VALIDATION_ERROR", "결과를 정정하려면 근거(note)가 필요합니다.", {
-      fieldErrors: { note: "정정 근거 필수" },
     });
 }
 

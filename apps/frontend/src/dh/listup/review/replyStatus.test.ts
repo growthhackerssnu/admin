@@ -10,30 +10,25 @@ import {
 } from "./replyStatus";
 
 describe("reply status rules", () => {
-  it("offers only the transitions the server accepts", () => {
+  it("offers every recordable status except the current one", () => {
     expect(allowedReplyTransitions("pending")).toEqual(["in_discussion", "won", "rejected"]);
     expect(allowedReplyTransitions(null)).toEqual(["in_discussion", "won", "rejected"]);
-    expect(allowedReplyTransitions("in_discussion")).toEqual(["won", "rejected"]);
-    expect(allowedReplyTransitions("unresolved")).toEqual(["in_discussion", "won", "rejected"]);
-    expect(allowedReplyTransitions("won")).toEqual(["rejected"]);
-    expect(allowedReplyTransitions("rejected")).toEqual(["in_discussion", "won"]);
+    expect(allowedReplyTransitions("in_discussion")).toEqual(["pending", "won", "rejected"]);
+    expect(allowedReplyTransitions("unresolved")).toEqual(["pending", "in_discussion", "won", "rejected"]);
+    expect(allowedReplyTransitions("won")).toEqual(["pending", "in_discussion", "rejected"]);
+    expect(allowedReplyTransitions("rejected")).toEqual(["pending", "in_discussion", "won"]);
   });
 
-  it("requires a note only when a settled result is corrected", () => {
-    expect(replyNoteRequired(null)).toBe(false);
-    expect(replyNoteRequired("pending")).toBe(false);
-    expect(replyNoteRequired("in_discussion")).toBe(false);
-    expect(replyNoteRequired("unresolved")).toBe(true);
-    expect(replyNoteRequired("won")).toBe(true);
-    expect(replyNoteRequired("rejected")).toBe(true);
+  it("never requires a note", () => {
+    for (const from of [null, "pending", "in_discussion", "unresolved", "won", "rejected"] as const)
+      expect(replyNoteRequired(from)).toBe(false);
   });
 
   it("explains why a record is refused", () => {
     expect(replyTransitionError("pending", { result: "in_discussion" })).toBeNull();
+    expect(replyTransitionError("won", { result: "rejected" })).toBeNull();
+    expect(replyTransitionError("rejected", { result: "pending" })).toBeNull();
     expect(replyTransitionError("in_discussion", { result: "in_discussion" })).toContain("바꿀 수 없습니다");
-    expect(replyTransitionError("won", { result: "won", note: "사유" })).toContain("바꿀 수 없습니다");
-    expect(replyTransitionError("won", { result: "rejected", note: "  " })).toContain("메모");
-    expect(replyTransitionError("won", { result: "rejected", note: "계약 취소" })).toBeNull();
     expect(replyTransitionError("pending", { result: "won", note: "가".repeat(2001) })).toContain("2000자");
     expect(replyTransitionError("pending", { result: "rejected", revisitCondition: "가".repeat(501) })).toContain("500자");
   });

@@ -216,20 +216,12 @@ describe("history workspace preview boundaries", () => {
     expect(reloaded.sends[0].outcome).toBe("rejected");
     expect(reloaded.work!.sent!.outcome).toBe("rejected");
   });
-  it("corrects an earlier result only with a note, and only for its owner or a manager", async () => {
+  it("changes an earlier result without a note, but only for its owner or a manager", async () => {
     const repo = new PreviewHistoryRepository();
-    await expect(
-      repo.execute("history-clearnote", null, {
-        type: "outcome",
-        outreachId: "send-clear",
-        result: "in_discussion",
-      }),
-    ).rejects.toThrow("메모");
     const data = await repo.execute("history-clearnote", null, {
       type: "outcome",
       outreachId: "send-clear",
       result: "in_discussion",
-      note: "분기 종료 뒤 회신이 왔습니다.",
     });
     expect(
       data.companies.find((c) => c.id === "history-clearnote")!.sends[0]
