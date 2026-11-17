@@ -151,6 +151,11 @@ export function ReplyStatusSection({
           <p className="rs-empty">아직 기록한 내용이 없습니다.</p>
         )
       )}
+      {!canRecord && (
+        <p className="rs-empty">
+          회신 상태는 이 연락의 담당자와 팀장·관리자만 기록할 수 있습니다.
+        </p>
+      )}
       {canRecord && !open && (
         <div className="rs-actions rs-actions-start">
           <Button
@@ -159,7 +164,7 @@ export function ReplyStatusSection({
             disabled={pending}
             onClick={() => setOpen(true)}
           >
-            {status && status !== "pending" ? "상태 변경" : "상태 기록"}
+            {status && status !== "pending" ? "회신 상태 변경" : "회신 상태 기록"}
           </Button>
         </div>
       )}
