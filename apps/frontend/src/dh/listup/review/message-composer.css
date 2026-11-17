@@ -79,6 +79,24 @@
   border-left: 2px solid var(--ds-warning-foreground);
   padding-left: var(--layout-label-gap);
 }
+.uw-message-warning > a {
+  margin-left: var(--layout-control-gap);
+}
+.uw-message-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--layout-field-gap);
+  margin-top: var(--layout-group-gap);
+}
+.uw-template-select [data-slot="select-trigger"] {
+  max-width: 320px;
+}
+.hw-composer .uw-template-select {
+  margin-bottom: var(--layout-group-gap);
+}
+.hw-block-reason > a {
+  margin-left: var(--layout-control-gap);
+}
 .uw-message-fields {
   display: flex;
   flex-direction: column;

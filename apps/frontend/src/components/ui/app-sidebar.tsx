@@ -1,9 +1,9 @@
 import {
   Archive,
   CalendarCheck,
-  ClipboardList,
   FolderKanban,
   Handshake,
+  Settings,
   ShieldCheck,
   UsersRound,
   Wallet,
@@ -144,16 +144,16 @@ export function AppSidebar({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="검토 큐와 배정">
+                  <SidebarMenuButton asChild tooltip="설정">
                     {inRouter ? (
-                      <Link to="/dh?view=operations">
-                        <ClipboardList />
-                        <span>검토 큐와 배정</span>
+                      <Link to="/dh?view=settings">
+                        <Settings />
+                        <span>설정</span>
                       </Link>
                     ) : (
-                      <a href="/dh?view=operations">
-                        <ClipboardList />
-                        <span>검토 큐와 배정</span>
+                      <a href="/dh?view=settings">
+                        <Settings />
+                        <span>설정</span>
                       </a>
                     )}
                   </SidebarMenuButton>

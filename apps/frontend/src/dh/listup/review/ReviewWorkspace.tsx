@@ -27,6 +27,7 @@ import {
 } from "./contracts";
 import { CandidateReview, SourceLink, type Change } from "./CandidateReview";
 import { previewRepository } from "./previewRepository";
+import { MessageTemplatesContext, useMessageTemplateList } from "./MessageTemplateChoice";
 import { UnifiedReviewLoading, UnifiedReviewPanel } from "./UnifiedReviewPanel";
 import { HistoryWorkspace, createHistoryMemory } from "./HistoryWorkspace";
 import { PreviewHistoryRepository, unavailableHistoryRepository } from "./historyRepository";
@@ -56,6 +57,7 @@ export default function ReviewWorkspace({
       ? new PreviewHistoryRepository(actor, data?.canManageOps === true, "mock")
       : unavailableHistoryRepository),
     [repository.mode, historyMode, liveHistoryRepository, actor.id, actor.name, data?.canManageOps, historyRole]);
+  const messageTemplates = useMessageTemplateList(repository.messageTemplates);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
@@ -320,23 +322,23 @@ export default function ReviewWorkspace({
     navigate({ message: null, candidate: id, view: "review", owner: candidates.find(item => item.id === id)?.owner?.id === actor.id ? params.get("owner") : "all" });
   const changeTab = (view: HistoryTab) => navigate({ view, message: null, historyCompany: view === "review" ? null : historyMemory.current.selected[view] });
   if (tab === "contact-history" || tab === "collaboration-history") {
-    return <>{dialog}<HistoryWorkspace key={tab} kind={tab} repository={historyRepository} memory={historyMemory.current}
+    return <MessageTemplatesContext.Provider value={messageTemplates}>{dialog}<HistoryWorkspace key={tab} kind={tab} repository={historyRepository} memory={historyMemory.current}
       selectedId={params.get("historyCompany")} onTabChange={changeTab}
       scenario={repository.mode === "preview" ? params.get("historyScenario") ?? "" : ""}
-      onSelect={id => { historyMemory.current.selected[tab] = id; const next = new URLSearchParams(params); if (id) next.set("historyCompany", id); else next.delete("historyCompany"); setParams(next, { replace: true }); }} /></>;
+      onSelect={id => { historyMemory.current.selected[tab] = id; const next = new URLSearchParams(params); if (id) next.set("historyCompany", id); else next.delete("historyCompany"); setParams(next, { replace: true }); }} /></MessageTemplatesContext.Provider>;
   }
   // Old message links open the same three-pane workspace, never a separate page.
   if (tab === "review" || tab === "messages" || params.has("message")) {
     if (loading) return <UnifiedReviewLoading />;
     if (!data) return <main className="uw-load-error" role="alert"><p>{error}</p><Button variant="outline" onClick={() => void load()}>다시 불러오기</Button></main>;
-    return <>{dialog}<UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true} onTabChange={changeTab}
+    return <MessageTemplatesContext.Provider value={messageTemplates}>{dialog}<UnifiedReviewPanel candidates={candidates} actor={actor} canManageOps={data.canManageOps === true} onTabChange={changeTab}
       owner={params.get("owner") === "all" || (message && message.owner?.id !== actor.id) ? "all" : "mine"}
       onOwnerChange={(owner) => navigate({ owner, candidate: null, message: null })}
       selectedId={detailId}
       currentRound={data.currentRound} roundError={data.roundError} retryRound={() => void retryRound()}
       pending={actionPending} error={refreshFailure?.message ?? error} change={change} onDirty={trackDirty}
       reload={refreshFailure ? () => void reloadAfterSave() : undefined} reloading={pending}
-      onSelect={(id) => { void navigate({ candidate: id, message: null, view: "review" }); }} /></>;
+      onSelect={(id) => { void navigate({ candidate: id, message: null, view: "review" }); }} /></MessageTemplatesContext.Provider>;
   }
   return (
     <div className="ds-workspace rv-app">

@@ -12,6 +12,7 @@ import {
   type HistoryCommand,
   type HistoryRepository,
 } from "./historyContracts";
+import { previewTemplate, renderPreviewDraft } from "./previewSettings";
 
 const recipient: Recipient = {
   name: "김민수",
@@ -381,6 +382,38 @@ export class PreviewHistoryRepository implements HistoryRepository {
       if (command.type === "generate") {
         const reasons = generationReasons(company, data.round, data.actor);
         if (reasons.length) throw new Error(reasons[0]);
+        // 양식을 골랐으면 설정의 샘플 양식으로 만든다. AI는 부르지 않고 고정 문구를 넣는다.
+        const template = previewTemplate(command.templateId);
+        const evidence =
+          company.projects[0]?.summary ||
+          company.research?.slice(0, 180) ||
+          "이전에 드린 협업 제안을 바탕으로 다시 연락드립니다.";
+        if (template && template.version > 0)
+          work.draft = {
+            revision: (work.draft?.revision ?? 0) + 1,
+            contextMatches: true,
+            ...renderPreviewDraft(
+              template,
+              {
+                기업명: company.name,
+                수신자명: work.recipient!.name,
+                수신자직함: work.recipient!.title,
+                수주분기: `${data.round.quarter.replace("-Q", "년 ")}분기`,
+                담당자이름: data.actor.name,
+              },
+              () =>
+                [
+                  evidence,
+                  work.purpose,
+                  `(${this.mode === "mock" ? "목업" : "개발용 예시"} · AI 미호출)`,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
+            ),
+            messageTemplateId: template.id,
+            messageTemplateVersion: template.version,
+          };
+        else
         work.draft = {
           revision: (work.draft?.revision ?? 0) + 1,
           contextMatches: true,
@@ -408,7 +441,7 @@ export class PreviewHistoryRepository implements HistoryRepository {
           !work.recipient ||
           generationReasons(company, data.round, data.actor).length
         )
-          throw new Error("목적·수신자·초안을 확인해주세요.");
+          throw new Error("수신자와 초안을 확인해주세요.");
         work.sent = {
           id: crypto.randomUUID(),
           at: new Date().toISOString(),

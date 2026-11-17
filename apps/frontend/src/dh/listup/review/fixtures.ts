@@ -1,3 +1,4 @@
+import type { MessageTemplateData } from "./messageTemplates";
 import type { Candidate, Research, ReviewData } from "./contracts";
 import { currentActor } from "./contracts";
 
@@ -174,6 +175,96 @@ export function initialReviewData(): ReviewData {
             error: null,
           },
         ],
+      },
+    ],
+  };
+}
+
+/** 설정 > 메일 양식의 샘플 자료. 로그인 없는 개발 화면에서만 쓴다. */
+export function initialMessageTemplateData(): MessageTemplateData {
+  const updatedAt = "2026-11-02T05:20:00.000Z";
+  return {
+    canManage: true,
+    sender: {
+      leadName: "샘플 팀장",
+      leadPhone: null,
+      email: "contact@example.com",
+    },
+    autoFields: [
+      { name: "기업명", description: "연락할 기업 이름", sample: "모닝루프" },
+      { name: "수신자명", description: "저장한 수신자 이름", sample: "김민수" },
+      { name: "수신자직함", description: "저장한 수신자 직함", sample: "사업개발 리드" },
+      { name: "수주분기", description: "현재 수주 분기", sample: "2027년 1분기" },
+      { name: "제안기간", description: "프로젝트 진행 기간", sample: "2027년 1월 ~ 3월" },
+      { name: "담당자이름", description: "초안을 만드는 팀원 이름", sample: "샘플 팀원 A" },
+      { name: "팀장이름", description: "대외협력 팀장 이름", sample: "샘플 팀장" },
+      { name: "팀장전화번호", description: "대외협력 팀장 전화번호", sample: "010-0000-0000" },
+      { name: "학회메일", description: "학회 대표 메일 주소", sample: "contact@example.com" },
+    ],
+    templates: [
+      {
+        id: "template-new-basic",
+        kind: "new",
+        name: "기본 제안",
+        version: 2,
+        subject: "[Growth Hackers] {{기업명}} {{수주분기}} 산학협력 제안",
+        body: "안녕하세요, {{기업명}} {{수신자명}}님.\n서울대학교 데이터 분석 학회 Growth Hackers의 {{담당자이름}}입니다.\n\n{{AI:제안 동기}}\n\n{{제안기간}} 동안 진행하는 산학협력 프로젝트를 함께 논의하고 싶습니다.\n\n{{AI:협업 아이디어}}\n\n편하신 일정을 알려 주시면 미팅 자리를 마련하겠습니다.\n\n감사합니다.\n{{팀장이름}} 드림\n{{팀장전화번호}} · {{학회메일}}",
+        aiInstructions: {
+          "제안 동기": "조사 자료에서 이 기업의 최근 변화 하나를 골라 두 문장으로 연락 이유를 쓴다.",
+          "협업 아이디어": "조사 자료에 근거한 분석 과제 두 가지를 짧은 목록으로 제안한다.",
+        },
+        updatedAt,
+        updatedBy: "샘플 팀장",
+      },
+      {
+        id: "template-new-short",
+        kind: "new",
+        name: "짧은 제안 (LinkedIn)",
+        version: 1,
+        subject: "{{기업명}} 산학협력 제안",
+        body: "안녕하세요 {{수신자명}}님, Growth Hackers {{담당자이름}}입니다.\n{{AI:한 줄 제안}}\n{{수주분기}} 프로젝트로 짧게 이야기 나눌 수 있을까요?",
+        aiInstructions: {
+          "한 줄 제안": "이 기업 서비스와 맞는 분석 주제를 한 문장으로 제안한다.",
+        },
+        updatedAt,
+        updatedBy: "샘플 팀장",
+      },
+      {
+        id: "template-recontact-basic",
+        kind: "recontact",
+        name: "다시 제안",
+        version: 1,
+        subject: "[Growth Hackers] {{기업명}} {{수주분기}} 협업 재제안",
+        body: "안녕하세요, {{수신자명}}님.\n지난번에는 {{입력:불발 사유}}(으)로 함께하지 못했습니다.\n\n{{AI:다시 연락한 이유}}\n\n{{제안기간}} 일정으로 다시 논의하고 싶습니다.\n\n감사합니다.\n{{팀장이름}} 드림",
+        aiInstructions: {
+          "다시 연락한 이유": "이전 연락 기록과 담당자 의도를 바탕으로 이번에 달라진 점을 두 문장으로 쓴다.",
+        },
+        updatedAt,
+        updatedBy: "샘플 팀장",
+      },
+      {
+        id: "template-repeat-basic",
+        kind: "repeat_collaboration",
+        name: "후속 프로젝트 제안",
+        version: 1,
+        subject: "[Growth Hackers] {{기업명}} 후속 협업 제안",
+        body: "안녕하세요, {{수신자명}}님.\n지난 프로젝트를 함께해 주셔서 감사했습니다.\n\n{{AI:지난 협업 요약}}\n\n{{수주분기}}에도 이어서 협업하고 싶어 연락드립니다.\n\n감사합니다.\n{{팀장이름}} 드림",
+        aiInstructions: {
+          "지난 협업 요약": "저장된 프로젝트 기록에서 성과 한 가지를 골라 한 문장으로 쓴다.",
+        },
+        updatedAt,
+        updatedBy: "샘플 팀장",
+      },
+      {
+        id: "template-repeat-empty",
+        kind: "repeat_collaboration",
+        name: "감사 인사",
+        version: 0,
+        subject: "",
+        body: "",
+        aiInstructions: {},
+        updatedAt: null,
+        updatedBy: null,
       },
     ],
   };

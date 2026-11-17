@@ -29,10 +29,10 @@ export function buildCurrentWork(row: WorkRow, memberId: string, hasEvidence?: b
   if (row.sendStatus === "sent") blockReasons.push("already_sent");
   if (!isRoundOpen(row)) blockReasons.push("round_closed");
   const canEdit = blockReasons.length === 0;
-  // 재연락·재협업(후보 없는 작업)은 사람이 적은 연락 목적이 있어야 생성할 수 있다.
-  if (!row.candidateId && !row.contactPurpose?.trim()) blockReasons.push("purpose_missing");
+  // 연락 목적(담당자 의도)은 선택 입력이라 생성 조건이 아니다.
   if (!row.recipientContactId || !row.recipientEndpointId) blockReasons.push("recipient_missing");
-  if (hasEvidence === false) blockReasons.push("evidence_missing");
+  // 근거 검사는 신규 발굴(승인된 조사 필요)에만 적용한다. 과거 컨택·재수주는 양식의 고정 문장만으로도 만들 수 있다.
+  if (hasEvidence === false && row.candidateId) blockReasons.push("evidence_missing");
   return {
     id: row.id,
     owner: { id: row.owner.id, name: row.owner.displayName },

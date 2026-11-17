@@ -1,4 +1,5 @@
 import { validRecipient, type Actor, type Recipient } from "./contracts";
+import type { MessageTemplateHint } from "./messageTemplates";
 
 export type Outcome = "pending" | "won" | "rejected" | "unresolved";
 export type ProjectStatus = "won" | "in_progress" | "completed";
@@ -26,6 +27,8 @@ export interface HistoryDraft {
   body: string;
   contextMatches: boolean;
   topic?: string;
+  messageTemplateId?: string | null;
+  messageTemplateVersion?: number | null;
 }
 export interface HistoryWork {
   id: string;
@@ -42,6 +45,7 @@ export interface HistoryWork {
   blockReasons?: string[];
   contextFingerprint?: string;
   sendStatus?: "before_send" | "sent";
+  messageTemplate?: MessageTemplateHint;
 }
 export interface HistoryProject {
   id: string;
@@ -135,7 +139,7 @@ export type HistoryCommand =
   | { type: "start" }
   | { type: "purpose"; purpose: string }
   | { type: "recipient"; recipient: Recipient }
-  | { type: "generate" }
+  | { type: "generate"; templateId?: string }
   | { type: "draft"; subject: string; body: string }
   | { type: "send" }
   | {
@@ -195,8 +199,6 @@ export function generationReasons(
         historyBlockLabels[reason] ?? "현재 작업 상태를 다시 확인해주세요.",
     );
   const reasons: string[] = [];
-  if (!company.work.purpose.trim())
-    reasons.push("이번 연락 목적을 입력해주세요.");
   if (!company.work.recipient || !validRecipient(company.work.recipient))
     reasons.push("유효한 수신자를 저장해주세요.");
   if (
@@ -211,7 +213,6 @@ export const historyBlockLabels: Record<string, string> = {
   not_owner: "본인 담당 작업만 수정할 수 있습니다.",
   already_sent: "이번 회차 발송을 마쳤습니다.",
   round_closed: "종료된 수주 분기의 작업입니다.",
-  purpose_missing: "이번 연락 목적을 입력해주세요.",
   recipient_missing: "유효한 수신자를 저장해주세요.",
   evidence_missing: "메시지에 사용할 저장 근거가 없습니다.",
 };

@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  FieldError,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -23,7 +28,10 @@ import {
   type HistoryCompany,
   type HistoryData,
   type HistoryCommand,
+  type HistoryKind,
 } from "./historyContracts";
+import { TemplateSelect, useTemplateChoice } from "./MessageTemplateChoice";
+import { needsManualInput } from "./messageTemplates";
 import { MessageDraftEditor } from "./MessageDraftEditor";
 import "./message-composer.css";
 
@@ -48,12 +56,17 @@ export function HistoryComposer({
   pending,
   execute,
   mock = false,
+  kind = "contact-history",
+  canManage = false,
 }: {
   company: HistoryCompany;
   data: HistoryData;
   forms: ComposerForms;
   pending: boolean;
   mock?: boolean;
+  /** 서버가 작업 상세에 경우를 주지 않을 때만 쓰는 기본값. */
+  kind?: HistoryKind;
+  canManage?: boolean;
   execute: (command: HistoryCommand) => Promise<boolean>;
 }) {
   const work = company.work!;
@@ -70,6 +83,12 @@ export function HistoryComposer({
   const [editingRecipient, setEditingRecipient] = useState(!work.recipient);
   const [copyError, setCopyError] = useState("");
   const { confirm, dialog } = useConfirmation();
+  const template = useTemplateChoice(
+    work.messageTemplate?.kind ??
+      (kind === "collaboration-history" ? "repeat_collaboration" : "recontact"),
+    work.draft?.messageTemplateId,
+    work.messageTemplate?.suggestedTemplateId,
+  );
   const sent = work.sent;
   const owned = work.owner.id === data.actor.id;
   const locked =
@@ -89,6 +108,8 @@ export function HistoryComposer({
   const unsaved = purposeDirty || recipientDirty || draftDirty;
   const ready =
     !locked && !unsaved && reasons.length === 0 && work.canGenerate !== false;
+  const needsInput =
+    Boolean(work.draft) && needsManualInput(form.subject, form.body);
   const patch = (value: Partial<ComposerForm>) =>
     setForm((previous) => {
       const next = { ...previous, ...value };
@@ -152,9 +173,7 @@ export function HistoryComposer({
           </p>
         ) : (
           <Field className="hw-purpose">
-            <FieldLabel htmlFor="hw-purpose" required>
-              이번 연락 목적
-            </FieldLabel>
+            <FieldLabel htmlFor="hw-purpose">이번 연락 목적 (선택)</FieldLabel>
             <Textarea
               id="hw-purpose"
               value={form.purpose}
@@ -162,8 +181,12 @@ export function HistoryComposer({
               maxLength={2000}
               rows={3}
               placeholder="이전 일정 문제로 거절하여 다음 분기 협업을 다시 제안"
+              aria-describedby="hw-purpose-help"
               onChange={(e) => patch({ purpose: e.target.value })}
             />
+            <FieldDescription id="hw-purpose-help">
+              AI가 쓰는 부분에 반영할 의도가 있으면 적으세요.
+            </FieldDescription>
             {purposeDirty && owned && (
               <div className="hw-inline-actions">
                 <Button
@@ -182,6 +205,15 @@ export function HistoryComposer({
               </div>
             )}
           </Field>
+        )}
+        {!sent && owned && (
+          <TemplateSelect
+            id="hw-template"
+            options={template.options}
+            value={template.selectedId}
+            onChange={template.select}
+            disabled={locked}
+          />
         )}
         <section className="hw-recipient-section">
           <div className="hw-section-head">
@@ -385,21 +417,31 @@ export function HistoryComposer({
       </div>
       {!sent && owned && !editingRecipient && (
         <footer className="hw-composer-footer">
+          {!unsaved && reasons.length === 0 && template.blockedMessage && (
+            <div className="hw-block-reason" role="status">
+              <span>{template.blockedMessage}</span>
+              {canManage && (
+                <a href="/dh?view=settings&section=templates">메일 양식 설정</a>
+              )}
+            </div>
+          )}
+          {!unsaved && needsInput && (
+            <div className="hw-block-reason" role="status">
+              <span>입력 필요로 표시된 부분을 채운 뒤 기록하세요.</span>
+            </div>
+          )}
           {(reasons.length > 0 || unsaved) && (
             <div className="hw-block-reason" role="status">
               <span>
                 {unsaved ? "입력한 변경을 저장해주세요." : reasons.join(" ")}
               </span>
               {!locked &&
-                (purposeDirty ||
-                  !work.purpose.trim() ||
-                  recipientDirty ||
-                  !work.recipient) && (
+                (purposeDirty || recipientDirty || !work.recipient) && (
                   <Button
                     variant="link"
                     size="sm"
                     onClick={() => {
-                      if (purposeDirty || !work.purpose.trim())
+                      if (purposeDirty)
                         document.getElementById("hw-purpose")?.focus();
                       else {
                         setEditingRecipient(true);
@@ -459,7 +501,7 @@ export function HistoryComposer({
                     ? "default"
                     : "outline"
                 }
-                disabled={!ready}
+                disabled={!ready || template.blocked}
                 onClick={async () => {
                   if (
                     !work.draft ||
@@ -469,7 +511,12 @@ export function HistoryComposer({
                       "다시 생성",
                     ))
                   )
-                    await execute({ type: "generate" });
+                    await execute({
+                      type: "generate",
+                      ...(template.selectedId
+                        ? { templateId: template.selectedId }
+                        : {}),
+                    });
                 }}
               >
                 {pending && <Spinner />}
@@ -495,8 +542,14 @@ export function HistoryComposer({
                   </Button>
                   <Button
                     size="sm"
-                    variant={work.draft.contextMatches ? "default" : "outline"}
-                    disabled={!ready || !work.draft.contextMatches}
+                    variant={
+                      work.draft.contextMatches && !needsInput
+                        ? "default"
+                        : "outline"
+                    }
+                    disabled={
+                      !ready || !work.draft.contextMatches || needsInput
+                    }
                     onClick={async () => {
                       if (
                         await confirm(

@@ -101,11 +101,16 @@ describe("current work", () => {
     expect(buildCurrentWork({ ...row, acquisitionRound: null }, "m-1").blockReasons).toContain("round_closed");
   });
 
-  it("requires a written purpose, a recipient and evidence to generate a recontact", () => {
+  it("lets a recontact generate without a purpose or stored evidence, but not without a recipient", () => {
     const work = buildCurrentWork({ ...row, contactPurpose: "  ", recipientContactId: null }, "m-1", false);
     expect(work.canEdit).toBe(true);
     expect(work.canGenerate).toBe(false);
-    expect(work.blockReasons).toEqual(["purpose_missing", "recipient_missing", "evidence_missing"]);
+    expect(work.blockReasons).toEqual(["recipient_missing"]);
+    expect(buildCurrentWork({ ...row, contactPurpose: null }, "m-1", false).canGenerate).toBe(true);
+  });
+
+  it("still requires approved research for candidate-backed work", () => {
+    expect(buildCurrentWork({ ...row, candidateId: "cand" }, "m-1", false).blockReasons).toEqual(["evidence_missing"]);
   });
 
   it("does not require a purpose for candidate-backed work", () => {

@@ -128,7 +128,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 |---|---|---|---|---|
 | `members` | 접근 허용 회원 화이트리스트. role·활성 여부. (`ops_role`은 옛 1인 1직책 컬럼 — 아무도 읽지 않고, expand-contract 축소 단계에서 지운다) | portal (§5) | portal, dh, hr, nut 백엔드 | 이메일, 이름 |
 | `member_ops_roles` | 운영팀 직책 배정(acting에게만). 한 사람이 직책(임원·팀장) 하나까지 + 팀원 여럿. 직책은 운영팀 기수(`cohort`)와 함께 — 같은 직책은 기수마다 한 명 | portal | portal, dh, hr, nut 백엔드 | — |
-| `people_directory` | 노션 People DB에서 동기화한 "신뢰 이메일" 원장. 가입 시 본인 확인용 | portal | portal, dh, hr 백엔드 | 이메일, 기수, 이름 |
+| `people_directory` | 노션 People DB에서 동기화한 "신뢰 이메일" 원장. 가입 시 본인 확인용 | portal | portal, dh, hr 백엔드 | 이메일, 기수, 이름, 전화번호(`phone`. dh가 대외협력 메일의 팀장 연락처로 읽는다) |
 | `signup_requests` | 가입 신청 + OTP 상태. 수명이 짧은 레코드 | portal | portal | 이메일, OTP 해시 |
 
 `core`는 어느 테이블도 브라우저에 직접 노출하지 않는다 (§6.6).
@@ -144,6 +144,7 @@ Supabase는 기본적으로 `public`에 테이블을 만들고, Data API(PostgRE
 | `outreaches` | 컨택 건 (기업·수주 회차당 1건). 회차 연결 전의 과거 행은 `acquisition_round_id`가 NULL이다 | **예정** (§6) |
 | `acquisition_rounds`, `outreach_outcome_events` | 수주 회차(진행 중은 한 건, 수기 부분 unique 인덱스)와 수주 결과 변경 이력(append-only) | 아니오 |
 | `templates`, `message_draft_revisions` | 템플릿과 초안 리비전 | 미정 |
+| `message_templates`, `message_template_versions` | 사람 검토 경로의 메일 양식과 수정 이력(버전은 append-only). 팀장·관리자가 설정 페이지에서 고친다 | 아니오 |
 | `sent_messages`, `responses` | 발송 기록과 응답 확인 | 미정 |
 | `past_projects` | 협업 프로젝트 이력(기업, 한줄 설명, Notion 원본, 진행 분기, 기술·산업 분류) + 수동 관리 필드(상태, 담당자, 관계자, 결과 링크, 수주 출처, version). 상태가 확인되지 않은 과거 행은 `status`가 NULL이다 | 미정 |
 | `jobs` | 비동기 작업(발송 쪽) | 아니오 |

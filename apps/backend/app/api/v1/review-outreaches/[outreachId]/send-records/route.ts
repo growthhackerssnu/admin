@@ -5,6 +5,7 @@ import { withIdempotency } from "@/dh/lib/idempotency";
 import { draftContextMismatch, loadOutreachContext } from "@/dh/lib/humanReview/context";
 import { assertRoundOpen } from "@/dh/lib/rounds";
 import { ApiError } from "@/dh/lib/errors";
+import { hasMissingInput } from "@/dh/lib/humanReview/messageTemplate";
 import { prisma } from "@/lib/prisma";
 
 const sendInput = z.object({
@@ -52,6 +53,8 @@ export const POST = withListupApiHandler<{ outreachId: string }>(async (req, { m
     });
     if (!draft || draftContextMismatch(draft, outreach, await loadOutreachContext(tx, outreach)).length)
       throw new ApiError("DRAFT_CONTEXT_CHANGED", "현재 조사·수신자·분기와 초안이 다릅니다. 먼저 수정하거나 다시 생성하세요.");
+    if (hasMissingInput(draft.subject, draft.body))
+      throw new ApiError("STATE_CONFLICT", "초안에 입력 필요로 표시된 부분이 남아 있습니다. 채운 뒤 기록하세요.");
     const changed = await tx.outreach.updateMany({
       where: { id: outreach.id, version: input.expectedVersion, sendStatus: "before_send" },
       data: {

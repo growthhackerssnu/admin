@@ -13,6 +13,7 @@ import type {
   Research,
 } from "./contracts";
 import type { StageInfo } from "./stage";
+import { MessageTemplateApi, type MessageTemplateHint } from "./messageTemplates";
 
 type QuarterDto = { id: string; year: number; quarter: number };
 type RecipientDto = Recipient & { contactId: string; endpointId: string; title: string | null };
@@ -62,7 +63,12 @@ type OutreachDto = {
     body: string;
     generationResearchId: string | null;
     contextMatches: boolean;
+    messageTemplateId?: string | null;
+    messageTemplateVersion?: number | null;
   } | null;
+  // 양식 도입 전 서버 응답도 받을 수 있게 선택 항목으로 둔다.
+  contactPurpose?: string | null;
+  messageTemplate?: MessageTemplateHint;
   acquisitionRound?: AcquisitionRound | null;
   canEdit?: boolean;
   canGenerate?: boolean;
@@ -166,6 +172,8 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     quarter: quarter!,
     researchId: outreach.draft.generationResearchId ?? "",
     recipient: normalizeRecipient(outreach.recipient)!,
+    messageTemplateId: outreach.draft.messageTemplateId ?? null,
+    messageTemplateVersion: outreach.draft.messageTemplateVersion ?? null,
   } : null;
   const latestDecision = row.latestDecision;
   const sent = outreach?.latestSend && draft ? [{
@@ -215,6 +223,8 @@ function normalizeCandidate(row: CandidateDto, outreach?: OutreachDto): Candidat
     canEditMessage: outreach?.canEdit,
     canGenerateMessage: outreach?.canGenerate,
     messageBlockReasons: outreach?.blockReasons,
+    contactPurpose: outreach?.contactPurpose ?? "",
+    messageTemplate: outreach?.messageTemplate,
   };
 }
 
@@ -222,7 +232,8 @@ export class LiveReviewRepository implements ReviewRepository {
   readonly mode = "live" as const;
   private readonly api = new HumanReviewApi();
   readonly acquisitionQuarters = new AcquisitionQuarterApi(this.api);
-  private generations = new Map<string, { roundId: string | null; outreachId?: string; version?: number }>();
+  readonly messageTemplates = new MessageTemplateApi(this.api);
+  private generations = new Map<string, { roundId: string | null; outreachId?: string; version?: number; purposeSaved?: boolean }>();
   private data: ReviewData | null = null;
   private details = new Map<string, Candidate>();
 
@@ -294,7 +305,8 @@ export class LiveReviewRepository implements ReviewRepository {
     const updated: Candidate = { ...previous, quarter, draft, outreachId: outreach.id,
       outreachVersion: outreach.version, outreachRound: outreach.acquisitionRound,
       canEditMessage: outreach.canEdit, canGenerateMessage: outreach.canGenerate,
-      messageBlockReasons: outreach.blockReasons };
+      messageBlockReasons: outreach.blockReasons,
+      contactPurpose: outreach.contactPurpose ?? "", messageTemplate: outreach.messageTemplate };
     this.details.set(id, updated);
     this.data = { ...this.data!, candidates: this.data!.candidates.map((item) => item.id === id ? updated : item) };
     return updated;
@@ -355,6 +367,8 @@ export class LiveReviewRepository implements ReviewRepository {
           canEditMessage: candidate.canEditMessage,
           canGenerateMessage: candidate.canGenerateMessage,
           messageBlockReasons: candidate.messageBlockReasons,
+          contactPurpose: candidate.contactPurpose,
+          messageTemplate: candidate.messageTemplate,
         };
         this.details.set(id, updated);
         this.data = { ...this.data!, candidates: this.data!.candidates.map((item) => item.id === id ? updated : item) };
@@ -414,8 +428,17 @@ export class LiveReviewRepository implements ReviewRepository {
             }
           }
           if (attempt.version === undefined) throw new Error("메시지 업무를 다시 불러와주세요.");
+          // 담당자 의도는 메시지 업무가 생긴 뒤에만 저장할 수 있어 생성 직전에 함께 저장한다.
+          if (command.purpose !== undefined && !attempt.purposeSaved) {
+            const saved = (await this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(attempt.outreachId!)}`, "PATCH",
+              { expectedVersion: attempt.version, contactPurpose: command.purpose }, `${key}-purpose-${attempt.outreachId}-${attempt.version}`)).data;
+            this.rememberOutreach(id, saved);
+            attempt.version = saved.version;
+            attempt.purposeSaved = true;
+          }
           const generated = (await this.api.request<OutreachDto>(`/review-outreaches/${encodeURIComponent(attempt.outreachId!)}/draft-generation`, "POST",
-            { expectedVersion: attempt.version }, `${key}-generate-${attempt.outreachId}-${attempt.version}`)).data;
+            { expectedVersion: attempt.version, ...(command.templateId ? { templateId: command.templateId } : {}) },
+            `${key}-generate-${attempt.outreachId}-${attempt.version}`)).data;
           this.rememberOutreach(id, generated);
           this.generations.delete(key);
         } catch (error) {

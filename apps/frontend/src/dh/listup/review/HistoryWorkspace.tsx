@@ -957,6 +957,8 @@ export function HistoryWorkspace({
                 data={data}
                 forms={memory.forms}
                 mock={repository.mode === "mock"}
+                kind={kind}
+                canManage={data.canManage}
                 pending={actionPending}
                 execute={execute}
               />

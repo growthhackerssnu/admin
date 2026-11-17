@@ -4,7 +4,8 @@ import { supabase } from "../../../lib/supabase";
 import { useKeepWarm } from "../../../lib/useKeepWarm";
 import ReviewWorkspace from "./ReviewWorkspace";
 import { LiveReviewRepository } from "./liveRepository";
-import { OperationsPage } from "./OperationsPage";
+import { SettingsPage } from "./SettingsPage";
+import { createPreviewSettingsRepository } from "./previewSettings";
 import { AutoExcludedPage } from "./AutoExcludedPage";
 import { LiveHistoryRepository } from "./liveHistoryRepository";
 
@@ -30,12 +31,16 @@ export default function LiveReviewWorkspace() {
     return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
   useKeepWarm(authenticated === true);
-  if (params.get("reviewPreview") === "1") return <ReviewWorkspace />;
+  // 설정의 새 주소는 view=settings이고, 예전 주소 view=operations도 같은 페이지를 연다.
+  const settingsView = ["settings", "operations"].includes(params.get("view") ?? "");
+  const previewSettings = useMemo(() => createPreviewSettingsRepository(), []);
+  if (params.get("reviewPreview") === "1")
+    return settingsView ? <SettingsPage repository={previewSettings} /> : <ReviewWorkspace />;
   if (repository instanceof Error) return <main role="alert">{repository.message}</main>;
   if (historyRepository instanceof Error) return <main role="alert">{historyRepository.message}</main>;
   if (authenticated === null) return <main role="status">로그인 확인 중…</main>;
   if (!authenticated) return <Navigate to="/login" replace />;
-  if (params.get("view") === "operations") return <OperationsPage repository={repository} />;
+  if (settingsView) return <SettingsPage repository={repository} />;
   if (params.get("view") === "auto-excluded") return <AutoExcludedPage repository={repository} />;
   return <ReviewWorkspace repository={repository} liveHistoryRepository={historyRepository} />;
 }

@@ -31,6 +31,8 @@ export async function syncPeopleDirectory({ dryRun = false } = {}) {
   const cohortProperty = process.env.NOTION_COHORT_PROPERTY ?? "기수";
   const nameProperty = process.env.NOTION_NAME_PROPERTY ?? "Name";
   const emailProperty = process.env.NOTION_EMAIL_PROPERTY ?? "이메일";
+  // 전화번호는 대외협력 메일의 발신 연락처(팀장 전화번호)에 쓴다. 노션에 이 속성이 없으면 건너뛴다.
+  const phoneProperty = process.env.NOTION_PHONE_PROPERTY ?? "전화번호";
 
   const databaseId = process.env.NOTION_PEOPLE_DATABASE_ID;
   if (!databaseId) throw new Error("NOTION_PEOPLE_DATABASE_ID가 설정되지 않았습니다.");
@@ -50,9 +52,13 @@ export async function syncPeopleDirectory({ dryRun = false } = {}) {
     }
   }
 
+  const hasPhoneProperty = availableProps.includes(phoneProperty);
+  if (!hasPhoneProperty)
+    console.warn(`[people-directory] "${phoneProperty}" 속성이 없어 전화번호를 가져오지 않습니다. 실제 속성: ${availableProps.join(", ")}`);
+
   // 가입 요청 중에 돌 수 있어 바뀐 행만 쓴다 — 기존 값을 한 번에 읽어두고 비교.
   const existingRows = await prisma.peopleDirectory.findMany({
-    select: { notionPageId: true, cohort: true, name: true, knownEmail: true },
+    select: { notionPageId: true, cohort: true, name: true, knownEmail: true, phone: true },
   });
   const existingByPageId = new Map(existingRows.map((r) => [r.notionPageId, r]));
 
@@ -79,6 +85,7 @@ export async function syncPeopleDirectory({ dryRun = false } = {}) {
       const cohort = extractPropertyText(props[cohortProperty] as Record<string, unknown>);
       const name = extractPropertyText(props[nameProperty] as Record<string, unknown>);
       const email = extractPropertyText(props[emailProperty] as Record<string, unknown>);
+      const phone = hasPhoneProperty ? extractPropertyText(props[phoneProperty] as Record<string, unknown>) : null;
 
       pages.push(notionOpsValues(row.id, props));
       latestCohort = Math.max(latestCohort, Number(cohort ? normalizeCohort(cohort) : 0) || 0);
@@ -89,7 +96,9 @@ export async function syncPeopleDirectory({ dryRun = false } = {}) {
       }
 
       const existing = existingByPageId.get(row.id);
-      if (existing && existing.cohort === cohort && existing.name === name && existing.knownEmail === email) {
+      // 속성이 없을 때는 저장된 전화번호를 지우지 않는다.
+      const phoneUnchanged = !hasPhoneProperty || (existing?.phone ?? null) === phone;
+      if (existing && existing.cohort === cohort && existing.name === name && existing.knownEmail === email && phoneUnchanged) {
         continue;
       }
 
@@ -99,6 +108,7 @@ export async function syncPeopleDirectory({ dryRun = false } = {}) {
         name,
         nameNormalized: normalizeName(name),
         knownEmail: email,
+        ...(hasPhoneProperty ? { phone } : {}),
       };
       if (existing) updated++;
       else {
