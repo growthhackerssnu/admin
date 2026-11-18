@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   AUTO_FIELDS,
+  dropSlotLine,
   cleanInstructions,
   hasMissingInput,
   MissingSlotError,
@@ -112,5 +113,31 @@ describe("seeded templates", () => {
     const aiSlots = [0, 2, 4].map((index) => parseSlots(...pair(index)).ai.sort());
     expect(instructions.map((names) => names.sort())).toEqual(aiSlots);
     expect(AUTO_FIELDS.map((field) => field.name)).toContain("팀장 전화번호");
+  });
+});
+
+describe("dropSlotLine", () => {
+  it("removes the interim line and renumbers the rest of the timeline", () => {
+    const body = [
+      "프로젝트 진행 시, 예상 타임라인은 아래와 같습니다. (변동 가능)",
+      "1. 참여 인원 확정 및 킥오프 미팅: {{킥오프 일정}}",
+      "2. 중간 발표: {{ 중간 발표 일정 }}",
+      "3. 최종 발표: {{최종 발표 일정}}",
+      "",
+      "1. 다른 목록은 그대로",
+    ].join("\n");
+    expect(dropSlotLine(body, "중간 발표 일정")).toBe(
+      [
+        "프로젝트 진행 시, 예상 타임라인은 아래와 같습니다. (변동 가능)",
+        "1. 참여 인원 확정 및 킥오프 미팅: {{킥오프 일정}}",
+        "2. 최종 발표: {{최종 발표 일정}}",
+        "",
+        "1. 다른 목록은 그대로",
+      ].join("\n"),
+    );
+  });
+
+  it("leaves a template without the slot unchanged", () => {
+    expect(dropSlotLine("1. {{킥오프 일정}}", "중간 발표 일정")).toBe("1. {{킥오프 일정}}");
   });
 });

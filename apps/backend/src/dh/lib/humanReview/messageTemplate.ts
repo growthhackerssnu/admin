@@ -21,10 +21,10 @@ export const AUTO_FIELDS = [
   { name: "팀장 전화번호", description: "현재 대외협력 팀장의 전화번호 (노션 명단)", sample: "010-0000-0000" },
   { name: "학회 메일", description: "학회 대표 메일 주소", sample: SOCIETY_EMAIL },
   { name: "목표 분기", description: "이번 수주의 목표 분기", sample: "2027년 1분기" },
-  { name: "프로젝트 기간", description: "목표 분기의 프로젝트 진행 기간", sample: "2027년 1~3월" },
+  { name: "프로젝트 기간", description: "목표 분기의 프로젝트 진행 기간", sample: "2027년 1~2월" },
   { name: "킥오프 일정", description: "참여 인원 확정과 킥오프 미팅 시기", sample: "2026년 12월 4주차~2027년 1월 1주차" },
-  { name: "중간 발표 일정", description: "중간 발표 시기", sample: "2027년 2월 1~2주차" },
-  { name: "최종 발표 일정", description: "최종 발표 시기", sample: "2027년 3월 3~4주차" },
+  { name: "중간 발표 일정", description: "중간 발표 시기. 1·3분기(방학)는 중간 발표가 없어 이 자리가 있는 줄이 통째로 빠진다", sample: "2027년 5월 1~2주차" },
+  { name: "최종 발표 일정", description: "최종 발표 시기", sample: "2027년 2월 3~4주차" },
   { name: "차기 기간", description: "다음 분기의 프로젝트 진행 기간", sample: "2027년 4~6월" },
 ] as const;
 export type AutoFieldName = (typeof AUTO_FIELDS)[number]["name"];
@@ -96,6 +96,20 @@ export function renderTemplate(text: string, values: SlotValues): string {
     if (!value?.trim()) throw new MissingSlotError(kind === "AI" ? `AI:${name}` : name);
     return value.trim();
   });
+}
+
+// 값이 없는 자리(방학 분기의 중간 발표)가 있는 줄을 지우고, 바로 아래 이어지는 번호 목록을 하나씩 당긴다.
+//   "1. 킥오프\n2. 중간 발표: {{중간 발표 일정}}\n3. 최종 발표" -> "1. 킥오프\n2. 최종 발표"
+export function dropSlotLine(text: string, name: string): string {
+  const lines = text.split("\n");
+  const hasSlot = (line: string) => [...line.matchAll(TOKEN)].some((match) => !match[1] && match[2] === name);
+  let i: number;
+  while ((i = lines.findIndex(hasSlot)) >= 0) {
+    lines.splice(i, 1);
+    for (let j = i, line = lines[j]; line !== undefined && /^\s*\d+\./.test(line); line = lines[++j])
+      lines[j] = line.replace(/^(\s*)(\d+)\./, (_match, space: string, n: string) => `${space}${Number(n) - 1}.`);
+  }
+  return lines.join("\n");
 }
 
 export type TemplateKind = "new" | "recontact" | "repeat_collaboration";
