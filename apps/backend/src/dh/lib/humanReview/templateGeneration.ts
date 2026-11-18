@@ -9,6 +9,7 @@ import { getHumanOutreachDetail } from "@/dh/lib/humanReview/outreach";
 import { loadOutreachContext, type HistorySnapshot } from "@/dh/lib/humanReview/context";
 import {
   MissingSlotError,
+  dropSlotLine,
   parseSlots,
   renderTemplate,
   templateKindOf,
@@ -165,7 +166,13 @@ export async function generateTemplateDraft(opts: {
     : ownProjects;
 
   // 3. 자동 입력 값
-  const slots = parseSlots(version.subject, version.body);
+  // 방학 분기(1·3분기)는 중간 발표가 없다 — 양식에서 그 줄을 빼고 나서 채운다.
+  const quarter = outreach.currentTargetQuarter;
+  const schedule = quarterSchedule(quarter.year, quarter.quarter);
+  const fit = (text: string) => (schedule.midSchedule ? text : dropSlotLine(text, "중간 발표 일정"));
+  const templateSubject = fit(version.subject);
+  const templateBody = fit(version.body);
+  const slots = parseSlots(templateSubject, templateBody);
   const sender = await loadSender(prisma);
   if (!sender.leadName) throw new ApiError("SERVICE_UNAVAILABLE", "대외협력 팀장이 지정되지 않았습니다.");
   if (slots.auto.includes("팀장 전화번호") && !sender.leadPhone)
@@ -179,8 +186,6 @@ export async function generateTemplateDraft(opts: {
     contactTitle: outreach.recipientContact.title,
     ownerType: outreach.recipientEndpoint.ownerType,
   });
-  const quarter = outreach.currentTargetQuarter;
-  const schedule = quarterSchedule(quarter.year, quarter.quarter);
   const auto: Record<AutoFieldName, string> = {
     기업명: outreach.company.name,
     "기업명(와/과)": companyWithWaGwa(outreach.company.name),
@@ -192,7 +197,7 @@ export async function generateTemplateDraft(opts: {
     "목표 분기": `${quarter.year}년 ${quarter.quarter}분기`,
     "프로젝트 기간": schedule.projectPeriod,
     "킥오프 일정": schedule.kickoffSchedule,
-    "중간 발표 일정": schedule.midSchedule,
+    "중간 발표 일정": schedule.midSchedule ?? "",
     "최종 발표 일정": schedule.finalSchedule,
     "차기 기간": schedule.nextPeriod,
   };
@@ -212,8 +217,8 @@ export async function generateTemplateDraft(opts: {
     const instructions = (version.aiInstructions ?? {}) as Record<string, string>;
     const generation = await runStructuredOutput<Generated>(
       templateFillPrompt({
-        templateSubject: version.subject,
-        templateBody: version.body,
+        templateSubject,
+        templateBody,
         aiSections: slots.ai.map((name) => ({ name, instruction: instructions[name] ?? "" })),
         manualInputs: slots.manual,
         ownerIntent: outreach.contactPurpose?.trim() || null,
@@ -240,8 +245,8 @@ export async function generateTemplateDraft(opts: {
   let subject: string;
   let body: string;
   try {
-    subject = renderTemplate(version.subject, { auto, ai: filled.ai, manual: filled.manual });
-    body = renderTemplate(version.body, { auto, ai: filled.ai, manual: filled.manual });
+    subject = renderTemplate(templateSubject, { auto, ai: filled.ai, manual: filled.manual });
+    body = renderTemplate(templateBody, { auto, ai: filled.ai, manual: filled.manual });
   } catch (error) {
     if (error instanceof MissingSlotError) throw new ApiError("TEMPLATE_NOT_CONNECTED", error.message);
     throw error;
