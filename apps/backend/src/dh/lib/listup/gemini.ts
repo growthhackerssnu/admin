@@ -62,22 +62,6 @@ function usageOf(response: {
   };
 }
 
-function interactionUsageOf(usage?: {
-  total_input_tokens?: number;
-  total_tool_use_tokens?: number;
-  total_output_tokens?: number;
-  total_thought_tokens?: number;
-}) {
-  return {
-    inputTokens:
-      (usage?.total_input_tokens ?? 0) +
-      (usage?.total_tool_use_tokens ?? 0),
-    outputTokens:
-      (usage?.total_output_tokens ?? 0) +
-      (usage?.total_thought_tokens ?? 0),
-  };
-}
-
 type CallOptions = { onComplete?: (metric: AiCallMetric) => void };
 
 // 호출자의 onComplete 앞에 사용량 기록을 끼운다(관리자 비용 화면용).
@@ -88,12 +72,30 @@ function tracked(operation: string, options: CallOptions) {
   };
 }
 
-export async function runWebSearch(
+export function runWebSearch(input: string, options: CallOptions = {}) {
+  return groundedSearch(input, "web_search", false, options);
+}
+
+/**
+ * Like runWebSearch, but rejects an answer the model gave without searching.
+ * `tool_choice: "any"` is not usable with Gemini Google Search (it can loop),
+ * so we let the model choose and reject when no search query ran.
+ * The Interactions API is not used: on Vertex AI it returns no source URLs.
+ */
+export function runRequiredWebSearch(input: string, options: CallOptions = {}) {
+  return groundedSearch(input, "required_web_search", true, options);
+}
+
+async function groundedSearch(
   input: string,
-  options: CallOptions = {},
+  operation: string,
+  required: boolean,
+  options: CallOptions,
 ): Promise<WebSearchResult> {
-  const onComplete = tracked("web_search", options);
+  const onComplete = tracked(operation, options);
   const startedMs = performance.now();
+  // 검색 없이 답해서 거절한 호출도 토큰은 청구되므로 실패 기록에 사용량을 남긴다.
+  let usage: ReturnType<typeof usageOf> | undefined;
   try {
     const response = await client().models.generateContent({
       model: LISTUP_GEMINI_MODEL,
@@ -112,7 +114,7 @@ export async function runWebSearch(
     const sourceTitles = [
       ...new Set(sources.map((source) => source.title).filter(Boolean)),
     ];
-    const usage = usageOf(response);
+    usage = usageOf(response);
     const result = {
       text: response.text ?? "",
       sourceUrls,
@@ -120,6 +122,9 @@ export async function runWebSearch(
       webSearchCallCount: grounding?.webSearchQueries?.length ?? 0,
       ...usage,
     };
+    if (required && !result.webSearchCallCount) {
+      throw new Error("Gemini did not execute the required Google Search.");
+    }
     onComplete({
       status: "succeeded",
       model: LISTUP_GEMINI_MODEL,
@@ -133,78 +138,7 @@ export async function runWebSearch(
       status: "failed",
       model: LISTUP_GEMINI_MODEL,
       durationMs: Math.round(performance.now() - startedMs),
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-    throw error;
-  }
-}
-
-/**
- * Uses the Interactions API for workflows where a skipped search must reject
- * the attempt. `tool_choice: "any"` is not usable with Gemini Google Search:
- * it can enter an unbounded tool-call loop. We therefore use `auto` and
- * require at least one returned `google_search_call` before accepting output.
- */
-export async function runRequiredWebSearch(
-  input: string,
-  options: CallOptions = {},
-): Promise<WebSearchResult> {
-  const onComplete = tracked("required_web_search", options);
-  const startedMs = performance.now();
-  try {
-    const response = await client().interactions.create({
-      model: LISTUP_GEMINI_MODEL,
-      input,
-      tools: [{ type: "google_search" }],
-      generation_config: { tool_choice: "auto" },
-    });
-    const steps = response.steps ?? [];
-    const webSearchCallCount = steps.filter(
-      (step) => step.type === "google_search_call",
-    ).length;
-    if (!webSearchCallCount) {
-      throw new Error("Gemini did not execute the required Google Search.");
-    }
-    const textBlocks = steps.flatMap((step) =>
-      step.type === "model_output"
-        ? (step.content ?? []).filter((content) => content.type === "text")
-        : [],
-    );
-    const sources = textBlocks
-      .flatMap((content) => content.annotations ?? [])
-      .flatMap((annotation) =>
-        annotation.type === "url_citation" && annotation.url
-          ? [{ url: annotation.url, title: annotation.title ?? "" }]
-          : [],
-      )
-      .filter((source) => isHttpUrl(source.url));
-    const sourceUrls = [...new Set(sources.map((source) => source.url))];
-    const sourceTitles = [
-      ...new Set(sources.map((source) => source.title).filter(Boolean)),
-    ];
-    const usage = interactionUsageOf(response.usage);
-    const result = {
-      text:
-        response.output_text ??
-        textBlocks.map((content) => content.text).join("\n"),
-      sourceUrls,
-      ...(sourceTitles.length ? { sourceTitles } : {}),
-      webSearchCallCount,
       ...usage,
-    };
-    onComplete({
-      status: "succeeded",
-      model: LISTUP_GEMINI_MODEL,
-      durationMs: Math.round(performance.now() - startedMs),
-      ...usage,
-      webSearchCallCount,
-    });
-    return result;
-  } catch (error) {
-    onComplete({
-      status: "failed",
-      model: LISTUP_GEMINI_MODEL,
-      durationMs: Math.round(performance.now() - startedMs),
       error: error instanceof Error ? error.message : "Unknown error",
     });
     throw error;

@@ -1,15 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { generateContent, createInteraction, clientOptions } = vi.hoisted(() => ({
+const { generateContent, clientOptions } = vi.hoisted(() => ({
   generateContent: vi.fn(),
-  createInteraction: vi.fn(),
   clientOptions: vi.fn(),
 }));
 
 vi.mock("@google/genai", () => ({
   GoogleGenAI: class GoogleGenAI {
     models = { generateContent };
-    interactions = { create: createInteraction };
     constructor(options: unknown) {
       clientOptions(options);
     }
@@ -146,59 +144,47 @@ describe("Gemini Google Search", () => {
       },
     });
   });
-  it("rejects an interaction that did not execute its required Google Search", async () => {
+  it("rejects a required search the model answered without searching, keeping its usage", async () => {
     process.env.GEMINI_API_KEY = "test-key";
-    createInteraction.mockResolvedValue({ steps: [], usage: {} });
+    generateContent.mockResolvedValue({
+      text: "Example Labs",
+      candidates: [{ groundingMetadata: {} }],
+      usageMetadata: { promptTokenCount: 9, candidatesTokenCount: 4 },
+    });
+    const onComplete = vi.fn();
 
-    await expect(runRequiredWebSearch("find Example Labs")).rejects.toThrow(
-      "did not execute the required Google Search",
+    await expect(
+      runRequiredWebSearch("find Example Labs", { onComplete }),
+    ).rejects.toThrow("did not execute the required Google Search");
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed", inputTokens: 9, outputTokens: 4 }),
     );
   });
 
-  it("records an executed interaction search and its URL citations", async () => {
+  it("returns grounded sources for a required search that ran", async () => {
     process.env.GEMINI_API_KEY = "test-key";
-    createInteraction.mockResolvedValue({
-      output_text: "Example Labs https://www.linkedin.com/in/jae-kim",
-      steps: [
-        { type: "google_search_call", id: "call-1", arguments: {} },
+    generateContent.mockResolvedValue({
+      text: "Example Labs",
+      candidates: [
         {
-          type: "model_output",
-          content: [
-            {
-              type: "text",
-              text: "Example Labs https://www.linkedin.com/in/jae-kim",
-              annotations: [
-                {
-                  type: "url_citation",
-                  url: "https://www.linkedin.com/in/jae-kim",
-                  title: "Jae Kim - LinkedIn",
-                },
-              ],
-            },
-          ],
+          groundingMetadata: {
+            webSearchQueries: ["Example Labs CEO"],
+            groundingChunks: [
+              { web: { uri: "https://example.com/team", title: "example.com" } },
+            ],
+          },
         },
       ],
-      usage: {
-        total_input_tokens: 12,
-        total_tool_use_tokens: 4,
-        total_output_tokens: 3,
-        total_thought_tokens: 2,
-      },
+      usageMetadata: { promptTokenCount: 12, candidatesTokenCount: 3 },
     });
 
     await expect(runRequiredWebSearch("find Example Labs")).resolves.toEqual({
-      text: "Example Labs https://www.linkedin.com/in/jae-kim",
-      sourceUrls: ["https://www.linkedin.com/in/jae-kim"],
-      sourceTitles: ["Jae Kim - LinkedIn"],
+      text: "Example Labs",
+      sourceUrls: ["https://example.com/team"],
+      sourceTitles: ["example.com"],
       webSearchCallCount: 1,
-      inputTokens: 16,
-      outputTokens: 5,
-    });
-    expect(createInteraction).toHaveBeenCalledWith({
-      model: "gemini-3.5-flash-lite",
-      input: "find Example Labs",
-      tools: [{ type: "google_search" }],
-      generation_config: { tool_choice: "auto" },
+      inputTokens: 12,
+      outputTokens: 3,
     });
   });
 });
