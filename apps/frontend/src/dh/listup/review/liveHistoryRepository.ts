@@ -163,6 +163,7 @@ export class LiveHistoryRepository implements HistoryRepository {
   private actor!: Actor;
   private canManage = false;
   private owners: Actor[] = [];
+  private ownerFilter: Actor[] = [];
   private members: Actor[] = [];
   private quarters: Quarter[] = [];
   private query = defaults();
@@ -180,7 +181,7 @@ export class LiveHistoryRepository implements HistoryRepository {
   private async bootstrap() {
     if (!this.metadata)
       this.metadata = (async () => {
-        const [me, permission, allMembers, activeMembers, quarters] =
+        const [me, permission, allMembers, activeMembers, externalTeam, quarters] =
           await Promise.all([
             this.api.request<{ userId: string; displayName: string }>("/me"),
             this.api.request<{ canManage: boolean }>("/review-queue/summary"),
@@ -192,6 +193,10 @@ export class LiveHistoryRepository implements HistoryRepository {
               items: { id: string; displayName: string }[];
               nextCursor: string | null;
             }>("/members"),
+            this.api.request<{
+              items: { id: string; displayName: string }[];
+              nextCursor: string | null;
+            }>("/members?team=external"),
             this.allPages<Quarter>("/target-quarters"),
           ]);
         this.actor = { id: me.data.userId, name: me.data.displayName };
@@ -201,6 +206,10 @@ export class LiveHistoryRepository implements HistoryRepository {
           name: m.displayName,
         }));
         this.members = activeMembers.data.items.map((m) => ({
+          id: m.id,
+          name: m.displayName,
+        }));
+        this.ownerFilter = externalTeam.data.items.map((m) => ({
           id: m.id,
           name: m.displayName,
         }));
@@ -408,6 +417,7 @@ export class LiveHistoryRepository implements HistoryRepository {
       page: rows.page ?? { hasMore: false, nextCursor: null },
       members: this.members,
       owners: this.owners,
+      ownerFilter: this.ownerFilter,
       quarters: this.quarters.map(quarterLabel).sort().reverse(),
     };
     if (sequence === this.readSequence) this.data = data;

@@ -588,7 +588,7 @@ export function HistoryWorkspace({
                   options={[
                     { value: "all", label: "전체 담당" },
                     ...(live
-                      ? (data?.owners ?? []).map((owner) => ({
+                      ? (data?.ownerFilter ?? data?.owners ?? []).map((owner) => ({
                           value: owner.id,
                           label: owner.name,
                         }))

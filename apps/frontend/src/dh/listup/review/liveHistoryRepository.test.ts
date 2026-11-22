@@ -172,6 +172,10 @@ beforeEach(() => {
         return { data: { userId: actor.id, displayName: actor.name } };
       if (route === "/review-queue/summary")
         return { data: { canManage: true } };
+      if (route === "/members" && url.searchParams.get("team") === "external")
+        return {
+          data: { items: [{ id: actor.id, displayName: actor.name }], nextCursor: null },
+        };
       if (route === "/members")
         return {
           data: {
@@ -683,6 +687,13 @@ describe("company detail loading", () => {
     const newer = await r.loadCompany(company.id);
     expect(newer.research).toBe("새 조사");
     expect(r.getCompany(company.id)?.research).toBe("새 조사");
+  });
+
+  it("offers only the current external team in the owner filter but keeps everyone for names", async () => {
+    const data = await repo().load(query());
+    expect(request.mock.calls.map(([path]) => path)).toContain("/members?team=external");
+    expect(data.ownerFilter).toEqual([actor]);
+    expect(data.owners?.map((owner) => owner.id)).toEqual([actor.id, "member-2"]);
   });
 
   it("requests the list without waiting for members and quarters", async () => {

@@ -114,7 +114,10 @@ export interface HistoryData {
   companies: HistoryCompany[];
   page?: { nextCursor: string | null; hasMore: boolean };
   members?: Actor[];
+  /** 과거 담당자 이름을 찾는 전체 회원 목록(졸업·비활동 포함). */
   owners?: Actor[];
+  /** 담당자 필터에 보여 줄 사람: 지금 대외협력 팀장·팀원. 없으면 owners를 쓴다. */
+  ownerFilter?: Actor[];
   quarters?: string[];
 }
 export interface HistoryFilters {
