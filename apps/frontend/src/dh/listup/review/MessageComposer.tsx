@@ -13,7 +13,7 @@ import { type Change } from "./CandidateReview";
 import { TemplateSelect, useTemplateChoice } from "./MessageTemplateChoice";
 import { needsManualInput } from "./messageTemplates";
 import { ReplyStatusSection } from "./ReplyStatusSection";
-import { candidateReplyStatus } from "./stage";
+import { canCancelSend, candidateReplyStatus } from "./stage";
 import "./message-composer.css";
 
 /** Same center-pane layout as the agreed unified workspace: recipient/quarter,
@@ -99,6 +99,19 @@ export function MessageComposer({
   const canRecordReply =
     candidate.canRecordOutcome ?? (owned || canManageOps === true);
   const needsInput = Boolean(candidate.draft) && needsManualInput(subject, body);
+  // 잘못 누른 발송 완료는 회신을 기록하기 전까지 기록할 수 있는 사람이 되돌린다.
+  const cancellable = sent && canRecordReply && canCancelSend(candidate);
+  const cancelSend = async () => {
+    if (
+      await confirm(
+        `${candidate.name}의 발송 완료 기록을 취소할까요? 발송 전 상태로 돌아가고, 실제로 보냈다면 다시 발송 완료를 기록해야 합니다.`,
+        "발송 기록 취소",
+        "발송 기록 취소",
+      )
+    )
+      if (await change(candidate, { type: "cancelSend" }))
+        setNotice("발송 기록을 취소했습니다. 발송 전 상태로 돌아갔습니다.");
+  };
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -215,10 +228,22 @@ export function MessageComposer({
               )}
             </>
           ) : (
-            <p className="uw-message-sent-meta">
-              {sentRecord.draft.quarter} · {sentRecord.draft.recipient.name} ·{" "}
-              {new Date(sentRecord.at).toLocaleString("ko-KR")} 발송 완료
-            </p>
+            <div className="uw-message-sent-row">
+              <p className="uw-message-sent-meta">
+                {sentRecord.draft.quarter} · {sentRecord.draft.recipient.name} ·{" "}
+                {new Date(sentRecord.at).toLocaleString("ko-KR")} 발송 완료
+              </p>
+              {cancellable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending || replyDirty}
+                  onClick={() => void cancelSend()}
+                >
+                  발송 기록 취소
+                </Button>
+              )}
+            </div>
           )}
           {sent && (
             <div className="rs-above-message">

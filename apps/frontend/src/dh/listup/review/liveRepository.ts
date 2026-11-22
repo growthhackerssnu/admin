@@ -513,6 +513,12 @@ export class LiveReviewRepository implements ReviewRepository {
           draftRevision: candidate.draft.revision,
         }, key);
         break;
+      case "cancelSend":
+        if (!outreachId || !outreachVersion) throw new Error("발송 기록을 다시 불러온 뒤 취소해주세요.");
+        await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/send-cancellation`, "POST", {
+          expectedVersion: outreachVersion,
+        }, key);
+        break;
       case "outcome":
         if (!outreachId || !outreachVersion) throw new Error("발송 기록을 다시 불러온 뒤 상태를 기록해주세요.");
         await this.api.request(`/review-outreaches/${encodeURIComponent(outreachId)}/outcomes`, "POST", {

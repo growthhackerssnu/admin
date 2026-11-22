@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand } from "./previewRepository";
 import { initialReviewData } from "./fixtures";
-import { candidateStage } from "./stage";
+import { canCancelSend, candidateStage } from "./stage";
 import {
   canCopy,
   currentActor,
@@ -189,6 +189,20 @@ describe("reply status in the preview store", () => {
     data = next(data, { type: "outcome", result: "rejected", revisitCondition: "내년 1분기에 다시 논의" });
     expect(candidateStage(data.candidates[0])).toMatchObject({ stage: "closed", closeReason: "company_declined" });
     expect(data.candidates[0].latestOutcome?.revisitCondition).toBe("내년 1분기에 다시 논의");
+  });
+  it("cancels a mistaken send record back to before-send, so it can be recorded again", () => {
+    const cancelled = next(sentCompany(), { type: "cancelSend" });
+    expect(cancelled.candidates[0].sent).toEqual([]);
+    expect(cancelled.candidates[0].outcomeStatus).toBeNull();
+    expect(canCancelSend(cancelled.candidates[0])).toBe(false);
+    expect(() => next(cancelled, { type: "cancelSend" })).toThrow("취소할 발송 기록이 없습니다");
+    expect(next(cancelled, { type: "send" }).candidates[0].sent).toHaveLength(1);
+  });
+  it("refuses to cancel a send once a reply status was recorded, even if set back to pending", () => {
+    const discussing = next(sentCompany(), { type: "outcome", result: "in_discussion" });
+    expect(() => next(discussing, { type: "cancelSend" })).toThrow("회신 상태를 기록한 뒤");
+    const backToPending = next(discussing, { type: "outcome", result: "pending" });
+    expect(() => next(backToPending, { type: "cancelSend" })).toThrow("회신 상태를 기록한 뒤");
   });
   it("lets a settled result be changed again without a note", () => {
     const won = next(sentCompany(), { type: "outcome", result: "won" });

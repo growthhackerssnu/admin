@@ -146,6 +146,8 @@ export type CandidateCommand =
   | { type: "saveDraft"; subject: string; body: string }
   | { type: "approveDraft" }
   | { type: "send" }
+  /** 잘못 누른 발송 완료를 되돌린다. 회신을 기록하기 전, 열린 회차에서만 된다. */
+  | { type: "cancelSend" }
   | ({ type: "outcome" } & ReplyRecordInput)
   | { type: "retry" };
 export interface ReviewRepository {

@@ -81,6 +81,18 @@ export function candidateStage(candidate: Candidate): StageInfo {
 
 // 발송 뒤 상태. 작업 상세를 받았으면 그 값을, 아직 목록 값만 있으면 단계에서 읽는다.
 // 발송 전이면 null이다.
+/** 잘못 누른 발송 완료를 되돌릴 수 있는지. 서버 규칙과 같다: 회신 대기이고 사람이 상태를 기록한 적이 없으며
+ * 회차가 열려 있을 때만. 응답 기록 여부는 화면이 모르므로 서버가 한 번 더 막는다. */
+export function canCancelSend(candidate: Candidate): boolean {
+  return (
+    candidate.sent.length > 0 &&
+    candidateReplyStatus(candidate) === "pending" &&
+    !candidate.latestOutcome &&
+    !candidate.outreachRound?.endedAt &&
+    !candidate.messageBlockReasons?.includes("round_closed")
+  );
+}
+
 export function candidateReplyStatus(candidate: Candidate): ReplyStatus | null {
   if (candidate.outcomeStatus) return candidate.outcomeStatus;
   const { stage, closeReason } = candidateStage(candidate);

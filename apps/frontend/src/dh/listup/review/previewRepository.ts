@@ -17,6 +17,7 @@ import {
   type ReviewRepository,
 } from "./contracts";
 import { replyRecordBody, replyTransitionError } from "./replyStatus";
+import { canCancelSend } from "./stage";
 
 export function applyCommand(
   data: ReviewData,
@@ -32,13 +33,16 @@ export function applyCommand(
     throw new Error(
       "다른 변경이 저장되었습니다. 새로고침 후 다시 확인해주세요.",
     );
-  // 발송 뒤 상태는 담당자가 아니어도 팀장·관리자가 기록할 수 있다.
-  const managerOutcome = command.type === "outcome" && data.canManageOps === true;
+  // 발송 뒤 상태 기록과 발송 취소는 담당자가 아니어도 팀장·관리자가 할 수 있다.
+  const afterSend = command.type === "outcome" || command.type === "cancelSend";
+  const managerOutcome = afterSend && data.canManageOps === true;
   if (candidate.owner && candidate.owner.id !== actor.id && !managerOutcome)
     throw new Error(
       command.type === "outcome"
         ? "담당자와 팀장·관리자만 회신 상태를 기록할 수 있습니다."
-        : "다른 담당자가 검토 중입니다.",
+        : command.type === "cancelSend"
+          ? "담당자와 팀장·관리자만 발송을 취소할 수 있습니다."
+          : "다른 담당자가 검토 중입니다.",
     );
   if (command.type !== "claim" && command.type !== "retry" && !candidate.owner)
     throw new Error("배정된 기업만 변경할 수 있습니다.");
@@ -222,6 +226,14 @@ export function applyCommand(
         at: new Date().toISOString(),
         draft: structuredClone(candidate.draft!),
       });
+      break;
+    case "cancelSend":
+      if (!candidate.sent.length) throw new Error("취소할 발송 기록이 없습니다.");
+      if (!canCancelSend(candidate))
+        throw new Error("회신 상태를 기록한 뒤에는 발송을 취소할 수 없습니다.");
+      candidate.sent = [];
+      candidate.outcomeStatus = null;
+      candidate.latestOutcome = null;
       break;
     case "outcome": {
       // 서버와 같은 전이 규칙. 발송된 작업만 기록할 수 있다.
