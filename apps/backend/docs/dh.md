@@ -76,6 +76,7 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 | `PATCH …/draft` | 담당자 | `contextFingerprint`(목적·수신자·회차·근거의 서버 토큰) 필수 |
 | `POST …/send-records` | 담당자 | 발송 기록 + `pending` 결과 + 이력. 응답은 `{sentMessage, outreachVersion, outcomeStatus}` |
 | `POST …/outcomes` | 담당자 또는 팀장·관리자 | 수주 완료/거절. 종료 회차·확정 결과의 정정은 `note` 필수 |
+| `POST …/send-cancellation` | 담당자 또는 팀장·관리자 | 잘못 누른 발송 기록 취소. 열린 회차, 회신 대기, 사람이 남긴 상태 기록·응답이 없을 때만. 발송 기록을 지우고 작업을 발송 전으로 되돌리며 이력에 `send_cancel`을 남긴다 |
 
 ### 협업 이력·프로젝트
 
@@ -115,6 +116,8 @@ npm run members:remove -w apps/backend -- person@ghsnu.com                  # �
 ## 발송 뒤 상태 기록
 
 발송한 작업에는 담당자나 팀장·관리자가 상태를 기록한다(`POST /review-outreaches/:id/outcomes`). 값은 회신 대기(`pending`), 논의 중(`in_discussion`), 수주(`won`), 기업 거절(`rejected`)이고 언제든 서로 바꿀 수 있다. 메모와 "다시 연락할 시기·조건"(`revisitCondition`)을 함께 남길 수 있다. 무응답(`unresolved`)은 수주 회차를 넘길 때 회신 대기에서 자동으로 바뀌며 사람이 고르지 않는다. 논의 중인 작업은 회차를 넘겨도 논의 중으로 남는다.
+
+잘못 누른 발송 완료는 회신 상태를 기록하기 전까지 같은 사람들이 되돌릴 수 있다(`POST /review-outreaches/:id/send-cancellation`). 발송 기록(`sent_messages` 행)을 지우고 작업을 발송 전·초안 검토 단계로 돌린다. 수주 결과 변경 이력은 append-only라 지우지 않고, `source = send_cancel` 행을 하나 더 쌓는다(`to_status`가 NOT NULL이라 직전 값 `pending`을 적는다).
 
 기록은 다음 회차의 과거 컨택 초안에 쓰인다. 기본 양식을 고르는 기준이 되고(무응답, 거절, 거절 + 다시 연락할 시기), AI가 양식의 담당자 입력 자리를 채우는 근거가 된다.
 

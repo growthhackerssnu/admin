@@ -224,4 +224,17 @@ describe("message work inside the company's center pane", () => {
     expect(html).not.toContain("다시 생성");
     expect(html).toContain(candidate.sent[0].draft.body.slice(0, 20));
   });
+  it("offers cancelling a mistaken send record only until a reply status is recorded", () => {
+    const data = approvedCompany(true);
+    const sentData = applyCommand(data, "morningloop", data.candidates[0].version, { type: "send" });
+    const sent = sentData.candidates[0];
+    expect(button(markup(sent), "발송 기록 취소")).not.toContain('disabled=""');
+    const discussing = applyCommand(sentData, "morningloop", sent.version, {
+      type: "outcome",
+      result: "in_discussion",
+    }).candidates[0];
+    expect(markup(discussing)).not.toContain("발송 기록 취소");
+    expect(markup({ ...sent, canRecordOutcome: false })).not.toContain("발송 기록 취소");
+    expect(markup({ ...sent, messageBlockReasons: ["round_closed"] })).not.toContain("발송 기록 취소");
+  });
 });

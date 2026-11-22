@@ -72,6 +72,13 @@
 .uw-message-sent-meta {
   margin-top: 0;
 }
+.uw-message-sent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--layout-label-gap);
+}
 .uw-message-warning {
   margin: var(--layout-field-gap) 0 0;
   color: var(--ds-text-strong);

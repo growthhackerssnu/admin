@@ -161,6 +161,9 @@ enum OutcomeEventSource {
   manual
   send_record
   round_close
+  // 잘못 누른 발송 완료를 되돌림. 결과 값은 발송 전(NULL)으로 돌아가지만 to_status가 NOT NULL이라
+  // 취소 직전 값(pending)을 그대로 적는다. 화면과 집계는 이 source로 취소를 구분한다.
+  send_cancel
   @@schema("dh")
 }
 
