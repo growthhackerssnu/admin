@@ -119,9 +119,17 @@ export default function TaxView() {
             <dt>과세 수익</dt>
             <dd>{money(tax.totals.taxableGains)}</dd>
           </div>
+          <div className="nut-tax__detail">
+            <dt>− 매출 부가세 (수익 아님)</dt>
+            <dd>{money(c.outputVat)}</dd>
+          </div>
           <div>
             <dt>− 손금 비용</dt>
             <dd>{money(tax.totals.deductibleExpenses)}</dd>
+          </div>
+          <div className="nut-tax__detail">
+            <dt>+ 공제받는 매입세액 (비용 아님)</dt>
+            <dd>{money(c.inputVat)}</dd>
           </div>
           <div className="nut-tax__sub">
             <dt>수익사업 소득</dt>
@@ -176,8 +184,10 @@ export default function TaxView() {
           </div>
         </dl>
         <p className="nut-hint">
-          비과세 수익 {money(tax.totals.nonTaxableGains)}, 손금불산입 비용{" "}
-          {money(tax.totals.nonDeductibleExpenses)}은 계산에서 뺐습니다.
+          수익·비용은 부가세를 뺀 공급가액 기준입니다. 공제받지 못하는 매입세액은
+          비용에 그대로 둡니다. 비과세 수익 {money(tax.totals.nonTaxableGains)},
+          손금불산입 비용 {money(tax.totals.nonDeductibleExpenses)}은 계산에서
+          뺐습니다.
         </p>
       </section>
 

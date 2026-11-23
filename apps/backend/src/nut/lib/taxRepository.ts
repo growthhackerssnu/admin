@@ -45,6 +45,20 @@ export function autoInputTax(
   return { spend, count: eligible.length, tax: Math.floor((spend * 10) / 110) };
 }
 
+// 법인세에서 뺄 부가세. 매출 부가세는 "입금액에 부가세 포함"인 기만 입금액의 1/11(공급가액과의 차이),
+// 매입세액은 직접 고친 값이 있으면 그것, 없으면 autoInputTax와 같은 규칙.
+export function vatToExclude(
+  rows: Array<{ income: number; expense: number; taxClass: string; payMethod?: PayMethod; taxInvoice?: boolean }>,
+  included: boolean,
+  manualInputTax?: number,
+) {
+  const receipts = rows.filter((row) => row.taxClass === "taxable_gain").reduce((total, row) => total + row.income, 0);
+  return {
+    output: included ? receipts - Math.round(receipts / 1.1) : 0,
+    input: manualInputTax ?? autoInputTax(rows).tax,
+  };
+}
+
 export function fiscalYearOf(date: string) {
   const [year, month] = date.split("-").map(Number);
   return month === 12 ? year! + 1 : year!;
@@ -168,14 +182,17 @@ export async function getTaxOverview(requestedFy?: number | null) {
   ];
   const stored = await inputs(keys);
 
-  // 법인세: 수익사업 소득 = 과세 수익 − 손금. 고유목적사업준비금(비율)을 빼면 과세표준.
-  const businessIncome = Math.max(0, totals.taxableGains - totals.deductibleExpenses);
-  const reserveRate = stored.get(`fy:${fy}:reserve-rate`) ?? 0;
-  const reserve = Math.floor((businessIncome * reserveRate) / 100);
-  const taxBase = businessIncome - reserve;
-  const corporate = corporateTax(taxBase, range.start);
-  const corporateLocal = Math.floor(corporate.tax * 0.1 / 10) * 10;
-
+  const inputTaxRow = (row: (typeof entries)[number]) => {
+    const claim = claimByLedger.get(row.id);
+    return {
+      expense: toNumber(row.expense),
+      taxClass: row.taxClass,
+      payMethod: claim ? toPayMethod(claim.payMethod) : undefined,
+      taxInvoice: claim?.taxInvoice,
+    };
+  };
+  const inFyIds = new Set(inFy.map((entry) => entry.id));
+  const vatInFy = { output: 0, input: 0 };
   const vat = vatPeriods.map((period) => {
     const rows = entries.filter((entry) => {
       const date = dateOnly(entry.transactionDate);
@@ -186,19 +203,19 @@ export async function getTaxOverview(requestedFy?: number | null) {
     const supply = included ? Math.round(receipts / 1.1) : receipts;
     const outputTax = Math.round(supply * 0.1);
     // 직접 고친 값이 있으면 그걸, 없으면 지출에서 자동으로 계산한다.
-    const auto = autoInputTax(
-      rows.map((row) => {
-        const claim = claimByLedger.get(row.id);
-        return {
-          expense: toNumber(row.expense),
-          taxClass: row.taxClass,
-          payMethod: claim ? toPayMethod(claim.payMethod) : undefined,
-          taxInvoice: claim?.taxInvoice,
-        };
-      }),
-    );
+    const auto = autoInputTax(rows.map(inputTaxRow));
     const manual = stored.get(`vat:${period.key}:input-tax`);
     const inputTax = manual ?? auto.tax;
+    // 법인세용: 이 기 중 이 회계연도에 들어가는 거래의 매출 부가세와 공제받는 매입세액.
+    // 직접 고친 매입세액은 기 전체가 이 회계연도 안에 있을 때만 그대로 쓴다(걸치면 나눌 수 없어 자동 값).
+    const whole = period.start >= range.start && period.end <= range.end;
+    const excluded = vatToExclude(
+      rows.filter((row) => inFyIds.has(row.id)).map((row) => ({ ...inputTaxRow(row), income: toNumber(row.income) })),
+      included,
+      whole ? manual : undefined,
+    );
+    vatInFy.output += excluded.output;
+    vatInFy.input += excluded.input;
     return {
       ...period,
       receipts,
@@ -214,6 +231,18 @@ export async function getTaxOverview(requestedFy?: number | null) {
     };
   });
 
+  // 법인세: 부가세는 법인의 수익·비용이 아니다. 과세 수익에서 매출 부가세를, 손금에서 공제받는 매입세액을 빼고
+  // (공급가액 기준) 수익사업 소득을 낸다. 공제받지 못하는 매입세액은 비용에 그대로 남는다.
+  // 고유목적사업준비금(비율)을 빼면 과세표준.
+  const gains = totals.taxableGains - vatInFy.output;
+  const expenses = totals.deductibleExpenses - vatInFy.input;
+  const businessIncome = Math.max(0, gains - expenses);
+  const reserveRate = stored.get(`fy:${fy}:reserve-rate`) ?? 0;
+  const reserve = Math.floor((businessIncome * reserveRate) / 100);
+  const taxBase = businessIncome - reserve;
+  const corporate = corporateTax(taxBase, range.start);
+  const corporateLocal = Math.floor(corporate.tax * 0.1 / 10) * 10;
+
   const withheld = withholding(stored.get(`fy:${fy}:business-paid`) ?? 0, stored.get(`fy:${fy}:other-paid`) ?? 0);
 
   return {
@@ -224,6 +253,8 @@ export async function getTaxOverview(requestedFy?: number | null) {
     filingDue: `${fy + 1}-02-${new Date(Date.UTC(fy + 1, 2, 0)).getUTCDate()}`,
     totals,
     corporate: {
+      outputVat: vatInFy.output,
+      inputVat: vatInFy.input,
       businessIncome,
       reserveRate,
       reserve,

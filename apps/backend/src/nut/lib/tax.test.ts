@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoInputTax, corporateTax, countsForFiscalYear, fiscalYearOf, fiscalYearRange, withholding } from "./taxRepository";
+import { autoInputTax, corporateTax, countsForFiscalYear, fiscalYearOf, fiscalYearRange, vatToExclude, withholding } from "./taxRepository";
 
 describe("NUT tax", () => {
   it("uses the Dec 1 – Nov 30 fiscal year, starting the first one on 2026-10-11", () => {
@@ -43,5 +43,20 @@ describe("NUT tax", () => {
       { expense: 99_000, taxClass: "non_tax_deductible_expense", payMethod: "biz_card" },
     ]);
     expect(result).toEqual({ spend: 143_000, count: 4, tax: 13_000 });
+  });
+
+  it("excludes output VAT from taxable gains and credited input VAT from expenses for corporate tax", () => {
+    const rows = [
+      { income: 1_100_000, expense: 0, taxClass: "taxable_gain" },
+      { income: 500_000, expense: 0, taxClass: "non_taxable_gain" },
+      { income: 0, expense: 110_000, taxClass: "tax_deductible_expense", payMethod: "biz_card" as const },
+      // 공제 못 받는 매입세액(개인카드, 증빙 없음)은 비용에 그대로 남는다
+      { income: 0, expense: 55_000, taxClass: "tax_deductible_expense", payMethod: "personal_card" as const },
+    ];
+    expect(vatToExclude(rows, true)).toEqual({ output: 100_000, input: 10_000 });
+    // 입금액에 부가세가 없으면 매출 쪽은 뺄 게 없다
+    expect(vatToExclude(rows, false).output).toBe(0);
+    // 직접 고친 매입세액이 있으면 그걸 뺀다
+    expect(vatToExclude(rows, true, 7_000).input).toBe(7_000);
   });
 });

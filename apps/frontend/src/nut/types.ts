@@ -240,6 +240,8 @@ export interface TaxOverview {
     nonDeductibleExpenses: number;
   };
   corporate: {
+    outputVat: number;
+    inputVat: number;
     businessIncome: number;
     reserveRate: number;
     reserve: number;
