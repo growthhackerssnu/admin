@@ -203,12 +203,17 @@ async function fetchPage(url: string, names: string[]): Promise<FetchedPage> {
 export function validExtractedClaims(
   claims: ExtractedClaim[],
   pages: FetchedPage[],
+  names: string[],
 ) {
   const seen = new Set<ClaimCategory>();
   // 모델이 공백·기호만 바꿔 인용해도 버리지 않도록 squash 후 비교한다.
-  const contains = (index: number, quote: string) =>
-    Boolean(pages[index]?.entityMatched) &&
-    squash(pages[index]!.text).includes(squash(quote));
+  // 제목에 회사 이름이 없는 페이지(투자 포트폴리오·선정 기업 목록 기사 등)는 여러 회사를 다루므로,
+  // 인용문에 이 회사 이름이 있어야 이 회사에 대한 사실로 인정한다.
+  const contains = (index: number, quote: string) => {
+    const page = pages[index];
+    if (!page?.entityMatched || !squash(page.text).includes(squash(quote))) return false;
+    return (page.title && hasCompanyName(page.title, names)) || hasCompanyName(quote, names);
+  };
   return claims.flatMap((claim) => {
     if (
       !CLAIM_CATEGORIES.includes(claim.category) ||
@@ -292,6 +297,7 @@ export function claimsFromExtraction(
 
 // 카테고리마다 required 키로 두어 모델이 모든 항목을 판단하게 한다. 근거가 없으면 found=false.
 async function extractClaims(
+  names: string[],
   pages: FetchedPage[],
   pageIndexOffset: number,
   categories: readonly ClaimCategory[],
@@ -302,7 +308,8 @@ async function extractClaims(
     missingInformation: string[];
   }>(
     [
-      "Use only the supplied company pages to create a factual Korean research report.",
+      `Target company: ${names.join(" / ")}. Use only the supplied pages to create a factual Korean research report about this company only.`,
+      "Some pages cover several companies (investment portfolio news, accelerator cohorts, award or selection lists). From those, use only sentences about the target company. Never report other companies' products or customers, or an investor's activity (e.g. '8개사 신규 투자'), as the target's. Each quote must be about the target company.",
       "Fill every category. Read all pages carefully before deciding a category is unsupported — facts may be indirect (pricing pages, case studies, press releases). Only when no page supports it, set found=false with empty content and quote and pageIndex -1.",
       "The report is used to design a data analysis project with this company. Prefer facts about what the company sells, to whom, how it earns money, and how users or customers use the product and generate data. Skip certifications, awards, executive biographies, and boilerplate.",
       "Every quote must be a contiguous, exact excerpt from its page. Do not infer or use outside knowledge.",
@@ -561,12 +568,13 @@ export async function executeCompanyResearchTask(
     if (eligiblePages.length) {
       try {
         const extracted = await extractClaims(
+          companyNames(company),
           eligiblePages,
           0,
           CLAIM_CATEGORIES,
           (metric) => reporter.captureAiCall("claim_extraction", metric),
         );
-        claims = validExtractedClaims(extracted.claims, eligiblePages);
+        claims = validExtractedClaims(extracted.claims, eligiblePages, companyNames(company));
         extractedMissingInformation = extracted.missingInformation;
         extractionRef = {
           type: "source",
@@ -628,6 +636,7 @@ export async function executeCompanyResearchTask(
         if (gapPages.length) {
           try {
             const extracted = await extractClaims(
+              companyNames(company),
               gapPages,
               eligiblePages.length,
               gaps,
@@ -638,6 +647,7 @@ export async function executeCompanyResearchTask(
             const added = validExtractedClaims(
               extracted.claims.filter((claim) => gaps.includes(claim.category)),
               eligiblePages,
+              companyNames(company),
             );
             claims = [...claims, ...added];
             extractedMissingInformation = extracted.missingInformation;

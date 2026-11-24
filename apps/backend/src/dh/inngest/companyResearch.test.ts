@@ -59,6 +59,7 @@ describe("claim evidence checks", () => {
     text: "Example Labs sells a subscription analytics product.",
     entityMatched: true,
   };
+  const names = ["Example Labs"];
 
   it("keeps only a claim whose quote is in the matched source page", () => {
     expect(
@@ -78,6 +79,7 @@ describe("claim evidence checks", () => {
           },
         ],
         [page],
+        names,
       ),
     ).toHaveLength(1);
   });
@@ -88,6 +90,7 @@ describe("claim evidence checks", () => {
         [{ category: "product_service", content: "구독형 분석 제품 제공", pageIndex: 0,
           quote: "Example  Labs sells a subscription-analytics product" }],
         [page],
+        names,
       ),
     ).toHaveLength(1);
   });
@@ -98,8 +101,21 @@ describe("claim evidence checks", () => {
       [{ category: "product_service", content: "분석 제품", pageIndex: 0,
         quote: "Example Labs sells a subscription analytics product." }],
       [other, page],
+      names,
     );
     expect(claim?.pageIndex).toBe(1);
+  });
+
+  it("on a multi-company page, keeps only quotes naming the company", () => {
+    const roundup = { ...page, title: "VC, 스타트업 8개사 신규 투자",
+      text: "투자 대상은 ▲Example Labs ▲Other Co 등 8개사다. Other Co는 결제 앱을 운영한다. Example Labs는 분석 제품을 판매한다." };
+    const claims = validExtractedClaims(
+      [{ category: "product_service", content: "결제 앱", pageIndex: 0, quote: "Other Co는 결제 앱을 운영한다." },
+        { category: "target_customer", content: "분석 제품", pageIndex: 0, quote: "Example Labs는 분석 제품을 판매한다." }],
+      [roundup],
+      names,
+    );
+    expect(claims.map((claim) => claim.category)).toEqual(["target_customer"]);
   });
 
   it("keeps only categories the model marked as found", () => {
